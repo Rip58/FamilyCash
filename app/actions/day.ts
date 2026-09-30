@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { type DateStr, isDateStr, toDbDate } from "@/lib/dates";
+import { isValidOvertime } from "@/lib/overtime";
 import { getSettings } from "@/lib/queries";
 import { type DayEntryLite, type EmployeeLite, type StatusTypeLite } from "@/lib/schedule";
 import {
@@ -53,6 +54,22 @@ const setTimesSchema = z.object({
   leftAt: optTime,
   timeReason: optText(200),
 });
+const extraMinutesSchema = z
+  .number()
+  .int()
+  .refine(isValidOvertime, "Horas extra no válidas (0–720 min, de 15 en 15).");
+const setOvertimeSchema = z.object({
+  ...base,
+  extraMinutes: extraMinutesSchema,
+  extraNote: optText(200).optional(),
+});
+const setOvertimeBulkSchema = z.object({
+  date: dateSchema,
+  items: z
+    .array(z.object({ employeeId: idSchema, extraMinutes: extraMinutesSchema, extraNote: optText(200).optional() }))
+    .min(1)
+    .max(200),
+});
 const setNoteSchema = z.object({ ...base, note: optText(500) });
 const segmentFields = {
   sectionId: idSchema.nullable(),
@@ -81,6 +98,8 @@ function toLite(
     arrivedAt: string | null;
     leftAt: string | null;
     timeReason: string | null;
+    extraMinutes: number | null;
+    extraNote: string | null;
     segments: {
       id: string;
       sectionId: string | null;
@@ -103,6 +122,8 @@ function toLite(
     arrivedAt: row.arrivedAt,
     leftAt: row.leftAt,
     timeReason: row.timeReason,
+    extraMinutes: row.extraMinutes,
+    extraNote: row.extraNote,
     segments: row.segments.map((s) => ({ ...s })),
   };
 }
@@ -185,6 +206,8 @@ async function mutateScalar(employeeId: string, date: DateStr, patch: EntryPatch
         arrivedAt: next.arrivedAt,
         leftAt: next.leftAt,
         timeReason: next.timeReason,
+        extraMinutes: next.extraMinutes ?? null,
+        extraNote: next.extraNote ?? null,
       };
       await tx.dayEntry.upsert({
         where: { employeeId_date: { employeeId, date: toDbDate(date) } },
@@ -232,6 +255,57 @@ export async function setNote(input: z.input<typeof setNoteSchema>): Promise<Act
   const p = setNoteSchema.safeParse(input);
   if (!p.success) return invalid();
   return mutateScalar(p.data.employeeId, p.data.date, { kind: "note", note: p.data.note });
+}
+
+/** Aplica horas extra dentro de una transacción (0 = sin horas extra). */
+async function applyOvertime(
+  tx: Tx,
+  date: DateStr,
+  item: { employeeId: string; extraMinutes: number; extraNote?: string | null },
+) {
+  const ctx = await loadContext(tx, item.employeeId, date);
+  const next = applyEntryPatch(
+    ctx.entry,
+    ctx.employee,
+    date,
+    ctx.statusTypes,
+    { kind: "overtime", extraMinutes: item.extraMinutes, extraNote: item.extraNote ?? null },
+    ctx.shift.shiftStart,
+  );
+  await tx.dayEntry.upsert({
+    where: { employeeId_date: { employeeId: item.employeeId, date: toDbDate(date) } },
+    create: {
+      employeeId: item.employeeId,
+      date: toDbDate(date),
+      statusTypeId: next.statusTypeId,
+      extraMinutes: next.extraMinutes ?? null,
+      extraNote: next.extraNote ?? null,
+    },
+    update: { extraMinutes: next.extraMinutes ?? null, extraNote: next.extraNote ?? null },
+  });
+  await pruneIfRedundant(tx, item.employeeId, date);
+}
+
+/** Horas extra de un empleado esa noche. 0 = sin horas extra. */
+export async function setOvertime(input: z.input<typeof setOvertimeSchema>): Promise<ActionResult> {
+  const p = setOvertimeSchema.safeParse(input);
+  if (!p.success) return invalid();
+  const { date, ...item } = p.data;
+  return run(async () => {
+    await db.$transaction((tx) => applyOvertime(tx, date, item));
+  });
+}
+
+/** Cierre de turno: varias horas extra en una sola transacción. */
+export async function setOvertimeBulk(input: z.input<typeof setOvertimeBulkSchema>): Promise<ActionResult> {
+  const p = setOvertimeBulkSchema.safeParse(input);
+  if (!p.success) return invalid();
+  const { date, items } = p.data;
+  return run(async () => {
+    await db.$transaction(async (tx) => {
+      for (const item of items) await applyOvertime(tx, date, item);
+    }, { timeout: 20000, maxWait: 10000 });
+  });
 }
 
 // ---- Tramos --------------------------------------------------------------

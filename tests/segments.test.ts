@@ -84,6 +84,17 @@ describe("applyEntryPatch / isEntryRedundant", () => {
     const work = applyEntryPatch(off, emp, SAT, statusTypes, { kind: "status", statusTypeId: "st-WORK" }, "21:30");
     expect(isEntryRedundant(work, emp, SAT, statusTypes)).toBe(false);
   });
+  it("horas extra o su motivo hacen no redundante el entry", () => {
+    let e = applyEntryPatch(undefined, emp, MON, statusTypes, { kind: "overtime", extraMinutes: 60, extraNote: " camión " }, "21:30");
+    expect(e.extraMinutes).toBe(60);
+    expect(e.extraNote).toBe("camión");
+    expect(isEntryRedundant(e, emp, MON, statusTypes)).toBe(false);
+    e = applyEntryPatch(e, emp, MON, statusTypes, { kind: "overtime", extraMinutes: 0, extraNote: "solo motivo" }, "21:30");
+    expect(e.extraMinutes).toBeNull();
+    expect(isEntryRedundant(e, emp, MON, statusTypes)).toBe(false);
+    e = applyEntryPatch(e, emp, MON, statusTypes, { kind: "overtime", extraMinutes: 0, extraNote: "" }, "21:30");
+    expect(isEntryRedundant(e, emp, MON, statusTypes)).toBe(true);
+  });
   it("el motivo se limpia al volver a trabajar", () => {
     let e = applyEntryPatch(undefined, emp, MON, statusTypes, { kind: "status", statusTypeId: "st-SICK", reason: " gripe " }, "21:30");
     expect(e.reason).toBe("gripe");

@@ -11,6 +11,7 @@ import {
 export const CSV_HEADER = [
   "fecha", "empleado", "departamento", "estado", "motivo",
   "llega", "sale", "motivo horario", "nota", "tramos",
+  "horas extra (min)", "motivo horas extra",
 ] as const;
 
 export const MAX_EXPORT_DAYS = 366;
@@ -70,6 +71,8 @@ export function buildExportRows(input: ExportInput): string[][] {
         day.timeReason ?? "",
         day.note ?? "",
         tramos,
+        day.extraMinutes ? String(day.extraMinutes) : "",
+        day.extraNote ?? "",
       ]);
     }
   }

@@ -1,5 +1,6 @@
 import { ReportCard } from "@/components/reports/ReportCard";
 import { Card, Tag } from "@/components/ui";
+import { formatOvertime } from "@/lib/overtime";
 import { formatDuration, type DayReport, type ReportMember } from "@/lib/report";
 import { Timeline, segmentColor } from "./Timeline";
 
@@ -124,6 +125,31 @@ export function DayReportView({ report }: { report: DayReport }) {
           </div>
         )}
       </Card>
+
+      {report.overtime.items.length > 0 && (
+        <Card
+          title="Horas extra"
+          action={
+            <span className="text-[15px] font-semibold tabular-nums" data-testid="report-overtime-total">
+              Total {formatOvertime(report.overtime.totalMinutes)}
+            </span>
+          }
+        >
+          <ul className="space-y-1.5 text-[15px]">
+            {report.overtime.items.map((o) => (
+              <li key={o.name} className="flex items-baseline justify-between gap-3">
+                <span className="min-w-0">
+                  <b>{o.name}</b>
+                  {o.note && <span className="text-muted"> — {o.note}</span>}
+                </span>
+                <span className="shrink-0 font-semibold tabular-nums">
+                  {o.minutes > 0 ? formatOvertime(o.minutes, true) : "—"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       {report.reports.length > 0 && (
         <section aria-label="Avisos con foto" className="space-y-2">

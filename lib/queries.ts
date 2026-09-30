@@ -65,6 +65,8 @@ export async function getEntriesBetween(from: DateStr, to: DateStr): Promise<Day
     arrivedAt: r.arrivedAt,
     leftAt: r.leftAt,
     timeReason: r.timeReason,
+    extraMinutes: r.extraMinutes,
+    extraNote: r.extraNote,
     segments: r.segments.map((s) => ({
       id: s.id,
       sectionId: s.sectionId,

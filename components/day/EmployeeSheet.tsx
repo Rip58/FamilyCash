@@ -8,7 +8,9 @@ import { Segmented } from "@/components/ui/Segmented";
 import { TimeInput } from "@/components/ui/TimeInput";
 import type { DepartmentLite, RosterMember, StatusTypeLite } from "@/lib/schedule";
 import type { ShiftTimes } from "@/lib/segments";
+import { clampOvertime, formatOvertime, proposeOvertime } from "@/lib/overtime";
 import { AutoText } from "./AutoText";
+import { OvertimeStepper } from "./OvertimeStepper";
 import { SegmentEditor } from "./SegmentEditor";
 import type { SectionLite, SegmentWithId, SheetOps } from "./types";
 
@@ -60,6 +62,8 @@ export function EmployeeSheet({
   const statusOptions = statusTypes
     .filter((s) => s.active !== false || s.id === day.status.id)
     .map((s) => ({ value: s.id, label: s.label, color: s.color }));
+  const extra = day.extraMinutes ?? 0;
+  const suggestion = proposeOvertime(day.leftAt, shift);
   const segments = day.segments.filter((s): s is SegmentWithId => !!s.id);
   const activeDepartments = departments.filter((d) => d.active !== false || d.id === day.departmentId);
 
@@ -149,6 +153,49 @@ export function EmployeeSheet({
                   }
                   maxLength={200}
                   placeholder="Ej. médico, se queda a cubrir…"
+                />
+              )}
+            </Block>
+
+            <Block title="Horas extra">
+              <div className="flex flex-wrap items-center gap-2">
+                <OvertimeStepper
+                  label="Horas extra"
+                  minutes={extra}
+                  onChange={(m) => ops.setOvertime(m, day.extraNote ?? "")}
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[15, 30, 60].map((n) => (
+                  <Chip key={n} onClick={() => ops.setOvertime(clampOvertime(extra + n), day.extraNote ?? "")}>
+                    {n === 60 ? "+1 h" : `+${n}`}
+                  </Chip>
+                ))}
+                {extra > 0 && (
+                  <Chip onClick={() => ops.setOvertime(0, day.extraNote ?? "")}>Quitar</Chip>
+                )}
+              </div>
+              {suggestion !== null && extra === 0 && (
+                <div className="flex items-center gap-3 rounded-control bg-accent/10 px-3 py-2">
+                  <p className="min-w-0 flex-1 text-[14px]">
+                    Salió a las {day.leftAt} → ¿apuntar {formatOvertime(suggestion)}?
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => ops.setOvertime(suggestion, day.extraNote ?? "")}
+                    className="min-h-11 shrink-0 rounded-control bg-accent px-4 text-[15px] font-semibold text-accent-fg active:opacity-80"
+                  >
+                    Apuntar
+                  </button>
+                </div>
+              )}
+              {(extra > 0 || day.extraNote) && (
+                <AutoText
+                  label="Motivo de las horas extra"
+                  value={day.extraNote ?? ""}
+                  onSave={(v) => ops.setOvertime(extra, v)}
+                  maxLength={200}
+                  placeholder="Ej. descarga de camión, inventario…"
                 />
               )}
             </Block>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Card, Tag } from "@/components/ui";
+import { formatOvertime } from "@/lib/overtime";
 import type { WeekSummary } from "@/lib/report";
 
 export function WeekSummaryView({ summary }: { summary: WeekSummary }) {
@@ -7,7 +8,7 @@ export function WeekSummaryView({ summary }: { summary: WeekSummary }) {
     return (
       <Card>
         <p className="py-6 text-center text-muted">
-          Sin ausencias, llegadas tarde ni departamentos vacíos esta semana.
+          Sin ausencias, llegadas tarde, horas extra ni departamentos vacíos esta semana.
         </p>
       </Card>
     );
@@ -27,6 +28,12 @@ export function WeekSummaryView({ summary }: { summary: WeekSummary }) {
           <li className="flex min-h-8 items-center justify-between border-t border-line pt-2">
             <span className="text-[14px] text-muted">Llegadas tarde</span>
             <span className="text-[17px] font-semibold tabular-nums">{summary.totalLate}</span>
+          </li>
+          <li className="flex min-h-8 items-center justify-between">
+            <span className="text-[14px] text-muted">Horas extra de la semana</span>
+            <span className="text-[17px] font-semibold tabular-nums" data-testid="week-overtime-total">
+              {summary.totalExtraMinutes > 0 ? formatOvertime(summary.totalExtraMinutes) : "0"}
+            </span>
           </li>
         </ul>
       </Card>
@@ -50,6 +57,7 @@ export function WeekSummaryView({ summary }: { summary: WeekSummary }) {
                     </th>
                   ))}
                   <th className="px-3 py-2 text-center font-medium">Tarde</th>
+                  <th className="px-3 py-2 text-center font-medium">Extra</th>
                 </tr>
               </thead>
               <tbody>
@@ -63,6 +71,9 @@ export function WeekSummaryView({ summary }: { summary: WeekSummary }) {
                     ))}
                     <td className="px-3 py-2.5 text-center tabular-nums">
                       {e.lateArrivals || <span className="text-muted">·</span>}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-center tabular-nums">
+                      {e.extraMinutes > 0 ? formatOvertime(e.extraMinutes, true) : <span className="text-muted">·</span>}
                     </td>
                   </tr>
                 ))}

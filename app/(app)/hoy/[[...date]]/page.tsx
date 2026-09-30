@@ -68,6 +68,7 @@ export default async function Page({ params }: { params: Promise<{ date?: string
 
       <DayView
         key={date}
+        isToday={isToday}
         date={date}
         shift={{ shiftStart: settings.shiftStart, shiftEnd: settings.shiftEnd }}
         employees={employees.map((e) => ({

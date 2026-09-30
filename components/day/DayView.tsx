@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useOptimistic, useState, useTransition } from "react";
+import { useMemo, useOptimistic, useState, useSyncExternalStore, useTransition } from "react";
 import { ReportCard } from "@/components/reports/ReportCard";
 import { ReportComposer } from "@/components/reports/ReportComposer";
 import { Card } from "@/components/ui/Card";
@@ -11,13 +11,16 @@ import {
   setDayNote as setDayNoteAction,
   setDepartment as setDepartmentAction,
   setNote as setNoteAction,
+  setOvertime as setOvertimeAction,
+  setOvertimeBulk as setOvertimeBulkAction,
   setReason as setReasonAction,
   setStatus as setStatusAction,
   setTimes as setTimesAction,
   updateSegment as updateSegmentAction,
   type ActionResult,
 } from "@/app/actions/day";
-import type { DateStr } from "@/lib/dates";
+import { type DateStr, madridParts } from "@/lib/dates";
+import { formatOvertime, totalOvertime } from "@/lib/overtime";
 import type { ReportView } from "@/lib/reports";
 import {
   type DayEntryLite,
@@ -32,6 +35,7 @@ import { DayNoteCard } from "./DayNoteCard";
 import { EmployeeRow } from "./EmployeeRow";
 import { EmployeeSheet } from "./EmployeeSheet";
 import { MoveSheet } from "./MoveSheet";
+import { OvertimeSheet, type OvertimeGroup } from "./OvertimeSheet";
 import type { SectionLite, SheetOps } from "./types";
 
 interface DayViewProps {
@@ -44,19 +48,26 @@ interface DayViewProps {
   entries: DayEntryLite[];
   dayNote: string | null;
   reports: ReportView[];
+  /** La fecha mostrada es la noche operativa actual. */
+  isToday?: boolean;
 }
+
+const subscribeNever = () => () => {};
+const currentMadridHour = () => madridParts(new Date()).hour;
 
 interface OptimisticAction {
   employeeId: string;
   patch: EntryPatch;
 }
 
-export function DayView({ date, shift, employees, departments, statusTypes, sections, entries, dayNote, reports }: DayViewProps) {
+export function DayView({ date, shift, employees, departments, statusTypes, sections, entries, dayNote, reports, isToday = false }: DayViewProps) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ id: string; open: boolean } | null>(null);
   const [move, setMove] = useState<{ id: string; open: boolean } | null>(null);
   const [absentOpen, setAbsentOpen] = useState(false);
+  const [closeSheet, setCloseSheet] = useState<{ open: boolean; n: number }>({ open: false, n: 0 });
+  const madridHour = useSyncExternalStore(subscribeNever, currentMadridHour, () => null);
   const [composer, setComposer] = useState<{ open: boolean; employeeId: string | null }>({ open: false, employeeId: null });
 
   const [optEntries, applyOptimistic] = useOptimistic(entries, (cur: DayEntryLite[], a: OptimisticAction) => {
@@ -120,6 +131,12 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
       },
       setNote: (note) =>
         commit(employeeId, { kind: "note", note }, () => setNoteAction({ ...base, note: note.trim() || null })),
+      setOvertime: (minutes, note) => {
+        const extraNote = note.trim() || null;
+        commit(employeeId, { kind: "overtime", extraMinutes: minutes || null, extraNote }, () =>
+          setOvertimeAction({ ...base, extraMinutes: minutes, extraNote }),
+        );
+      },
       addSegment: (s) =>
         commit(
           employeeId,
@@ -165,6 +182,20 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
 
   const sheetMember = sheet ? allMembers.get(sheet.id) : undefined;
   const moveMember = move ? allMembers.get(move.id) : undefined;
+  const closeGroups = useMemo<OvertimeGroup[]>(() => {
+    const groups: OvertimeGroup[] = roster.departments
+      .filter((d) => d.present.length > 0)
+      .map((d) => ({ id: d.department.id, name: d.department.name, color: d.department.color, members: d.present }));
+    if (roster.unassigned.length > 0) {
+      groups.push({ id: "none", name: "Sin departamento", color: null, members: roster.unassigned });
+    }
+    return groups;
+  }, [roster]);
+  const nightExtra = useMemo(
+    () => totalOvertime(closeGroups.flatMap((g) => g.members.map((m) => m.day))),
+    [closeGroups],
+  );
+  const closeHighlight = isToday && madridHour !== null && madridHour >= 5 && madridHour < 12;
   const absentTotal = roster.absentByStatus.reduce((n, g) => n + g.members.length, 0);
 
   return (
@@ -182,6 +213,18 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
           ))}
         </p>
       )}
+
+      <button
+        type="button"
+        onClick={() => setCloseSheet((s) => ({ open: true, n: s.n + 1 }))}
+        className={cn(
+          "flex min-h-12 w-full items-center justify-between gap-3 rounded-card px-4 text-left text-[16px] font-semibold active:opacity-80",
+          closeHighlight ? "bg-accent text-accent-fg" : "bg-surface text-accent",
+        )}
+      >
+        <span>Cierre de turno · Horas extra</span>
+        {nightExtra > 0 && <span className="text-[14px] font-medium tabular-nums">{formatOvertime(nightExtra, true)}</span>}
+      </button>
 
       <div className={cn(!optNote && "-mt-1")}>
         <DayNoteCard note={optNote} onSave={saveDayNote} />
@@ -302,6 +345,21 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
           onNewReport={() => {
             setSheet((s) => (s ? { ...s, open: false } : s));
             openComposer(sheet.id);
+          }}
+        />
+      )}
+
+      {closeSheet.n > 0 && (
+        <OvertimeSheet
+          key={closeSheet.n}
+          open={closeSheet.open}
+          onClose={() => setCloseSheet((s) => ({ ...s, open: false }))}
+          groups={closeGroups}
+          shift={shift}
+          onSave={async (items) => {
+            const r = await setOvertimeBulkAction({ date, items });
+            if (!r.ok) setError(r.error);
+            return r;
           }}
         />
       )}

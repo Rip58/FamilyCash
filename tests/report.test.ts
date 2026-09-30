@@ -113,6 +113,40 @@ describe("buildDayReport", () => {
   });
 });
 
+describe("horas extra en informes", () => {
+  const employees = [emp("Ana"), emp("Beto", { defaultDepartmentId: "bot" })];
+  const entries = [
+    entry("Ana", MON, WORK, { extraMinutes: 60, extraNote: "Camión" }),
+    entry("Beto", MON, WORK, { extraMinutes: 30 }),
+    entry("Ana", "2026-09-29", WORK, { extraMinutes: 45 }),
+    entry("Beto", "2026-09-30", SICK, { extraMinutes: 120 }),
+  ];
+  it("bloque diario con total y texto compartido", () => {
+    const roster = getDayRoster({ date: MON, employees, entries, departments, statusTypes });
+    const r = buildDayReport({ roster, dayNote: null, shift: DEFAULT_SHIFT, sections: [], departments });
+    expect(r.overtime.totalMinutes).toBe(90);
+    expect(r.overtime.items.map((i) => i.name)).toEqual(["Ana", "Beto"]);
+    const t = reportToText(r);
+    expect(t).toContain("*Horas extra* (total 1 h 30 min)");
+    expect(t).toContain("• Ana: +1 h — Camión");
+    expect(t).toContain("• Beto: +30 min");
+  });
+  it("sin horas extra no hay bloque", () => {
+    const roster = getDayRoster({ date: MON, employees, entries: [], departments, statusTypes });
+    const r = buildDayReport({ roster, dayNote: null, shift: DEFAULT_SHIFT, sections: [], departments });
+    expect(r.overtime.items).toEqual([]);
+    expect(reportToText(r)).not.toContain("Horas extra");
+  });
+  it("suma semanal por empleado ignora días que no trabaja", () => {
+    const grid = getWeekGrid({ date: MON, employees, entries, departments, statusTypes, daysOffPerWeek: 2 });
+    const rosters = grid.days.map((date) => getDayRoster({ date, employees, entries, departments, statusTypes }));
+    const s = buildWeekSummary({ date: MON, grid, statusTypes, rosters, shift: DEFAULT_SHIFT });
+    expect(s.byEmployee.find((e) => e.name === "Ana")!.extraMinutes).toBe(105);
+    expect(s.byEmployee.find((e) => e.name === "Beto")!.extraMinutes).toBe(30);
+    expect(s.totalExtraMinutes).toBe(135);
+  });
+});
+
 describe("buildWeekSummary", () => {
   it("cuenta ausencias, tardes y departamentos vacíos", () => {
     const employees = [emp("Ana", { fixedDaysOff: [5, 6] }), emp("Beto", { defaultDepartmentId: "bot" })];

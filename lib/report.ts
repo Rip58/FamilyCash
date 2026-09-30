@@ -7,6 +7,7 @@
  * con turno 21:30–06:30, "00:30" = 180 y "06:30" = 540.
  */
 import { type DateStr, formatDayLong, formatWeekRange, isoWeekNumber, weekDays } from "./dates";
+import { totalOvertime, formatOvertime } from "./overtime";
 import { type ReportView, reportsToTextLines } from "./reports";
 import type { DayRoster, RosterMember, StatusTypeLite, WeekGrid } from "./schedule";
 
@@ -91,6 +92,8 @@ export interface ReportMember {
   arrivedAt: string | null;
   leftAt: string | null;
   timeReason: string | null;
+  extraMinutes: number | null;
+  extraNote: string | null;
   segments: ReportSegment[];
 }
 
@@ -107,6 +110,12 @@ export interface LeaveDeviation {
   kind: "stayed" | "early";
   minutes: number;
   reason: string | null;
+}
+
+export interface OvertimeItem {
+  name: string;
+  minutes: number;
+  note: string | null;
 }
 
 export interface AbsenceGroup {
@@ -147,6 +156,8 @@ export interface DayReport {
   departments: ReportDepartment[];
   /** Trabajan pero sin departamento. */
   unassigned: ReportMember[];
+  /** Horas extra apuntadas la noche (solo quien trabajó). */
+  overtime: { items: OvertimeItem[]; totalMinutes: number };
   hasIncidents: boolean;
   /** Avisos con foto de la noche. */
   reports: ReportView[];
@@ -204,6 +215,8 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
       arrivedAt: d.arrivedAt,
       leftAt: d.leftAt,
       timeReason: d.timeReason,
+      extraMinutes: d.extraMinutes && d.extraMinutes > 0 ? d.extraMinutes : null,
+      extraNote: d.extraNote,
       segments,
     };
   };
@@ -243,6 +256,10 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
       }
     }
   }
+  const overtimeItems: OvertimeItem[] = everyone
+    .filter((m) => m.extraMinutes || m.extraNote)
+    .map((m) => ({ name: m.name, minutes: m.extraMinutes ?? 0, note: m.extraNote }))
+    .sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name, "es"));
   lateArrivals.sort((a, b) => a.arrivedAt.localeCompare(b.arrivedAt));
 
   const absences: AbsenceGroup[] = roster.absentByStatus.map((g) => ({
@@ -282,6 +299,7 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
     emptyDepartments,
     departments,
     unassigned,
+    overtime: { items: overtimeItems, totalMinutes: totalOvertime(overtimeItems.map((i) => ({ extraMinutes: i.minutes }))) },
     hasIncidents,
     reports: input.reports ?? [],
     isEmpty: roster.presentCount === 0 && absentCount === 0 && (input.reports ?? []).length === 0,
@@ -296,6 +314,8 @@ export interface WeekSummaryEmployee {
   /** statusId -> nº de días (solo estados que no trabajan). */
   counts: Record<string, number>;
   lateArrivals: number;
+  /** Minutos de horas extra de la semana. */
+  extraMinutes: number;
 }
 
 export interface WeekSummary {
@@ -306,6 +326,7 @@ export interface WeekSummary {
   byType: { status: StatusTypeLite; count: number }[];
   byEmployee: WeekSummaryEmployee[];
   totalLate: number;
+  totalExtraMinutes: number;
   emptyDays: { date: DateStr; label: string; departments: string[] }[];
   isEmpty: boolean;
 }
@@ -329,7 +350,9 @@ export function buildWeekSummary(input: BuildWeekSummaryInput): WeekSummary {
   for (const row of grid.rows) {
     const counts: Record<string, number> = {};
     let late = 0;
+    let extra = 0;
     for (const cell of row.cells) {
+      if (cell.isWorking && cell.extraMinutes && cell.extraMinutes > 0) extra += cell.extraMinutes;
       if (!cell.isWorking) {
         counts[cell.status.id] = (counts[cell.status.id] ?? 0) + 1;
         totals.set(cell.status.id, (totals.get(cell.status.id) ?? 0) + 1);
@@ -337,8 +360,8 @@ export function buildWeekSummary(input: BuildWeekSummaryInput): WeekSummary {
         late += 1;
       }
     }
-    if (late > 0 || Object.keys(counts).length > 0) {
-      byEmployee.push({ employeeId: row.employee.id, name: row.employee.name, counts, lateArrivals: late });
+    if (late > 0 || extra > 0 || Object.keys(counts).length > 0) {
+      byEmployee.push({ employeeId: row.employee.id, name: row.employee.name, counts, lateArrivals: late, extraMinutes: extra });
     }
   }
 
@@ -355,6 +378,7 @@ export function buildWeekSummary(input: BuildWeekSummaryInput): WeekSummary {
     }));
 
   const totalLate = byEmployee.reduce((n, e) => n + e.lateArrivals, 0);
+  const totalExtraMinutes = byEmployee.reduce((n, e) => n + e.extraMinutes, 0);
   return {
     weekStart: days[0]!,
     title: `Semana ${isoWeekNumber(days[0]!)}`,
@@ -362,8 +386,9 @@ export function buildWeekSummary(input: BuildWeekSummaryInput): WeekSummary {
     byType,
     byEmployee,
     totalLate,
+    totalExtraMinutes,
     emptyDays,
-    isEmpty: byType.length === 0 && totalLate === 0 && emptyDays.length === 0,
+    isEmpty: byType.length === 0 && totalLate === 0 && totalExtraMinutes === 0 && emptyDays.length === 0,
   };
 }
 
@@ -398,6 +423,13 @@ export function reportToText(report: DayReport): string {
     }
   } else if (!report.isEmpty) {
     L.push("", "Sin incidencias.");
+  }
+
+  if (report.overtime.items.length > 0) {
+    L.push("", `*Horas extra* (total ${formatOvertime(report.overtime.totalMinutes)})`);
+    for (const o of report.overtime.items) {
+      L.push(`• ${o.name}: ${o.minutes > 0 ? formatOvertime(o.minutes, true) : "sin tiempo"}${o.note ? ` — ${o.note}` : ""}`);
+    }
   }
 
   L.push(...reportsToTextLines(report.reports));

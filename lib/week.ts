@@ -48,7 +48,7 @@ export function shortNames(fullNames: string[]): string[] {
 
 /** ¿Tiene datos además de estado/departamento/motivo? (nota, horario, tramos) */
 export function hasExtraData(e: DayEntryLite): boolean {
-  return !!(e.note || e.arrivedAt || e.leftAt || e.timeReason || e.segments.length > 0);
+  return !!(e.note || e.arrivedAt || e.leftAt || e.timeReason || (e.extraMinutes ?? 0) > 0 || e.extraNote || e.segments.length > 0);
 }
 
 /** ¿El estado coincide con el que da el patrón (días fijos) ese día? */

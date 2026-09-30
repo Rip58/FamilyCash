@@ -134,6 +134,8 @@ export async function resetWeek(weekStart: string): Promise<WeekActionResult> {
         arrivedAt: null,
         leftAt: null,
         timeReason: null,
+        extraMinutes: null,
+        extraNote: null,
         segments: { none: {} },
       },
     });

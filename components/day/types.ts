@@ -22,6 +22,8 @@ export interface SheetOps {
   setDepartment: (departmentId: string | null) => void;
   setTimes: (t: { arrivedAt: string; leftAt: string; timeReason: string }) => void;
   setNote: (note: string) => void;
+  /** minutes 0 = sin horas extra. */
+  setOvertime: (minutes: number, note: string) => void;
   addSegment: (s: SegmentInput) => void;
   updateSegment: (id: string, s: SegmentInput) => void;
   deleteSegment: (id: string) => void;

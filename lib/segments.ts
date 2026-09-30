@@ -97,6 +97,7 @@ export type EntryPatch =
   | { kind: "department"; departmentId: string | null }
   | { kind: "times"; arrivedAt: string | null; leftAt: string | null; timeReason: string | null }
   | { kind: "note"; note: string | null }
+  | { kind: "overtime"; extraMinutes: number | null; extraNote: string | null }
   | { kind: "segmentAdd"; segment: SegmentWithId }
   | { kind: "segmentUpdate"; segment: SegmentWithId }
   | { kind: "segmentDelete"; id: string };
@@ -119,6 +120,8 @@ export function baseEntry(employee: EmployeeLite, date: DateStr, statusTypes: St
     arrivedAt: null,
     leftAt: null,
     timeReason: null,
+    extraMinutes: null,
+    extraNote: null,
     segments: [],
   };
 }
@@ -159,6 +162,10 @@ export function applyEntryPatch(
     case "note":
       e.note = clean(patch.note);
       break;
+    case "overtime":
+      e.extraMinutes = patch.extraMinutes && patch.extraMinutes > 0 ? patch.extraMinutes : null;
+      e.extraNote = clean(patch.extraNote);
+      break;
     case "segmentAdd":
       e.segments = sortSegments([...e.segments, patch.segment], shiftStart);
       break;
@@ -195,6 +202,8 @@ export function isEntryRedundant(
     !entry.arrivedAt &&
     !entry.leftAt &&
     !clean(entry.timeReason) &&
+    !(entry.extraMinutes && entry.extraMinutes > 0) &&
+    !clean(entry.extraNote) &&
     entry.segments.length === 0
   );
 }

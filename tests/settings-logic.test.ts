@@ -68,7 +68,7 @@ describe("CSV", () => {
       }],
     });
     expect(rows).toHaveLength(3);
-    expect(rows[1]).toEqual(["2026-09-28", "Ana", "Droguería", "Trabaja", "", "22:15", "", "tarde", "ok", "Cerveza 21:30-05:00"]);
+    expect(rows[1]).toEqual(["2026-09-28", "Ana", "Droguería", "Trabaja", "", "22:15", "", "tarde", "ok", "Cerveza 21:30-05:00", "", ""]);
     expect(rows[2]![3]).toBe("Fiesta"); // martes = día fijo
   });
 });

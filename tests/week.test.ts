@@ -92,6 +92,16 @@ describe("planCopyWeek", () => {
       { kind: "upsert", employeeId: "b", date: "2026-10-07", statusTypeId: WORK.id, departmentId: null, reason: null },
     ]);
   });
+  it("no copia horas extra y conserva las de la semana destino", () => {
+    const prev = entry("a", "2026-09-29", SICK, { extraMinutes: 60 });
+    expect(run([prev])).toEqual([
+      { kind: "upsert", employeeId: "a", date: "2026-10-06", statusTypeId: SICK.id, departmentId: null, reason: null },
+    ]);
+    // destino con horas extra: no se borra aunque la previa siga el patrón
+    expect(run([], [entry("b", "2026-10-07", OFF, { extraMinutes: 30 })])).toEqual([
+      { kind: "upsert", employeeId: "b", date: "2026-10-07", statusTypeId: WORK.id, departmentId: null, reason: null },
+    ]);
+  });
   it("no hace nada si ya coincide y borra copias redundantes", () => {
     const p = entry("a", "2026-09-29", SICK);
     expect(run([p], [entry("a", "2026-10-06", SICK)])).toEqual([]);

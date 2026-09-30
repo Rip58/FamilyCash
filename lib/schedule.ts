@@ -61,6 +61,9 @@ export interface DayEntryLite {
   arrivedAt: string | null;
   leftAt: string | null;
   timeReason: string | null;
+  /** Horas extra de la noche en minutos (null/ausente = sin horas extra). */
+  extraMinutes?: number | null;
+  extraNote?: string | null;
   segments: SegmentLite[];
 }
 
@@ -79,6 +82,8 @@ export interface EffectiveDay {
   arrivedAt: string | null;
   leftAt: string | null;
   timeReason: string | null;
+  extraMinutes: number | null;
+  extraNote: string | null;
   segments: SegmentLite[];
   hasEntry: boolean;
   source: EffectiveSource;
@@ -127,6 +132,8 @@ export function getEffectiveDay(
     arrivedAt: entry?.arrivedAt ?? null,
     leftAt: entry?.leftAt ?? null,
     timeReason: entry?.timeReason ?? null,
+    extraMinutes: entry?.extraMinutes ?? null,
+    extraNote: entry?.extraNote ?? null,
     segments: entry ? [...entry.segments].sort((a, b) => a.sortOrder - b.sortOrder) : [],
     hasEntry: !!entry,
     source,

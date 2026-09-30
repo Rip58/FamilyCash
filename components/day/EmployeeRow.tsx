@@ -1,5 +1,6 @@
 "use client";
 
+import { formatOvertime } from "@/lib/overtime";
 import { leftKind, segmentName, type ShiftTimes } from "@/lib/segments";
 import type { DepartmentLite, RosterMember } from "@/lib/schedule";
 import { useLongPress } from "./useLongPress";
@@ -59,6 +60,11 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
         {day.leftAt && (
           <span title={leftKind(day.leftAt, shift) === "more" ? "Se queda más" : "Se va antes"}>
             {leftKind(day.leftAt, shift) === "more" ? "➕" : "➖"} {day.leftAt}
+          </span>
+        )}
+        {day.isWorking && (day.extraMinutes ?? 0) > 0 && (
+          <span title="Horas extra" className="font-medium text-accent">
+            ⏱ {formatOvertime(day.extraMinutes!, true)}
           </span>
         )}
         {day.note && <span aria-label="Tiene nota">💬</span>}
