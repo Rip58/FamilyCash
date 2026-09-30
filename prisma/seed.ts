@@ -32,6 +32,36 @@ const EMPLOYEES = [
   "Joao Marco Rosadas", "Sebastian Cerda", "Sergi Ben Amor",
 ];
 
+const PROTOCOLS = [
+  {
+    id: "seed-protocolo-apertura",
+    title: "Apertura del turno",
+    category: "Turno",
+    body: [
+      "- Fichar y **saludar** al responsable saliente",
+      "- Revisar la nota del día en la app",
+      "  - Ver quién falta y por qué",
+      "  - Reasignar personal si un departamento queda vacío",
+      "- Repartir las secciones del turno",
+      "  - Cerveza y Chocolate primero",
+      "- Recordar el descanso de 02:00 a 03:00",
+    ].join("\n"),
+  },
+  {
+    id: "seed-protocolo-producto-roto",
+    title: "Incidencia con producto roto",
+    category: "Incidencias",
+    body: [
+      "- Avisar al responsable **de inmediato**",
+      "- Asegurar la zona",
+      "  - Señalizar el suelo mojado",
+      "  - Recoger cristales con guantes",
+      "- Hacer foto y registrar un aviso en la app",
+      "- Anotar producto, cantidad y sección",
+    ].join("\n"),
+  },
+];
+
 async function main() {
   await prisma.settings.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
 
@@ -56,6 +86,14 @@ async function main() {
       where: { id: s.id },
       update: {},
       create: { ...s, sortOrder: i },
+    });
+  }
+
+  for (const [i, p] of PROTOCOLS.entries()) {
+    await prisma.protocol.upsert({
+      where: { id: p.id },
+      update: {},
+      create: { ...p, sortOrder: i },
     });
   }
 

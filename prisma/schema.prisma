@@ -98,3 +98,12 @@ model DayNote {             // nota general de la noche
   date  DateTime @id @db.Date
   text  String
 }
+
+model Protocol {            // hoja de protocolos
+  id        String   @id @default(cuid())
+  title     String
+  category  String?                     // agrupador opcional: "Apertura", "Seguridad"...
+  body      String                      // lista de viñetas en Markdown ("- " y "  - " anidadas)
+  sortOrder Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
