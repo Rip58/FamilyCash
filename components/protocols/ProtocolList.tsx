@@ -5,7 +5,7 @@ import { useMemo, useState, useTransition } from "react";
 import {
   DndContext,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
   TouchSensor,
   closestCenter,
   useSensor,
@@ -128,7 +128,7 @@ function SortableRow({ item }: { item: ProtocolItem }) {
       <button
         type="button"
         aria-label={`Arrastrar para reordenar ${item.title}`}
-        className="flex min-h-11 min-w-11 touch-none items-center justify-center text-muted"
+        className="flex min-h-11 min-w-11 touch-manipulation select-none items-center justify-center text-muted"
         {...attributes}
         {...listeners}
       >
@@ -147,8 +147,8 @@ function SortableRow({ item }: { item: ProtocolItem }) {
 
 function SortableGroup({ group, onReorder }: { group: Group; onReorder: (ids: string[]) => void }) {
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 120, tolerance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
   function onDragEnd(e: DragEndEvent) {

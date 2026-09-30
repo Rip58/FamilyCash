@@ -5,7 +5,8 @@ import { useEffect, useId, useState, useTransition, type ReactNode } from "react
 import {
   DndContext,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -112,7 +113,7 @@ export function BackHeader({
   backLabel?: string;
 }) {
   return (
-    <header className="sticky top-0 z-10 -mx-4 mb-2 flex min-h-14 items-center gap-2 bg-bg/90 px-2 pt-[env(safe-area-inset-top)] backdrop-blur">
+    <header className="sticky top-0 z-10 -mx-4 -mt-[env(safe-area-inset-top)] mb-2 flex min-h-14 items-center gap-2 bg-bg/90 px-2 pt-[env(safe-area-inset-top)] backdrop-blur">
       <Link
         href={href}
         aria-label={backLabel}
@@ -240,7 +241,7 @@ export function Toggle({
         disabled={disabled}
         onClick={() => onChange(!checked)}
         className={cn(
-          "relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors duration-150 disabled:opacity-40",
+          "relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors duration-150 after:absolute after:-inset-x-1 after:-inset-y-[7px] after:content-[''] disabled:opacity-40",
           checked ? "bg-success" : "bg-line",
         )}
       >
@@ -368,14 +369,14 @@ export function GripIcon() {
   );
 }
 
-/** Asa de arrastre (≥44px, touch-action: none para funcionar con el dedo). */
+/** Asa de arrastre (≥44px). touch-action: manipulation: un swipe rápido hace scroll; mantener 200 ms arrastra. */
 export function DragHandle(props: React.HTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       type="button"
       aria-label="Arrastrar para reordenar"
       {...props}
-      className="flex min-h-11 min-w-11 shrink-0 cursor-grab touch-none items-center justify-center text-muted active:cursor-grabbing"
+      className="flex min-h-11 min-w-11 shrink-0 cursor-grab touch-manipulation select-none items-center justify-center text-muted active:cursor-grabbing"
     >
       <GripIcon />
     </button>
@@ -417,7 +418,9 @@ export function SortableList<T extends { id: string }>({
 }) {
   const [local, setLocal] = useSynced(items);
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    // Táctil: hay que mantener ~200 ms antes de arrastrar, así un gesto rápido sigue haciendo scroll.
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
