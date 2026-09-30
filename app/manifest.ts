@@ -11,10 +11,10 @@ export default function manifest(): MetadataRoute.Manifest {
     display: "standalone",
     orientation: "portrait",
     background_color: "#f2f2f7",
-    theme_color: "#0a84ff",
+    theme_color: "#f2f2f7",
     icons: [
       { src: "/icon/192", sizes: "192x192", type: "image/png" },
-      { src: "/icon/512", sizes: "512x512", type: "image/png" },
+      { src: "/icon/512", sizes: "512x512", type: "image/png", purpose: "any" },
       { src: "/icon/512", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   };

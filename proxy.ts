@@ -19,6 +19,6 @@ export async function proxy(req: NextRequest) {
 export const config = {
   // Protege todo salvo assets, manifest e iconos.
   matcher: [
-    "/((?!_next/static|_next/image|manifest\\.webmanifest|icon|apple-icon|favicon\\.ico|sw\\.js|.*\\.(?:png|jpg|jpeg|svg|ico|webp|woff2?)$).*)",
+    "/((?!_next/static|_next/image|manifest\\.webmanifest|icon|apple-icon|favicon\\.ico|sw\\.js|offline\\.html|.*\\.(?:png|jpg|jpeg|svg|ico|webp|woff2?)$).*)",
   ],
 };

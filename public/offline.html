@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Sin conexión · Plantilla Noche</title>
+<style>
+  :root { --bg:#f2f2f7; --fg:#000; --muted:#6c6c70; --accent:#0a84ff; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#000; --fg:#fff; --muted:#98989f; } }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100dvh; display:flex; align-items:center; justify-content:center; text-align:center;
+    padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+    background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif; }
+  main { max-width: 320px; }
+  h1 { font-size: 28px; margin: 0 0 8px; letter-spacing: -0.02em; }
+  p { margin: 0 0 24px; color: var(--muted); font-size: 17px; line-height: 1.4; }
+  button { min-height: 48px; padding: 0 24px; border: 0; border-radius: 14px; background: var(--accent); color: #fff; font: inherit; font-weight: 600; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Sin conexión</h1>
+  <p>No se puede cargar la plantilla ahora mismo. Comprueba tu conexión e inténtalo de nuevo.</p>
+  <button type="button" onclick="location.reload()">Reintentar</button>
+</main>
+</body>
+</html>
