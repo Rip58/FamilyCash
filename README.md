@@ -4,6 +4,16 @@ PWA para controlar la plantilla del turno de noche: quién viene, dónde trabaja
 
 Stack: Next.js (App Router) · TypeScript estricto · Tailwind 4 · Prisma 7 · Postgres (Neon en producción).
 
+## Funcionalidades
+
+- **Hoy**: plantilla del turno por departamento (plazas, departamento vacío o por debajo de plazas), "No vienen hoy" con motivo, nota del día, hoja del empleado (estado, departamento del día, tramos/tareas, horario real, horas extra, nota), cambio rápido de departamento (mantener pulsado) y **Cierre de turno · Horas extra**.
+- **Semana**: vista *Días* y vista *Personas* (celdas de estado que se ciclan con un toque), aviso de días libres, copiar semana anterior / restablecer a días fijos, swipe entre semanas y puntito en las celdas con petición pendiente.
+- **Informe**: informe diario (tramos, incidencias, ausencias, horas extra, avisos con foto) con botón Compartir, resumen semanal (ausencias, horas extra por empleado, departamentos vacíos) y exportación CSV.
+- **Avisos con foto**: hasta 6 fotos comprimidas en el móvil, visor a pantalla completa, listado filtrable por fecha y empleado.
+- **Protocolos**: acordeón por categorías, buscador, editor de viñetas con vista previa y reordenación.
+- **Ajustes**: empleados (alias, departamento, días fijos), **ficha del empleado** (datos, historial de notas con fotos, peticiones de cambio de fiesta/vacaciones que se aprueban, deniegan o revierten sobre el calendario), departamentos, secciones, estados, turno, seguridad, exportar CSV y almacenamiento.
+- **PWA**: instalable en iPhone, modo oscuro automático, service worker mínimo (solo en producción) que cachea el shell estático y muestra una página *Sin conexión* si no hay red. Nunca guarda HTML ni datos: sin conexión la app no enseña datos viejos.
+
 ## Desarrollo local
 
 Requisitos: Node 22 y un Postgres accesible.
@@ -27,7 +37,8 @@ npm run lint && npm run typecheck && npm test && npm run build
 | Variable | Uso |
 |---|---|
 | `DATABASE_URL` | Conexión de la app. En Neon, la cadena **pooled** (host con `-pooler`). |
-| `DIRECT_URL` | Conexión directa (sin pooler) para migraciones y seed. En local, igual que `DATABASE_URL`. |
+| `DATABASE_URL_UNPOOLED` | Conexión directa que crea la integración Neon de Vercel; se usa para migraciones y seed si no hay `DIRECT_URL`. |
+| `DIRECT_URL` | Conexión directa (sin pooler) para migraciones y seed (tiene prioridad sobre `DATABASE_URL_UNPOOLED`). En local, igual que `DATABASE_URL`. |
 | `APP_PASSWORD` | Contraseña única de acceso (se usa mientras no exista `Settings.passwordHash`). |
 | `AUTH_SECRET` | Secreto para firmar la cookie de sesión (`openssl rand -hex 32`). |
 | `BLOB_READ_WRITE_TOKEN` | Token de Vercel Blob para las fotos de los avisos. **Vacío en local**: las fotos se guardan en `.uploads/` (ignorada por git). |
@@ -67,6 +78,8 @@ Recomendado: mantener el repositorio **privado** (contiene nombres reales).
 3. Elige **Añadir a pantalla de inicio** y confirma.
 
 Se abrirá a pantalla completa como una app. La sesión dura 90 días.
+
+Notas de PWA: la barra de estado de iOS usa el estilo `default` (texto claro/oscuro según el modo del sistema, sobre el fondo de la app). El manifest solo admite un color de fondo/tema (claro); el modo oscuro se aplica con `theme-color` por `prefers-color-scheme`. El service worker (`public/sw.js`) se registra solo en producción; tras un deploy se actualiza solo al reabrir la app.
 
 ## Estructura relevante
 

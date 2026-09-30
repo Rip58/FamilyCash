@@ -24,3 +24,9 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 ## Notas técnicas (Fase 6c: avisos con foto)
 - Almacenamiento en `lib/storage.ts` (solo servidor): con `BLOB_READ_WRITE_TOKEN` usa Vercel Blob (subida directa desde el cliente vía `app/api/upload`), sin token guarda en `.uploads/` (gitignored) y sirve con `app/api/files/[...path]` (comprueba sesión; las rutas `.jpg/.png/.webp` no pasan por `proxy.ts`). El cliente usa `uploadPhoto` (`lib/upload.ts`) con el modo expuesto por `StorageModeProvider` en `app/(app)/layout.tsx`.
 - Reglas de subida/validación puras en `lib/upload-rules.ts`; compresión en `lib/image-compress.ts`; esquemas zod y utilidades en `lib/reports.ts`; consultas en `lib/report-queries.ts`; acciones en `app/actions/reports.ts`.
+
+## Notas técnicas (Fase 7: pulido)
+- Fechas inválidas en `/hoy`, `/semana` e `/informe`: la validación vive en `layout.tsx` de cada segmento (fuera del Suspense de `loading.tsx`) para dar 404 real.
+- Arrastre (dnd-kit): `MouseSensor` (distance 4) + `TouchSensor` (delay 200, tolerance 5); las asas usan `touch-manipulation` para que un swipe rápido siga haciendo scroll.
+- PWA: `public/sw.js` (registrado por `components/pwa/RegisterSW.tsx` solo en producción) y `public/offline.html`. No cachea HTML ni `/api`. Si añades rutas públicas estáticas, exclúyelas en el `matcher` de `proxy.ts`.
+- Zona segura: `.app-main` y `BackHeader` gestionan `safe-area-inset-top`; el layout `(app)` pone una tapa fija bajo la barra de estado.
