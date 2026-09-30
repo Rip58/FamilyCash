@@ -34,6 +34,7 @@ export interface DepartmentLite {
 export interface EmployeeLite {
   id: string;
   name: string;
+  alias?: string | null;
   defaultDepartmentId: string | null;
   sortOrder: number;
   fixedDaysOff: number[];

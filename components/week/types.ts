@@ -20,6 +20,8 @@ export interface GridCell {
 export interface GridRow {
   employeeId: string;
   name: string;
+  alias: string | null;
+  departmentName: string | null;
   cells: GridCell[];
 }
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { type DateStr, formatDayShort } from "@/lib/dates";
 import type { DayRoster } from "@/lib/schedule";
-import { shortNames } from "@/lib/week";
+import { compactNames } from "@/lib/week";
 import { cn } from "@/components/ui/cn";
 
 function NoteIcon() {
@@ -105,7 +105,7 @@ export function DaysView({
                 {r.absentByStatus.length === 0
                   ? "Todos trabajan"
                   : r.absentByStatus.map((g, i) => {
-                      const names = shortNames(g.members.map((m) => m.employee.name));
+                      const names = compactNames(g.members.map((m) => m.employee));
                       return (
                         <span key={g.status.id}>
                           {i > 0 && " · "}

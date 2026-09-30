@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DayEntryLite, EmployeeLite, StatusTypeLite } from "@/lib/schedule";
 import {
-  nextCycleCode, planCopyWeek, planSetCell, shortNames, statusAbbr, weekHref,
+  compactNames, nextCycleCode, planCopyWeek, planSetCell, shortNames, statusAbbr, weekHref,
 } from "@/lib/week";
 
 const st = (code: string, isWorking: boolean, sortOrder: number): StatusTypeLite => ({
@@ -115,5 +115,18 @@ describe("planCopyWeek", () => {
       prevEntries: [entry("z", "2026-09-29", SICK)], curEntries: [],
     });
     expect(r).toEqual([]);
+  });
+});
+
+describe("compactNames", () => {
+  it("usa el alias si existe y el nombre corto si no", () => {
+    expect(
+      compactNames([
+        { name: "Jose Alexander Roman", alias: "Jose A." },
+        { name: "Alejandro Erwin", alias: "  " },
+        { name: "Alejandro Gomez", alias: null },
+        { name: "Fabian" },
+      ]),
+    ).toEqual(["Jose A.", "Alejandro E.", "Alejandro G.", "Fabian"]);
   });
 });

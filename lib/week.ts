@@ -46,6 +46,12 @@ export function shortNames(fullNames: string[]): string[] {
   });
 }
 
+/** Nombre para vistas compactas: el alias si existe; si no, el nombre corto de `shortNames`. */
+export function compactNames(people: { name: string; alias?: string | null }[]): string[] {
+  const short = shortNames(people.map((p) => p.name));
+  return people.map((p, i) => p.alias?.trim() || short[i]!);
+}
+
 /** ¿Tiene datos además de estado/departamento/motivo? (nota, horario, tramos) */
 export function hasExtraData(e: DayEntryLite): boolean {
   return !!(e.note || e.arrivedAt || e.leftAt || e.timeReason || (e.extraMinutes ?? 0) > 0 || e.extraNote || e.segments.length > 0);

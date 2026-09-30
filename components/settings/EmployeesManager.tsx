@@ -13,6 +13,7 @@ import {
 export interface EmployeeRow {
   id: string;
   name: string;
+  alias: string | null;
   defaultDepartmentId: string | null;
   fixedDaysOff: number[];
   active: boolean;
@@ -70,7 +71,7 @@ export function EmployeesManager({ employees, departments }: { employees: Employ
 
   const { groups, inactive } = useMemo(() => {
     const q = norm(query.trim());
-    const match = (e: EmployeeRow) => !q || norm(e.name).includes(q);
+    const match = (e: EmployeeRow) => !q || norm(e.name).includes(q) || norm(e.alias ?? "").includes(q);
     const active = employees.filter((e) => e.active && match(e));
     const groups = [
       ...departments.map((d) => ({ key: d.id, title: d.name, color: d.color as string | null, list: active.filter((e) => e.defaultDepartmentId === d.id) })),
@@ -87,7 +88,10 @@ export function EmployeesManager({ employees, departments }: { employees: Employ
       className="flex min-h-14 w-full items-center justify-between gap-3 border-t border-line px-4 py-2 text-left first:border-t-0"
     >
       <span className="min-w-0">
-        <span className="block truncate text-[17px]">{e.name}</span>
+        <span className="block truncate text-[17px]">
+          {e.name}
+          {e.alias ? <span className="text-muted"> · {e.alias}</span> : null}
+        </span>
         <span className="block truncate text-[13px] text-muted">
           {daysLabel(e.fixedDaysOff)}
           {e.notes ? " · con nota" : ""}
@@ -168,6 +172,7 @@ function DaysChips({ value, onChange }: { value: number[]; onChange: (v: number[
 
 function NewEmployee({ departments, onDone }: { departments: DeptOption[]; onDone: () => void }) {
   const [name, setName] = useState("");
+  const [alias, setAlias] = useState("");
   const [dept, setDept] = useState<string | null>(null);
   const [days, setDays] = useState<number[]>([]);
   const [notes, setNotes] = useState("");
@@ -176,6 +181,9 @@ function NewEmployee({ departments, onDone }: { departments: DeptOption[]; onDon
     <div className="pb-2">
       <Field label="Nombre">
         <input aria-label="Nombre" value={name} onChange={(e) => setName(e.target.value)} className={inputClass} maxLength={80} autoFocus />
+      </Field>
+      <Field label="Alias (vista Semana)">
+        <input aria-label="Alias" value={alias} onChange={(e) => setAlias(e.target.value)} className={inputClass} maxLength={12} placeholder="Ej.: Gerard, Jose A." />
       </Field>
       <Field label="Departamento habitual">
         <DepartmentSelect value={dept} onChange={setDept} departments={departments.filter((d) => d.active)} />
@@ -190,7 +198,7 @@ function NewEmployee({ departments, onDone }: { departments: DeptOption[]; onDon
         className="mt-2 w-full"
         disabled={pending || !name.trim()}
         onClick={() =>
-          run(() => saveEmployee({ name, defaultDepartmentId: dept, fixedDaysOff: days, notes, active: true }), {
+          run(() => saveEmployee({ name, alias, defaultDepartmentId: dept, fixedDaysOff: days, notes, active: true }), {
             msg: "Empleado añadido",
             onDone,
           })
@@ -220,6 +228,7 @@ function EditEmployee({
       saveEmployee({
         id: next.id,
         name: next.name,
+        alias: next.alias,
         defaultDepartmentId: next.defaultDepartmentId,
         fixedDaysOff: next.fixedDaysOff,
         notes: next.notes,
@@ -231,6 +240,10 @@ function EditEmployee({
     <div className="pb-2">
       <Field label="Nombre">
         <TextInput label="Nombre" value={employee.name} maxLength={80} onCommit={(v) => v.trim() && save({ name: v })} />
+      </Field>
+      <Field label="Alias (vista Semana)">
+        <TextInput label="Alias" value={employee.alias ?? ""} maxLength={12} onCommit={(v) => save({ alias: v.trim() || null })} />
+        <p className="mt-1 text-[12px] text-muted">Nombre corto que se ve en la cuadrícula semanal. Hasta 12 letras; mejor 8–10.</p>
       </Field>
       <Field label="Departamento habitual">
         <DepartmentSelect

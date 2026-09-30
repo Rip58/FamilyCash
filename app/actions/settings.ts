@@ -31,6 +31,7 @@ const idList = z.array(id).max(500);
 const employeeSchema = z.object({
   id: id.optional(),
   name,
+  alias: z.string().trim().max(12, "El alias puede tener como máximo 12 caracteres.").nullish().transform((v) => v || null),
   defaultDepartmentId: optionalId,
   fixedDaysOff: z
     .array(z.number().int().min(0).max(6))

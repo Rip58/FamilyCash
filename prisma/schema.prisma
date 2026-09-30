@@ -54,6 +54,7 @@ model StatusType {
 model Employee {
   id                  String  @id @default(cuid())
   name                String
+  alias               String?               // nombre corto para vistas compactas (Semana)
   defaultDepartmentId String?
   defaultDepartment   Department? @relation(fields: [defaultDepartmentId], references: [id])
   sortOrder           Int     @default(0)   // orden dentro del departamento

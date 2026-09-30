@@ -1,17 +1,18 @@
 "use client";
 
-import { useMemo, useOptimistic, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import { setCellStatus } from "@/app/actions/week";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Segmented } from "@/components/ui/Segmented";
 import { cn } from "@/components/ui/cn";
 import { type DateStr, WEEKDAY_LETTERS, formatDayLong } from "@/lib/dates";
 import { isDayOffStatus } from "@/lib/schedule";
-import { nextCycleCode, shortNames, statusAbbr } from "@/lib/week";
+import { compactNames, nextCycleCode, statusAbbr } from "@/lib/week";
 import type { GridStatus, PeopleGridData } from "./types";
 
 const LONG_PRESS_MS = 450;
 const GRID_COLS = "grid-cols-[minmax(0,1fr)_repeat(7,36px)_34px]";
+const PEEK_MS = 2500;
 
 interface CellValue {
   statusId: string;
@@ -97,6 +98,48 @@ function CellButton({
   );
 }
 
+/**
+ * Nombre compacto (alias). Al tocarlo se despliega encima de la fila una etiqueta con el
+ * nombre completo y el departamento; se oculta sola o al tocar en cualquier otro sitio.
+ */
+function NameCell({
+  compact,
+  name,
+  departmentName,
+  open,
+  onToggle,
+}: {
+  compact: string;
+  name: string;
+  departmentName: string | null;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="relative min-w-0">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-label={`${name}. Toca para ver el nombre completo`}
+        data-peek-name
+        className="flex h-11 w-full min-w-0 items-center pl-4 pr-1 text-left text-[15px] [touch-action:manipulation]"
+      >
+        <span className="truncate">{compact}</span>
+      </button>
+      {open && (
+        <span
+          role="status"
+          className="animate-peek pointer-events-none absolute left-2 top-1/2 z-20 flex max-w-[calc(100vw-24px)] -translate-y-1/2 flex-col rounded-[12px] bg-fg px-3 py-1.5 text-bg shadow-lg"
+        >
+          <span className="whitespace-nowrap text-[15px] font-semibold leading-tight">{name}</span>
+          {departmentName && <span className="whitespace-nowrap text-[12px] leading-tight opacity-70">{departmentName}</span>}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function CellSheetBody({
   statuses,
   initial,
@@ -146,9 +189,25 @@ export function PeopleGrid({ data }: { data: PeopleGridData }) {
 
   const shortById = useMemo(() => {
     const rows = groups.flatMap((g) => g.rows);
-    const short = shortNames(rows.map((r) => r.name));
+    const short = compactNames(rows);
     return new Map(rows.map((r, i) => [r.employeeId, short[i]!]));
   }, [groups]);
+
+  // Nombre completo desplegado (uno a la vez)
+  const [peekId, setPeekId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!peekId) return;
+    const t = setTimeout(() => setPeekId(null), PEEK_MS);
+    const close = (e: PointerEvent) => {
+      if (!(e.target instanceof Element && e.target.closest("[data-peek-name]"))) setPeekId(null);
+    };
+    document.addEventListener("pointerdown", close);
+    window.addEventListener("scroll", () => setPeekId(null), { once: true, passive: true });
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("pointerdown", close);
+    };
+  }, [peekId]);
 
   const base = useMemo(() => {
     const m: Record<string, CellValue> = {};
@@ -243,9 +302,13 @@ export function PeopleGrid({ data }: { data: PeopleGridData }) {
               const warn = daysOff !== daysOffPerWeek;
               return (
                 <div key={r.employeeId} className={cn("grid items-center border-b border-line last:border-b-0", GRID_COLS)}>
-                  <span className="truncate px-4 text-[15px]" title={r.name}>
-                    {shortById.get(r.employeeId)}
-                  </span>
+                  <NameCell
+                    compact={shortById.get(r.employeeId)!}
+                    name={r.name}
+                    departmentName={r.departmentName}
+                    open={peekId === r.employeeId}
+                    onToggle={() => setPeekId((cur) => (cur === r.employeeId ? null : r.employeeId))}
+                  />
                   {days.map((d, i) => {
                     const v = values[i]!;
                     const status = statusById.get(v.statusId)!;
@@ -280,7 +343,7 @@ export function PeopleGrid({ data }: { data: PeopleGridData }) {
       ))}
 
       <p className="px-4 pt-3 text-[12px] text-muted">
-        Toca una celda para cambiar Trabaja / Fiesta / Fiesta retribuida. Mantén pulsado para elegir otro estado o
+        Toca un nombre para verlo completo. Toca una celda para cambiar Trabaja / Fiesta / Fiesta retribuida. Mantén pulsado para elegir otro estado o
         motivo.
       </p>
 

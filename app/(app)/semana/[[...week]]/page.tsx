@@ -42,6 +42,8 @@ export default async function Page({
       rows: g.rows.map((r) => ({
         employeeId: r.employee.id,
         name: r.employee.name,
+        alias: r.employee.alias ?? null,
+        departmentName: g.department?.name ?? null,
         cells: r.cells.map((c) => ({ statusId: c.status.id, reason: c.reason })),
       })),
     })),

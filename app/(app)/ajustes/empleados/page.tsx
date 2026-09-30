@@ -17,6 +17,7 @@ export default async function Page() {
       employees={employees.map((e) => ({
         id: e.id,
         name: e.name,
+        alias: e.alias ?? null,
         defaultDepartmentId: e.defaultDepartmentId,
         fixedDaysOff: e.fixedDaysOff,
         active: e.active,
