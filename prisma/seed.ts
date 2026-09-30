@@ -2,7 +2,10 @@ import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../lib/generated/prisma/client";
 
-const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
+import { MISSING_DB_MESSAGE, directDatabaseUrl } from "../lib/db-url";
+
+const url = directDatabaseUrl();
+if (!url) throw new Error(MISSING_DB_MESSAGE);
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
 
 const STATUSES = [
