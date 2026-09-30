@@ -13,9 +13,11 @@ interface EmployeeRowProps {
   onMove: () => void;
   /** Muestra estado/motivo en vez de secciones (lista de ausentes). */
   showStatus?: boolean;
+  /** El empleado tiene avisos con foto esa noche. */
+  hasReports?: boolean;
 }
 
-export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, onMove, showStatus }: EmployeeRowProps) {
+export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, onMove, showStatus, hasReports }: EmployeeRowProps) {
   const { employee, day } = member;
   const press = useLongPress(onMove, onOpen);
   const habitual = employee.defaultDepartmentId ? departments.get(employee.defaultDepartmentId) : undefined;
@@ -60,6 +62,7 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
           </span>
         )}
         {day.note && <span aria-label="Tiene nota">💬</span>}
+        {hasReports && <span aria-label="Tiene avisos con foto">📷</span>}
       </span>
     </button>
   );

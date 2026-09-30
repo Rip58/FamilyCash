@@ -7,6 +7,7 @@
  * con turno 21:30–06:30, "00:30" = 180 y "06:30" = 540.
  */
 import { type DateStr, formatDayLong, formatWeekRange, isoWeekNumber, weekDays } from "./dates";
+import { type ReportView, reportsToTextLines } from "./reports";
 import type { DayRoster, RosterMember, StatusTypeLite, WeekGrid } from "./schedule";
 
 export interface ShiftConfig {
@@ -147,6 +148,8 @@ export interface DayReport {
   /** Trabajan pero sin departamento. */
   unassigned: ReportMember[];
   hasIncidents: boolean;
+  /** Avisos con foto de la noche. */
+  reports: ReportView[];
   isEmpty: boolean;
 }
 
@@ -157,6 +160,8 @@ export interface BuildDayReportInput {
   sections: { id: string; name: string }[];
   /** Todos los departamentos (para el nombre del departamento habitual). */
   departments: { id: string; name: string }[];
+  /** Avisos con foto de la noche (opcional). */
+  reports?: ReportView[];
 }
 
 export function buildDayReport(input: BuildDayReportInput): DayReport {
@@ -278,7 +283,8 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
     departments,
     unassigned,
     hasIncidents,
-    isEmpty: roster.presentCount === 0 && absentCount === 0,
+    reports: input.reports ?? [],
+    isEmpty: roster.presentCount === 0 && absentCount === 0 && (input.reports ?? []).length === 0,
   };
 }
 
@@ -393,6 +399,8 @@ export function reportToText(report: DayReport): string {
   } else if (!report.isEmpty) {
     L.push("", "Sin incidencias.");
   }
+
+  L.push(...reportsToTextLines(report.reports));
 
   const block = (m: ReportMember, deptName: string) => {
     const moved = m.movedFrom ? ` (${m.movedFrom} → ${m.departmentName ?? "—"})` : "";

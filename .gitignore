@@ -9,3 +9,6 @@ next-env.d.ts
 lib/generated
 .vercel
 .claude/worktrees/
+
+# Fotos de avisos en modo local (sin BLOB_READ_WRITE_TOKEN)
+.uploads/

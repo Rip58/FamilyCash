@@ -30,6 +30,7 @@ npm run lint && npm run typecheck && npm test && npm run build
 | `DIRECT_URL` | Conexión directa (sin pooler) para migraciones y seed. En local, igual que `DATABASE_URL`. |
 | `APP_PASSWORD` | Contraseña única de acceso (se usa mientras no exista `Settings.passwordHash`). |
 | `AUTH_SECRET` | Secreto para firmar la cookie de sesión (`openssl rand -hex 32`). |
+| `BLOB_READ_WRITE_TOKEN` | Token de Vercel Blob para las fotos de los avisos. **Vacío en local**: las fotos se guardan en `.uploads/` (ignorada por git). |
 
 Ejemplo local: `postgresql://app:app@localhost:5432/plantilla`.
 
@@ -47,6 +48,17 @@ Se usa el cliente estándar de Prisma 7 con el adaptador `@prisma/adapter-pg` (d
    DIRECT_URL="<cadena directa de Neon>" npx prisma db seed
    ```
 5. Abre la URL de Vercel e inicia sesión con `APP_PASSWORD`.
+
+## Fotos de avisos (Vercel Blob)
+
+Los avisos con foto suben las imágenes (comprimidas en el móvil) directamente a Vercel Blob. Para activarlo:
+
+1. En el panel de Vercel abre el proyecto → pestaña **Storage** → **Create Database / Store** → **Blob**.
+2. Conecta el store al proyecto (*Connect Project*, entornos Production y Preview). Vercel crea automáticamente la variable `BLOB_READ_WRITE_TOKEN`.
+3. Redespliega. Sin esa variable la app usa el modo local (`.uploads/`, solo para desarrollo: en Vercel el disco es efímero).
+4. Para probarlo en local con Blob: `vercel env pull .env.local` y arranca de nuevo.
+
+Los archivos llevan un nombre aleatorio no adivinable y la app solo enseña sus URLs a usuarios con sesión. En *Ajustes → Almacenamiento* se ve el nº de avisos/fotos, el espacio aproximado y se pueden borrar los avisos antiguos (también los archivos). Formatos admitidos: JPEG, PNG y WebP, máx. 8 MB (tras comprimir suelen ser ~300 KB).
 
 Recomendado: mantener el repositorio **privado** (contiene nombres reales).
 

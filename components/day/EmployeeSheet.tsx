@@ -1,5 +1,7 @@
 "use client";
 
+import { ReportCard } from "@/components/reports/ReportCard";
+import type { ReportView } from "@/lib/reports";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Chip } from "@/components/ui/Chip";
 import { Segmented } from "@/components/ui/Segmented";
@@ -21,6 +23,9 @@ interface EmployeeSheetProps {
   busy: boolean;
   error: string | null;
   ops: SheetOps;
+  /** Avisos de esta noche que mencionan al empleado. */
+  reports: ReportView[];
+  onNewReport: () => void;
 }
 
 function Block({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
@@ -46,6 +51,8 @@ export function EmployeeSheet({
   busy,
   error,
   ops,
+  reports,
+  onNewReport,
 }: EmployeeSheetProps) {
   const { employee, day } = member;
   const deptMap = new Map(departments.map((d) => [d.id, d]));
@@ -159,8 +166,22 @@ export function EmployeeSheet({
           />
         </Block>
 
-        {/* TODO Fase 6c (Avisos con foto): aquí irá el botón "📷 Aviso con foto"
-            con este empleado preseleccionado. */}
+        <Block title="Avisos" hint={reports.length > 0 ? String(reports.length) : undefined}>
+          {reports.length > 0 && (
+            <div className="flex flex-col gap-2">
+              {reports.map((r) => (
+                <ReportCard key={r.id} report={r} readOnly />
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={onNewReport}
+            className="flex min-h-11 items-center justify-center gap-2 rounded-control bg-surface-2 text-[16px] font-medium text-accent"
+          >
+            <span aria-hidden>📷</span> Aviso con foto
+          </button>
+        </Block>
       </div>
     </BottomSheet>
   );

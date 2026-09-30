@@ -23,6 +23,7 @@ import {
   getSettings,
   getStatusTypes,
 } from "@/lib/queries";
+import { getReportsForDate } from "@/lib/report-queries";
 import { buildDayReport, buildWeekSummary, reportToText } from "@/lib/report";
 import { getDayRoster, getWeekGrid } from "@/lib/schedule";
 
@@ -70,9 +71,13 @@ export default async function Page({
   let share: React.ReactNode = null;
 
   if (view === "dia") {
-    const [entries, dayNote] = await Promise.all([getEntriesBetween(date, date), getDayNote(date)]);
+    const [entries, dayNote, reports] = await Promise.all([
+      getEntriesBetween(date, date),
+      getDayNote(date),
+      getReportsForDate(date),
+    ]);
     const roster = getDayRoster({ date, employees, entries, departments, statusTypes });
-    const report = buildDayReport({ roster, dayNote, shift: settings, sections, departments });
+    const report = buildDayReport({ roster, dayNote, shift: settings, sections, departments, reports });
     title = formatDayLong(date);
     subtitle = `Turno ${settings.shiftStart}–${settings.shiftEnd} · ${report.presentCount} trabajan`;
     body = <DayReportView report={report} />;
@@ -117,6 +122,11 @@ export default async function Page({
         {share}
       </div>
       {body}
+      <div className="text-center">
+        <Link href="/avisos" className="inline-flex min-h-11 items-center px-4 text-[15px] font-medium text-accent">
+          Ver todos los avisos
+        </Link>
+      </div>
     </div>
   );
 }

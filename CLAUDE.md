@@ -20,3 +20,7 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 - Fechas de turno como `DateStr` "YYYY-MM-DD"; a BD con `toDbDate`, desde BD con `fromDbDate`.
 - Carga de datos en `lib/queries.ts` (`loadDayRoster`, `loadWeekGrid`, ...). UI base en `components/ui` (BottomSheet, Segmented, Chip, Tag, TimeInput, Card, cn).
 - Dev local: Postgres en `postgresql://app:app@localhost:5432/plantilla`, contraseña de la app `noche`.
+
+## Notas técnicas (Fase 6c: avisos con foto)
+- Almacenamiento en `lib/storage.ts` (solo servidor): con `BLOB_READ_WRITE_TOKEN` usa Vercel Blob (subida directa desde el cliente vía `app/api/upload`), sin token guarda en `.uploads/` (gitignored) y sirve con `app/api/files/[...path]` (comprueba sesión; las rutas `.jpg/.png/.webp` no pasan por `proxy.ts`). El cliente usa `uploadPhoto` (`lib/upload.ts`) con el modo expuesto por `StorageModeProvider` en `app/(app)/layout.tsx`.
+- Reglas de subida/validación puras en `lib/upload-rules.ts`; compresión en `lib/image-compress.ts`; esquemas zod y utilidades en `lib/reports.ts`; consultas en `lib/report-queries.ts`; acciones en `app/actions/reports.ts`.

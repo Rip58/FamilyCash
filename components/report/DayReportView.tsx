@@ -1,3 +1,4 @@
+import { ReportCard } from "@/components/reports/ReportCard";
 import { Card, Tag } from "@/components/ui";
 import { formatDuration, type DayReport, type ReportMember } from "@/lib/report";
 import { Timeline, segmentColor } from "./Timeline";
@@ -124,7 +125,16 @@ export function DayReportView({ report }: { report: DayReport }) {
         )}
       </Card>
 
-      {/* Avisos con foto (Fase 6c): el bloque de avisos de la noche va aquí. */}
+      {report.reports.length > 0 && (
+        <section aria-label="Avisos con foto" className="space-y-2">
+          <h2 className="px-1 text-[13px] font-semibold uppercase tracking-wide text-muted">
+            Avisos con foto · {report.reports.length}
+          </h2>
+          {report.reports.map((r) => (
+            <ReportCard key={r.id} report={r} />
+          ))}
+        </section>
+      )}
 
       {report.departments.map((d) => (
         <Card

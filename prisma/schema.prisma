@@ -37,6 +37,7 @@ model Section {             // pasillos / tareas: Cerveza, Chocolate, ...
   sortOrder    Int     @default(0)
   active       Boolean @default(true)
   segments     WorkSegment[]
+  reports      Report[]
 }
 
 model StatusType {
@@ -60,6 +61,7 @@ model Employee {
   active              Boolean @default(true)
   notes               String?               // nota permanente
   days                DayEntry[]
+  reports             Report[]
 }
 
 model DayEntry {            // solo existe si el día difiere del patrón o tiene datos
@@ -106,4 +108,29 @@ model Protocol {            // hoja de protocolos
   body      String                      // lista de viñetas en Markdown ("- " y "  - " anidadas)
   sortOrder Int      @default(0)
   updatedAt DateTime @updatedAt
+}
+
+model Report {              // aviso con fotos + nota escrita
+  id          String   @id @default(cuid())
+  date        DateTime @db.Date           // día de turno al que pertenece
+  employeeId  String?                     // empleado implicado (opcional)
+  employee    Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  sectionId   String?                     // dónde ocurrió (opcional)
+  section     Section?  @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  text        String
+  photos      ReportPhoto[]
+  createdAt   DateTime @default(now())
+  @@index([date])
+}
+
+model ReportPhoto {
+  id        String @id @default(cuid())
+  reportId  String
+  report    Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  url       String                        // Vercel Blob, o /api/files/... en local
+  pathname  String                        // para poder borrarla del almacenamiento
+  width     Int
+  height    Int
+  size      Int    @default(0)            // bytes, para el resumen de Almacenamiento
+  sortOrder Int    @default(0)
 }

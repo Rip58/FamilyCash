@@ -27,6 +27,7 @@ export default async function Page() {
       items: [
         { href: "/ajustes/seguridad", label: "Seguridad", icon: "🔒", color: "#64748b" },
         { href: "/ajustes/datos", label: "Datos", detail: "Exportar CSV", icon: "📄", color: "#22c55e" },
+        { href: "/ajustes/almacenamiento", label: "Almacenamiento", detail: "Avisos y fotos", icon: "🗂️", color: "#0ea5e9" },
       ],
     },
   ];

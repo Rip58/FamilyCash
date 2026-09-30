@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useOptimistic, useState, useTransition } from "react";
+import { ReportCard } from "@/components/reports/ReportCard";
+import { ReportComposer } from "@/components/reports/ReportComposer";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/components/ui/cn";
 import {
@@ -16,6 +18,7 @@ import {
   type ActionResult,
 } from "@/app/actions/day";
 import type { DateStr } from "@/lib/dates";
+import type { ReportView } from "@/lib/reports";
 import {
   type DayEntryLite,
   type DepartmentLite,
@@ -40,6 +43,7 @@ interface DayViewProps {
   sections: SectionLite[];
   entries: DayEntryLite[];
   dayNote: string | null;
+  reports: ReportView[];
 }
 
 interface OptimisticAction {
@@ -47,12 +51,13 @@ interface OptimisticAction {
   patch: EntryPatch;
 }
 
-export function DayView({ date, shift, employees, departments, statusTypes, sections, entries, dayNote }: DayViewProps) {
+export function DayView({ date, shift, employees, departments, statusTypes, sections, entries, dayNote, reports }: DayViewProps) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ id: string; open: boolean } | null>(null);
   const [move, setMove] = useState<{ id: string; open: boolean } | null>(null);
   const [absentOpen, setAbsentOpen] = useState(false);
+  const [composer, setComposer] = useState<{ open: boolean; employeeId: string | null }>({ open: false, employeeId: null });
 
   const [optEntries, applyOptimistic] = useOptimistic(entries, (cur: DayEntryLite[], a: OptimisticAction) => {
     const employee = employees.find((e) => e.id === a.employeeId);
@@ -70,6 +75,12 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
   const deptMap = useMemo(() => new Map(departments.map((d) => [d.id, d])), [departments]);
   const sectionNames = useMemo(() => new Map(sections.map((s) => [s.id, s.name])), [sections]);
   const activeSections = useMemo(() => sections, [sections]);
+  const composerEmployees = useMemo(
+    () => employees.filter((e) => e.active).map((e) => ({ id: e.id, name: e.name })).sort((a, b) => a.name.localeCompare(b.name, "es")),
+    [employees],
+  );
+  const reportedIds = useMemo(() => new Set(reports.flatMap((r) => (r.employeeId ? [r.employeeId] : []))), [reports]);
+  const openComposer = (employeeId: string | null) => setComposer({ open: true, employeeId });
   const activeDepartments = useMemo(() => departments.filter((d) => d.active !== false), [departments]);
 
   const allMembers = useMemo(() => {
@@ -146,6 +157,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
       departments={deptMap}
       shift={shift}
       showStatus={showStatus}
+      hasReports={reportedIds.has(m.employee.id)}
       onOpen={() => openSheet(m.employee.id)}
       onMove={() => openMove(m.employee.id)}
     />
@@ -175,8 +187,16 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
         <DayNoteCard note={optNote} onSave={saveDayNote} />
       </div>
 
-      {/* TODO Fase 6c (Avisos con foto): aquí irá el bloque "Avisos" de la noche
-          y el botón flotante 📷. */}
+      {reports.length > 0 && (
+        <section aria-label="Avisos" className="flex flex-col gap-2">
+          <h2 className="px-1 text-[13px] font-semibold uppercase tracking-wide text-muted">
+            Avisos · {reports.length}
+          </h2>
+          {reports.map((r) => (
+            <ReportCard key={r.id} report={r} />
+          ))}
+        </section>
+      )}
 
       {departments.length === 0 && (
         <Card>
@@ -255,6 +275,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
                       shift={shift}
                       onOpen={() => openSheet(m.employee.id)}
                       onMove={() => openMove(m.employee.id)}
+                      hasReports={reportedIds.has(m.employee.id)}
                       showStatus
                     />
                   ))}
@@ -277,6 +298,11 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
           busy={pending}
           error={error}
           ops={opsFor(sheet.id)}
+          reports={reports.filter((r) => r.employeeId === sheet.id)}
+          onNewReport={() => {
+            setSheet((s) => (s ? { ...s, open: false } : s));
+            openComposer(sheet.id);
+          }}
         />
       )}
 
@@ -291,6 +317,25 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
           onPick={(id) => opsFor(move.id).setDepartment(id === moveMember.employee.defaultDepartmentId ? null : id)}
         />
       )}
+
+      <button
+        type="button"
+        onClick={() => openComposer(null)}
+        aria-label="Nuevo aviso con foto"
+        className="fixed right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-[26px] text-accent-fg shadow-lg active:opacity-80"
+        style={{ bottom: "calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px)" }}
+      >
+        <span aria-hidden>📷</span>
+      </button>
+
+      <ReportComposer
+        open={composer.open}
+        onClose={() => setComposer((c) => ({ ...c, open: false }))}
+        date={date}
+        employees={composerEmployees}
+        sections={sections.map((s) => ({ id: s.id, name: s.name }))}
+        employeeId={composer.employeeId}
+      />
     </div>
   );
 }

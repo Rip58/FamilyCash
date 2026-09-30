@@ -12,6 +12,7 @@ import {
   getSettings,
   getStatusTypes,
 } from "@/lib/queries";
+import { getReportsForDate } from "@/lib/report-queries";
 
 export const metadata = { title: "Hoy" };
 export const dynamic = "force-dynamic";
@@ -28,13 +29,14 @@ export default async function Page({ params }: { params: Promise<{ date?: string
   const date = segs ? segs[0]! : today;
   const isToday = date === today;
 
-  const [employees, departments, statusTypes, sections, entries, dayNote] = await Promise.all([
+  const [employees, departments, statusTypes, sections, entries, dayNote, reports] = await Promise.all([
     getEmployees(),
     getDepartments(),
     getStatusTypes(),
     getSections(),
     getEntriesBetween(date, date),
     getDayNote(date),
+    getReportsForDate(date),
   ]);
 
   const title = `${formatDayLong(date)} · ${settings.shiftStart}–${settings.shiftEnd}`;
@@ -84,6 +86,7 @@ export default async function Page({ params }: { params: Promise<{ date?: string
           .map((s) => ({ id: s.id, name: s.name, departmentId: s.departmentId }))}
         entries={entries}
         dayNote={dayNote}
+        reports={reports}
       />
     </div>
   );
