@@ -27,7 +27,8 @@ export interface SettingsData {
 
 /** Ajustes (fila id=1; se crea con valores por defecto si no existe). */
 export async function getSettings(): Promise<SettingsData> {
-  const s = await db.settings.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
+  // Lectura primero: evita una escritura (upsert) en cada carga de página.
+  const s = (await db.settings.findUnique({ where: { id: 1 } })) ?? (await db.settings.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } }));
   const { passwordHash: _omit, ...rest } = s;
   void _omit;
   return rest;

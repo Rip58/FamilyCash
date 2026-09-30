@@ -38,6 +38,12 @@ export default async function Page({
     getEntriesBetween(today, today),
     loadRequests({ employeeId: id }),
   ]);
+  const entryCounts: [number, number] =
+    tab === "datos"
+      ? await Promise.all([db.dayEntry.count({ where: { employeeId: id } }), db.employeeNote.count({ where: { employeeId: id } })]).then(([a, b]): [number, number] => [a, b])
+      : [0, 0];
+  const [historyNotes, historyReports] =
+    tab === "historial" ? await Promise.all([loadNotes(id), listReportsForEmployee(id)]) : [[], []];
   const entry = todayEntries.find((e) => e.employeeId === id) ?? null;
   const day = getEffectiveDay(employee, today, entry, statusTypes);
   const dept = departments.find((d) => d.id === employee.defaultDepartmentId) ?? null;
@@ -78,16 +84,13 @@ export default async function Page({
             fixedDaysOff: employee.fixedDaysOff,
             active: employee.active,
             notes: employee.notes,
-            entryCount:
-              (await db.dayEntry.count({ where: { employeeId: id } })) +
-              (await db.employeeNote.count({ where: { employeeId: id } })) +
-              requests.length,
+            entryCount: entryCounts[0] + entryCounts[1] + requests.length,
           }}
           departments={departments.map((d) => ({ id: d.id, name: d.name, color: d.color, active: d.active ?? true }))}
         />
       )}
       {tab === "historial" && (
-        <HistoryTab employeeId={id} notes={await loadNotes(id)} reports={await listReportsForEmployee(id)} />
+        <HistoryTab employeeId={id} notes={historyNotes} reports={historyReports} />
       )}
       {tab === "peticiones" && <RequestsTab employeeId={id} requests={requests} />}
     </div>
