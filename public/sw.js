@@ -5,10 +5,10 @@
  *   (es autenticado y con datos del turno: no debe enseñarse viejo).
  * - No intercepta /api, POST (server actions), peticiones RSC ni nada que no sea lo anterior.
  */
-const VERSION = "v1";
+const VERSION = "v2";
 const SHELL_CACHE = `plantilla-shell-${VERSION}`;
 const STATIC_CACHE = `plantilla-static-${VERSION}`;
-const SHELL_URLS = ["/offline.html", "/icon/192", "/icon/512", "/apple-icon"];
+const SHELL_URLS = ["/offline.html", "/icons/icon-192.png", "/icons/icon-512.png", "/apple-icon.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

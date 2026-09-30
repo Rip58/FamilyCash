@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { countPendingRequests } from "@/lib/employee-file-queries";
+import { VersionCard } from "@/components/settings/VersionCard";
 
 export const metadata = { title: "Ajustes" };
 export const dynamic = "force-dynamic";
@@ -69,6 +70,7 @@ export default async function Page() {
             ))}
           </div>
         ))}
+        <VersionCard />
       </div>
     </div>
   );

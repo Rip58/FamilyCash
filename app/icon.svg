@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#141414"/>
+  <g transform="translate(16 6)">
+  <g fill="none" stroke="#B5CC18" stroke-linecap="round" stroke-linejoin="round">
+    <!-- asa y marco del carro -->
+    <path d="M78 104h34c14 0 22 8 24 20l40 208h212" stroke-width="30"/>
+    <!-- cesta: contorno -->
+    <path d="M146 158h292l-34 150H176z" stroke-width="24"/>
+    <!-- rejilla vertical -->
+    <path d="M210 158v150M268 158v150M326 158v150M384 158l-6 150" stroke-width="16"/>
+    <!-- rejilla horizontal -->
+    <path d="M154 208h272M165 258h250" stroke-width="16"/>
+  </g>
+  <!-- ruedas -->
+  <circle cx="200" cy="404" r="44" fill="#fff"/>
+  <circle cx="200" cy="404" r="22" fill="#141414"/>
+  <circle cx="330" cy="404" r="44" fill="#fff"/>
+  <circle cx="330" cy="404" r="22" fill="#141414"/>
+  </g>
+</svg>
