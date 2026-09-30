@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Settings {            // fila única id=1
+  id              Int     @id @default(1)
+  shiftStart      String  @default("21:30")
+  shiftEnd        String  @default("06:30")
+  breakStart      String  @default("02:00")
+  breakEnd        String  @default("03:00")
+  dayRolloverHour Int     @default(12)   // antes de esta hora "Hoy" = noche anterior
+  daysOffPerWeek  Int     @default(2)
+  passwordHash    String?                // si existe, sustituye a APP_PASSWORD
+}
+
+model Department {          // Droguería, Botellería, ...
+  id          String  @id @default(cuid())
+  name        String
+  color       String  @default("#64748b")
+  sortOrder   Int     @default(0)
+  targetStaff Int     @default(0)          // plazas previstas (Droguería 4, Botellería 1)
+  active      Boolean @default(true)
+  employees   Employee[]
+  sections    Section[]
+}
+
+model Section {             // pasillos / tareas: Cerveza, Chocolate, ...
+  id           String  @id @default(cuid())
+  name         String
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  sortOrder    Int     @default(0)
+  active       Boolean @default(true)
+  segments     WorkSegment[]
+}
+
+model StatusType {
+  id          String  @id @default(cuid())
+  code        String  @unique            // WORK, OFF, PAID_OFF, SICK, VACATION
+  label       String
+  color       String
+  isWorking   Boolean @default(false)
+  sortOrder   Int     @default(0)
+  active      Boolean @default(true)
+  entries     DayEntry[]
+}
+
+model Employee {
+  id                  String  @id @default(cuid())
+  name                String
+  defaultDepartmentId String?
+  defaultDepartment   Department? @relation(fields: [defaultDepartmentId], references: [id])
+  sortOrder           Int     @default(0)   // orden dentro del departamento
+  fixedDaysOff        Int[]                 // 0=Lun … 6=Dom
+  active              Boolean @default(true)
+  notes               String?               // nota permanente
+  days                DayEntry[]
+}
+
+model DayEntry {            // solo existe si el día difiere del patrón o tiene datos
+  id            String   @id @default(cuid())
+  date          DateTime @db.Date           // día de INICIO del turno
+  employeeId    String
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  statusTypeId  String
+  statusType    StatusType @relation(fields: [statusTypeId], references: [id])
+  departmentId  String?                     // ubicación ese día (null = la habitual)
+  reason        String?                     // motivo ausencia / cambio
+  note          String?                     // nota del día sobre el empleado
+  arrivedAt     String?                     // "22:15" si llega tarde
+  leftAt        String?                     // "07:30" si se queda más / "04:00" si se va antes
+  timeReason    String?
+  segments      WorkSegment[]
+  updatedAt     DateTime @updatedAt
+  @@unique([employeeId, date])
+  @@index([date])
+}
+
+model WorkSegment {         // "Cerveza 21:30–05:00", "Chocolate 05:00–06:30"
+  id          String   @id @default(cuid())
+  dayEntryId  String
+  dayEntry    DayEntry @relation(fields: [dayEntryId], references: [id], onDelete: Cascade)
+  sectionId   String?
+  section     Section? @relation(fields: [sectionId], references: [id])
+  label       String?                       // texto libre si no hay sección
+  start       String                        // "HH:mm"
+  end         String
+  note        String?
+  sortOrder   Int      @default(0)
+}
+
+model DayNote {             // nota general de la noche
+  date  DateTime @id @db.Date
+  text  String
+}

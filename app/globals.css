@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+/* Tokens de diseño (estilo iOS minimalista). Modo oscuro automático. */
+:root {
+  --bg: #f2f2f7;
+  --surface: #ffffff;
+  --surface-2: #f2f2f7;
+  --fg: #000000;
+  --fg-muted: #6c6c70;
+  --border: rgba(60, 60, 67, 0.18);
+  --accent: #0a84ff;
+  --accent-fg: #ffffff;
+  --danger: #ff3b30;
+  --warning: #f59e0b;
+  --success: #22c55e;
+  --backdrop: rgba(0, 0, 0, 0.4);
+  --tabbar-bg: rgba(249, 249, 249, 0.92);
+  --radius-card: 14px;
+  --radius-control: 10px;
+  --tabbar-h: 56px;
+  --ease: 150ms ease;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000;
+    --surface: #1c1c1e;
+    --surface-2: #2c2c2e;
+    --fg: #ffffff;
+    --fg-muted: #98989f;
+    --border: rgba(84, 84, 88, 0.55);
+    --accent: #0a84ff;
+    --backdrop: rgba(0, 0, 0, 0.6);
+    --tabbar-bg: rgba(28, 28, 30, 0.92);
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-line: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --radius-card: var(--radius-card);
+  --radius-control: var(--radius-control);
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+}
+
+body {
+  min-height: 100dvh;
+  overscroll-behavior-y: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+.app-main {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
