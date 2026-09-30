@@ -1,0 +1,296 @@
+"use client";
+
+import { useMemo, useOptimistic, useState, useTransition } from "react";
+import { Card } from "@/components/ui/Card";
+import { cn } from "@/components/ui/cn";
+import {
+  addSegment as addSegmentAction,
+  deleteSegment as deleteSegmentAction,
+  setDayNote as setDayNoteAction,
+  setDepartment as setDepartmentAction,
+  setNote as setNoteAction,
+  setReason as setReasonAction,
+  setStatus as setStatusAction,
+  setTimes as setTimesAction,
+  updateSegment as updateSegmentAction,
+  type ActionResult,
+} from "@/app/actions/day";
+import type { DateStr } from "@/lib/dates";
+import {
+  type DayEntryLite,
+  type DepartmentLite,
+  type EmployeeLite,
+  type RosterMember,
+  type StatusTypeLite,
+  getDayRoster,
+} from "@/lib/schedule";
+import { type EntryPatch, type ShiftTimes, applyEntryPatch } from "@/lib/segments";
+import { DayNoteCard } from "./DayNoteCard";
+import { EmployeeRow } from "./EmployeeRow";
+import { EmployeeSheet } from "./EmployeeSheet";
+import { MoveSheet } from "./MoveSheet";
+import type { SectionLite, SheetOps } from "./types";
+
+interface DayViewProps {
+  date: DateStr;
+  shift: ShiftTimes;
+  employees: EmployeeLite[];
+  departments: DepartmentLite[];
+  statusTypes: StatusTypeLite[];
+  sections: SectionLite[];
+  entries: DayEntryLite[];
+  dayNote: string | null;
+}
+
+interface OptimisticAction {
+  employeeId: string;
+  patch: EntryPatch;
+}
+
+export function DayView({ date, shift, employees, departments, statusTypes, sections, entries, dayNote }: DayViewProps) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<{ id: string; open: boolean } | null>(null);
+  const [move, setMove] = useState<{ id: string; open: boolean } | null>(null);
+  const [absentOpen, setAbsentOpen] = useState(false);
+
+  const [optEntries, applyOptimistic] = useOptimistic(entries, (cur: DayEntryLite[], a: OptimisticAction) => {
+    const employee = employees.find((e) => e.id === a.employeeId);
+    if (!employee) return cur;
+    const existing = cur.find((e) => e.employeeId === a.employeeId);
+    const next = applyEntryPatch(existing, employee, date, statusTypes, a.patch, shift.shiftStart);
+    return existing ? cur.map((e) => (e === existing ? next : e)) : [...cur, next];
+  });
+  const [optNote, setOptNote] = useOptimistic(dayNote, (_cur: string | null, next: string) => next.trim() || null);
+
+  const roster = useMemo(
+    () => getDayRoster({ date, employees, entries: optEntries, departments, statusTypes }),
+    [date, employees, optEntries, departments, statusTypes],
+  );
+  const deptMap = useMemo(() => new Map(departments.map((d) => [d.id, d])), [departments]);
+  const sectionNames = useMemo(() => new Map(sections.map((s) => [s.id, s.name])), [sections]);
+  const activeSections = useMemo(() => sections, [sections]);
+  const activeDepartments = useMemo(() => departments.filter((d) => d.active !== false), [departments]);
+
+  const allMembers = useMemo(() => {
+    const m = new Map<string, RosterMember>();
+    for (const d of roster.departments) for (const x of [...d.present, ...d.absent]) m.set(x.employee.id, x);
+    for (const x of roster.unassigned) m.set(x.employee.id, x);
+    for (const g of roster.absentByStatus) for (const x of g.members) m.set(x.employee.id, x);
+    return m;
+  }, [roster]);
+
+  const commit = (employeeId: string, patch: EntryPatch, call: () => Promise<ActionResult>) => {
+    startTransition(async () => {
+      applyOptimistic({ employeeId, patch });
+      const r = await call();
+      setError(r.ok ? null : r.error);
+    });
+  };
+
+  const opsFor = (employeeId: string): SheetOps => {
+    const base = { employeeId, date };
+    return {
+      setStatus: (statusTypeId, reason) =>
+        commit(employeeId, { kind: "status", statusTypeId, reason }, () =>
+          setStatusAction({ ...base, statusTypeId, reason }),
+        ),
+      setReason: (reason) =>
+        commit(employeeId, { kind: "reason", reason }, () => setReasonAction({ ...base, reason: reason.trim() || null })),
+      setDepartment: (departmentId) =>
+        commit(employeeId, { kind: "department", departmentId }, () => setDepartmentAction({ ...base, departmentId })),
+      setTimes: (t) => {
+        const arrivedAt = t.arrivedAt || null;
+        const leftAt = t.leftAt || null;
+        const timeReason = t.timeReason.trim() || null;
+        commit(employeeId, { kind: "times", arrivedAt, leftAt, timeReason }, () =>
+          setTimesAction({ ...base, arrivedAt, leftAt, timeReason }),
+        );
+      },
+      setNote: (note) =>
+        commit(employeeId, { kind: "note", note }, () => setNoteAction({ ...base, note: note.trim() || null })),
+      addSegment: (s) =>
+        commit(
+          employeeId,
+          { kind: "segmentAdd", segment: { ...s, id: `tmp-${Date.now()}`, note: null, sortOrder: 0 } },
+          () => addSegmentAction({ ...base, ...s }),
+        ),
+      updateSegment: (id, s) =>
+        commit(employeeId, { kind: "segmentUpdate", segment: { ...s, id, note: null, sortOrder: 0 } }, () =>
+          updateSegmentAction({ ...base, segmentId: id, ...s }),
+        ),
+      deleteSegment: (id) =>
+        commit(employeeId, { kind: "segmentDelete", id }, () => deleteSegmentAction({ ...base, segmentId: id })),
+    };
+  };
+
+  const saveDayNote = (text: string) => {
+    startTransition(async () => {
+      setOptNote(text);
+      const r = await setDayNoteAction({ date, text });
+      setError(r.ok ? null : r.error);
+    });
+  };
+
+  const openSheet = (id: string) => {
+    setError(null);
+    setSheet({ id, open: true });
+  };
+  const openMove = (id: string) => setMove({ id, open: true });
+
+  const row = (m: RosterMember, showStatus = false) => (
+    <EmployeeRow
+      key={m.employee.id}
+      member={m}
+      sectionNames={sectionNames}
+      departments={deptMap}
+      shift={shift}
+      showStatus={showStatus}
+      onOpen={() => openSheet(m.employee.id)}
+      onMove={() => openMove(m.employee.id)}
+    />
+  );
+
+  const sheetMember = sheet ? allMembers.get(sheet.id) : undefined;
+  const moveMember = move ? allMembers.get(move.id) : undefined;
+  const absentTotal = roster.absentByStatus.reduce((n, g) => n + g.members.length, 0);
+
+  return (
+    <div className="flex flex-col gap-3 pb-6">
+      {roster.countsByStatus.length > 0 && (
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[14px] text-muted" aria-label="Resumen del día">
+          {roster.countsByStatus.map(({ status, count }) => (
+            <span key={status.id} className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: status.color }} aria-hidden />
+              <span>
+                <span className="font-semibold text-fg">{count}</span>{" "}
+                {status.code === "WORK" ? "trabajan" : status.label.toLowerCase()}
+              </span>
+            </span>
+          ))}
+        </p>
+      )}
+
+      <div className={cn(!optNote && "-mt-1")}>
+        <DayNoteCard note={optNote} onSave={saveDayNote} />
+      </div>
+
+      {/* TODO Fase 6c (Avisos con foto): aquí irá el bloque "Avisos" de la noche
+          y el botón flotante 📷. */}
+
+      {departments.length === 0 && (
+        <Card>
+          <p className="text-[15px] text-muted">
+            Aún no hay departamentos. Créalos en Ajustes para organizar la plantilla.
+          </p>
+        </Card>
+      )}
+
+      {roster.departments.map(({ department, present, absent, targetStaff, isEmpty, isUnderStaffed }) => (
+        <Card key={department.id} flush tone={isEmpty ? "danger" : "default"} aria-label={department.name}>
+          <div className="flex min-h-11 items-center justify-between gap-3 px-4 pt-1">
+            <h2 className="flex items-center gap-2 text-[16px] font-semibold">
+              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: department.color }} aria-hidden />
+              {department.name}
+            </h2>
+            <span
+              className={cn(
+                "text-[15px] font-semibold tabular-nums",
+                isEmpty ? "text-danger" : isUnderStaffed ? "text-warning" : "text-muted",
+              )}
+              aria-label={`${present.length} de ${targetStaff} plazas`}
+            >
+              {targetStaff > 0 ? `${present.length}/${targetStaff}` : present.length}
+            </span>
+          </div>
+          {isEmpty && (
+            <div className="px-4 pb-2">
+              <p className="text-[15px] font-semibold text-danger">Sin personal</p>
+            </div>
+          )}
+          {present.length > 0 && <div className="divide-y divide-line pb-1">{present.map((m) => row(m))}</div>}
+          {isEmpty && absent.length > 0 && (
+            <div className="divide-y divide-line pb-1">{absent.map((m) => row(m, true))}</div>
+          )}
+        </Card>
+      ))}
+
+      {roster.unassigned.length > 0 && (
+        <Card flush>
+          <div className="flex min-h-11 items-center justify-between px-4 pt-1">
+            <h2 className="text-[16px] font-semibold">Sin departamento</h2>
+            <span className="text-[15px] font-semibold tabular-nums text-muted">{roster.unassigned.length}</span>
+          </div>
+          <div className="divide-y divide-line pb-1">{roster.unassigned.map((m) => row(m))}</div>
+        </Card>
+      )}
+
+      {absentTotal > 0 && (
+        <section className="rounded-card bg-surface">
+          <button
+            type="button"
+            aria-expanded={absentOpen}
+            onClick={() => setAbsentOpen((v) => !v)}
+            className="flex min-h-12 w-full items-center justify-between px-4 text-left"
+          >
+            <span className="text-[16px] font-semibold">No vienen hoy · {absentTotal}</span>
+            <span className={cn("text-muted transition-transform", absentOpen && "rotate-90")} aria-hidden>
+              ›
+            </span>
+          </button>
+          {absentOpen &&
+            roster.absentByStatus.map((g) => (
+              <div key={g.status.id} className="border-t border-line pb-1">
+                <h3 className="flex items-center gap-2 px-4 pt-3 pb-1 text-[13px] font-semibold uppercase tracking-wide text-muted">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: g.status.color }} aria-hidden />
+                  {g.status.label} · {g.members.length}
+                </h3>
+                <div className="divide-y divide-line">
+                  {g.members.map((m) => (
+                    <EmployeeRow
+                      key={m.employee.id}
+                      member={m}
+                      sectionNames={sectionNames}
+                      departments={deptMap}
+                      shift={shift}
+                      onOpen={() => openSheet(m.employee.id)}
+                      onMove={() => openMove(m.employee.id)}
+                      showStatus
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+        </section>
+      )}
+
+      {sheet && sheetMember && (
+        <EmployeeSheet
+          key={sheet.id}
+          open={sheet.open}
+          onClose={() => setSheet((s) => (s ? { ...s, open: false } : s))}
+          member={sheetMember}
+          statusTypes={statusTypes}
+          departments={departments}
+          sections={activeSections}
+          shift={shift}
+          busy={pending}
+          error={error}
+          ops={opsFor(sheet.id)}
+        />
+      )}
+
+      {move && moveMember && (
+        <MoveSheet
+          open={move.open}
+          onClose={() => setMove((m) => (m ? { ...m, open: false } : m))}
+          name={moveMember.employee.name}
+          departments={activeDepartments}
+          currentId={moveMember.day.departmentId}
+          habitualId={moveMember.employee.defaultDepartmentId}
+          onPick={(id) => opsFor(move.id).setDepartment(id === moveMember.employee.defaultDepartmentId ? null : id)}
+        />
+      )}
+    </div>
+  );
+}
