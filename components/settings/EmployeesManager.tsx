@@ -146,13 +146,13 @@ export function EmployeesManager({ employees, departments }: { employees: Employ
 
 export function DaysChips({ value, onChange }: { value: number[]; onChange: (v: number[]) => void }) {
   return (
-    <div className="flex justify-between gap-1" role="group" aria-label="Días fijos de fiesta">
+    <div className="flex justify-between gap-0.5" role="group" aria-label="Días fijos de fiesta">
       {WEEKDAY_LETTERS.map((l, i) => (
         <Chip
           key={l}
           selected={value.includes(i)}
           aria-label={`Fiesta fija ${["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"][i]}`}
-          className="!min-w-11 !px-0 flex-1"
+          className="!min-w-0 !px-0 flex-1"
           onClick={() => onChange(value.includes(i) ? value.filter((d) => d !== i) : [...value, i].sort())}
         >
           {l}

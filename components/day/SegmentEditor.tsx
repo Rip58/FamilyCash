@@ -159,10 +159,10 @@ export function SegmentEditor({ segments, sections, departments, shift, busy, on
               type="button"
               disabled={busy}
               onClick={() => setMode({ kind: "edit", id: s.id })}
-              className="flex min-h-11 flex-1 items-center justify-between gap-3 px-3 text-left text-[16px] disabled:opacity-60"
+              className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-3 px-3 text-left text-[16px] disabled:opacity-60"
             >
               <span className="truncate">{segmentName(s, names)}</span>
-              <span className="tabular-nums text-muted">
+              <span className="shrink-0 whitespace-nowrap tabular-nums text-muted">
                 {s.start}–{s.end}
               </span>
             </button>
@@ -171,7 +171,7 @@ export function SegmentEditor({ segments, sections, departments, shift, busy, on
               aria-label={`Borrar tramo ${segmentName(s, names)}`}
               disabled={busy}
               onClick={() => onDelete(s.id)}
-              className="min-h-11 min-w-11 text-[20px] text-danger disabled:opacity-60"
+              className="min-h-11 min-w-11 shrink-0 text-[20px] text-danger disabled:opacity-60"
             >
               ×
             </button>

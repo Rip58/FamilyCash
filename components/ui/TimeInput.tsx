@@ -23,13 +23,13 @@ interface TimeInputProps {
 export function TimeInput({ label, value, onChange, disabled, className, clearable }: TimeInputProps) {
   const id = useId();
   return (
-    <div className={cn("flex flex-col gap-1", className)}>
+    <div className={cn("flex min-w-0 flex-col gap-1", className)}>
       {label && (
         <label htmlFor={id} className="text-[13px] text-muted">
           {label}
         </label>
       )}
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2">
         <input
           id={id}
           type="time"
@@ -37,14 +37,14 @@ export function TimeInput({ label, value, onChange, disabled, className, clearab
           value={value}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
-          className="min-h-11 w-full rounded-control bg-surface-2 px-3 text-[17px] tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
+          className="min-h-11 min-w-0 w-full flex-1 rounded-control bg-surface-2 px-3 text-[17px] tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
         />
         {clearable && value && (
           <button
             type="button"
             aria-label="Borrar hora"
             onClick={() => onChange("")}
-            className="min-h-11 min-w-11 rounded-control bg-surface-2 text-lg text-muted"
+            className="min-h-11 min-w-11 shrink-0 rounded-control bg-surface-2 text-lg text-muted"
           >
             ×
           </button>
