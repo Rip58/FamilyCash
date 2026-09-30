@@ -9,7 +9,7 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 - El "día efectivo" de un empleado se calcula SOLO con `lib/schedule.ts` (`getEffectiveDay`). No duplicar esa lógica en componentes.
 - Mutaciones con Server Actions validadas con zod.
 - Móvil primero (390×844), objetivos táctiles ≥ 44px, textos de UI en español.
-- Sin horas de nómina ni cálculo de totales de horas: la app solo registra si viene, dónde, qué tareas hace y por qué falta.
+- Sin horas de nómina: la app registra si viene, dónde, qué tareas hace, por qué falta y las horas extra apuntadas al cierre del turno (única suma de horas permitida).
 
 ## Comprobaciones antes de commit
 `npm run lint && npm run typecheck && npm test && npm run build`

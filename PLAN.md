@@ -1,7 +1,7 @@
 # Plan — App de Plantilla Turno Noche
 
 App web instalable en iPhone (PWA, "Añadir a pantalla de inicio") para controlar **quién viene cada noche, dónde trabaja, qué ha hecho y por qué falta**.
-No gestiona horas de nómina. Minimalista, rápida, pensada para usarse con una mano.
+No calcula nóminas; solo registra las horas extra que se apuntan al final del turno. Minimalista, rápida, pensada para usarse con una mano.
 
 ---
 
@@ -92,6 +92,8 @@ model DayEntry {            // solo existe si el día difiere del patrón o tien
   arrivedAt     String?                     // "22:15" si llega tarde
   leftAt        String?                     // "07:30" si se queda más / "04:00" si se va antes
   timeReason    String?
+  extraMinutes  Int?                        // horas extra de esa noche, en minutos (p.ej. 60 = 1 h)
+  extraNote     String?                     // motivo de las horas extra
   segments      WorkSegment[]
   updatedAt     DateTime @updatedAt
   @@unique([employeeId, date])
@@ -168,12 +170,15 @@ Así la semana se "rellena sola" y solo se guardan las excepciones. Un `DayEntry
   - Empleados en su orden, con chip de sección si tienen tramos, iconos pequeños si: llega tarde ⏰, se queda más ➕, tiene nota 💬.
   - **Departamento vacío** → tarjeta con borde discontinuo rojo "Sin personal" + quién falta y por qué (`Joao · Vacaciones`). **Por debajo de plazas** → contador en ámbar.
 - Bloque **Avisos** (si hay): miniaturas + texto corto de los avisos con foto de esa noche; tap → detalle. Botón flotante 📷 para crear uno nuevo.
+- Botón **"Cierre de turno · Horas extra"** (visible siempre; destacado a partir de las 05:00): hoja con todos los que han trabajado esa noche, cada uno con un stepper de horas extra (0 por defecto) y motivo opcional. Se rellena en 30 segundos al final del turno; muestra el total de la noche.
+- Icono ⏱ +1 h en la fila del empleado con horas extra.
 - Sección plegable **"No vienen hoy"** agrupada por estado, con motivo.
 - Tap en empleado → **hoja inferior (bottom sheet)**:
   - Estado (botones segmentados con colores) + motivo.
   - Departamento de hoy (selector; "Habitual: Droguería").
   - **Tramos/tareas**: lista `Cerveza 21:30–05:00`, botón "+ Tarea": elegir sección/texto, hora fin (hora inicio = fin del tramo anterior automáticamente). Se salta el descanso 02:00–03:00 solo a efectos visuales.
   - Horario real: "Llega tarde a __:__", "Sale a __:__" + motivo.
+  - **Horas extra**: stepper en pasos de 15 min (+15 / +30 / +1 h rápidos) + motivo. Si "Sale a" es posterior al fin de turno, se propone automáticamente la diferencia como horas extra (editable).
   - Nota del día sobre el empleado.
   - Botón **📷 Aviso con foto** (ver 2.5) con el empleado ya preseleccionado.
   - Guardado automático (optimistic UI), sin botón "Guardar".
@@ -191,9 +196,10 @@ Así la semana se "rellena sola" y solo se guardan las excepciones. Un `DayEntry
 - Selector de día (por defecto: la última noche).
 - Por empleado que trabajó: línea de tiempo de tramos (`21:30–05:00 Cerveza → 05:00–06:30 Chocolate`), incidencias de horario, nota.
 - Bloque **Incidencias**: llegadas tarde, quién se quedó más, ausencias con motivo, nota del día.
+- Bloque **Horas extra** de la noche: quién, cuántas y motivo, con total.
 - Bloque **Avisos con foto** de la noche (texto + miniaturas; tap → foto a pantalla completa).
 - Botón **Compartir** (Web Share API → WhatsApp/Mail) con el informe en texto plano.
-- Pestaña secundaria "Semana": resumen de ausencias por tipo y por empleado.
+- Pestaña secundaria "Semana": resumen de ausencias por tipo y por empleado, y **horas extra por empleado** (suma de la semana).
 
 ### 2.4 Protocolos
 - Lista de protocolos agrupados por categoría, cada uno como **desplegable** (acordeón): título visible, al abrir se ven las viñetas (con sub-viñetas anidadas).
@@ -274,6 +280,7 @@ Cada fase termina con `npm run lint && npm run typecheck && npm test && npm run 
 | 6 | **Informe** | Informe diario + incidencias + compartir texto; resumen semanal; exportar CSV. |
 | 6b | **Protocolos** | Pestaña Protocolos: acordeón por categorías, buscador, editor de viñetas con vista previa, reordenar. Modelo `Protocol` + migración. Seed con 1–2 protocolos de ejemplo. |
 | 6c | **Avisos con foto** | Modelos `Report`/`ReportPhoto` + migración, subida a Vercel Blob con compresión en cliente, hoja de creación, bloque Avisos en Hoy, en Informe y listado filtrable, visor a pantalla completa, borrar (incluye Blob). Tests de la compresión/validación. |
+| 6d | **Horas extra** | Campos `extraMinutes`/`extraNote` en DayEntry + migración; stepper en la hoja del empleado (propuesta automática desde "Sale a"); hoja "Cierre de turno" en Hoy; bloque en Informe diario, texto compartido y suma semanal; columna en el CSV. Tests. |
 | 7 | **Pulido + deploy** | Modo oscuro, accesibilidad, iconos PWA, prueba en viewport iPhone (Playwright), deploy en Vercel con Neon, README con instrucciones de instalación en iPhone. |
 
 ### Prompt tipo para cada agente
