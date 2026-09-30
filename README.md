@@ -40,14 +40,12 @@ Se usa el cliente estándar de Prisma 7 con el adaptador `@prisma/adapter-pg` (d
 
 ## Deploy en Vercel + Neon
 
-1. Crea una base de datos en [Neon](https://neon.tech) y copia las dos cadenas: **pooled** y **directa**.
-2. Importa el repositorio en Vercel (Framework: Next.js). El script `vercel-build` (`prisma migrate deploy && next build`) aplica las migraciones en cada deploy; Vercel lo usa automáticamente si existe.
-3. En *Settings → Environment Variables* añade `DATABASE_URL` (pooled), `DIRECT_URL` (directa), `APP_PASSWORD` y `AUTH_SECRET`.
-4. Tras el primer deploy, ejecuta el seed **una sola vez** desde tu máquina con las variables de producción:
-   ```bash
-   DIRECT_URL="<cadena directa de Neon>" npx prisma db seed
-   ```
-5. Abre la URL de Vercel e inicia sesión con `APP_PASSWORD`.
+1. En Vercel: **Add New → Project → Import** `Rip58/FamilyCash` (Framework: Next.js, sin cambiar nada más).
+2. En el proyecto → pestaña **Storage** → **Create** → **Neon** (Postgres) y conéctalo al proyecto. La integración crea `DATABASE_URL` (pooled) y `DATABASE_URL_UNPOOLED` (directa); la app usa la primera y las migraciones la segunda. (Si creas la base en neon.tech a mano, pon `DATABASE_URL` pooled y `DIRECT_URL` directa.)
+3. En **Settings → Environment Variables** añade `APP_PASSWORD` (la contraseña de entrada) y `AUTH_SECRET` (cadena aleatoria larga: `openssl rand -base64 32`).
+4. Crea también el **Blob** store (ver abajo) para las fotos.
+5. **Redeploy**. El script `vercel-build` hace `prisma migrate deploy`, luego el seed y luego `next build`. El seed solo actúa si la base está vacía (primer deploy); después no toca nada, así que lo que borres en Ajustes no vuelve a aparecer.
+6. Abre la URL de Vercel en Safari del iPhone, entra con `APP_PASSWORD` y añádela a la pantalla de inicio.
 
 ## Fotos de avisos (Vercel Blob)
 

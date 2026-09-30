@@ -2,7 +2,7 @@ import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../lib/generated/prisma/client";
 
-const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
 
 const STATUSES = [
@@ -63,6 +63,14 @@ const PROTOCOLS = [
 ];
 
 async function main() {
+  // Solo siembra una base vacía: si ya existe Settings, no recrea lo que se haya borrado en Ajustes.
+  // SEED_FORCE=1 fuerza el upsert (no sobrescribe datos existentes).
+  const existing = await prisma.settings.findUnique({ where: { id: 1 } });
+  if (existing && process.env.SEED_FORCE !== "1") {
+    console.log("Seed omitido: la base de datos ya está inicializada.");
+    return;
+  }
+
   await prisma.settings.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
 
   for (const [i, s] of STATUSES.entries()) {
