@@ -48,6 +48,16 @@ const TABS: { href: string; label: string; icon: ReactNode }[] = [
     ),
   },
   {
+    href: "/protocolos",
+    label: "Protocolos",
+    icon: (
+      <svg {...iconProps}>
+        <path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z" />
+        <path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3M9 8h6M9 12h6" />
+      </svg>
+    ),
+  },
+  {
     href: "/ajustes",
     label: "Ajustes",
     icon: (
