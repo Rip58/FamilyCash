@@ -1,22 +1,25 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
+import { countPendingRequests } from "@/lib/employee-file-queries";
 
 export const metadata = { title: "Ajustes" };
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  const [emps, deps, secs, sts, settings] = await Promise.all([
+  const [emps, deps, secs, sts, settings, pending] = await Promise.all([
     db.employee.count({ where: { active: true } }),
     db.department.count({ where: { active: true } }),
     db.section.count({ where: { active: true } }),
     db.statusType.count({ where: { active: true } }),
     db.settings.findUnique({ where: { id: 1 } }),
+    countPendingRequests(),
   ]);
   const shift = settings ? `${settings.shiftStart}–${settings.shiftEnd}` : "21:30–06:30";
-  const groups: { items: { href: string; label: string; detail?: string; icon: string; color: string }[] }[] = [
+  const groups: { items: { href: string; label: string; detail?: string; badge?: number; icon: string; color: string }[] }[] = [
     {
       items: [
         { href: "/ajustes/empleados", label: "Empleados", detail: String(emps), icon: "👤", color: "#3b82f6" },
+        { href: "/ajustes/peticiones", label: "Peticiones", badge: pending, icon: "📝", color: "#f59e0b" },
         { href: "/ajustes/departamentos", label: "Departamentos", detail: String(deps), icon: "🏷️", color: "#f97316" },
         { href: "/ajustes/secciones", label: "Secciones", detail: String(secs), icon: "🧭", color: "#14b8a6" },
         { href: "/ajustes/estados", label: "Estados", detail: String(sts), icon: "🎨", color: "#8b5cf6" },
@@ -27,7 +30,7 @@ export default async function Page() {
       items: [
         { href: "/ajustes/seguridad", label: "Seguridad", icon: "🔒", color: "#64748b" },
         { href: "/ajustes/datos", label: "Datos", detail: "Exportar CSV", icon: "📄", color: "#22c55e" },
-        { href: "/ajustes/almacenamiento", label: "Almacenamiento", detail: "Avisos y fotos", icon: "🗂️", color: "#0ea5e9" },
+        { href: "/ajustes/almacenamiento", label: "Almacenamiento", detail: "Avisos y fichas", icon: "🗂️", color: "#0ea5e9" },
       ],
     },
   ];
@@ -52,6 +55,15 @@ export default async function Page() {
                 </span>
                 <span className="flex-1 text-[17px]">{it.label}</span>
                 {it.detail && <span className="text-[15px] text-muted">{it.detail}</span>}
+                {it.badge ? (
+                  <span
+                    data-testid="pending-badge"
+                    aria-label={`${it.badge} pendientes`}
+                    className="flex h-6 min-w-6 items-center justify-center rounded-full bg-warning px-1.5 text-[13px] font-bold text-black"
+                  >
+                    {it.badge}
+                  </span>
+                ) : null}
                 <span aria-hidden className="text-muted">›</span>
               </Link>
             ))}

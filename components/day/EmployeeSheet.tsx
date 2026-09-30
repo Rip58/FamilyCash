@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ReportCard } from "@/components/reports/ReportCard";
 import type { ReportView } from "@/lib/reports";
 import { BottomSheet } from "@/components/ui/BottomSheet";
@@ -229,6 +230,15 @@ export function EmployeeSheet({
             <span aria-hidden>📷</span> Aviso con foto
           </button>
         </Block>
+
+        <div className="py-2 text-center">
+          <Link
+            href={`/ajustes/empleados/${employee.id}`}
+            className="inline-flex min-h-11 items-center px-3 text-[14px] text-muted underline-offset-2 active:underline"
+          >
+            Ver ficha
+          </Link>
+        </div>
       </div>
     </BottomSheet>
   );

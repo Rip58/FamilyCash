@@ -76,8 +76,12 @@ export async function saveEmployee(input: z.input<typeof employeeSchema>): Promi
 export async function deleteEmployee(rawId: string): Promise<ActionResult> {
   const p = id.safeParse(rawId);
   if (!p.success) return fail("Empleado no válido.");
-  const entries = await db.dayEntry.count({ where: { employeeId: p.data } });
-  if (entries > 0) return fail("Tiene historial: no se puede borrar. Márcalo como inactivo.");
+  const [entries, notes, requests] = await Promise.all([
+    db.dayEntry.count({ where: { employeeId: p.data } }),
+    db.employeeNote.count({ where: { employeeId: p.data } }),
+    db.leaveRequest.count({ where: { employeeId: p.data } }),
+  ]);
+  if (entries + notes + requests > 0) return fail("Tiene historial: no se puede borrar. Márcalo como inactivo.");
   await db.employee.deleteMany({ where: { id: p.data } });
   return done();
 }

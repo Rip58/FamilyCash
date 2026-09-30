@@ -6,6 +6,7 @@ import { ConfirmButton, PrimaryButton, inputClass, notify } from "@/components/s
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { formatDayLong } from "@/lib/dates";
 import { MAX_REPORT_TEXT, photoCountLabel, type ReportView } from "@/lib/reports";
+import { PhotoThumbs } from "./PhotoThumbs";
 import { PhotoViewer } from "./PhotoViewer";
 
 interface ReportCardProps {
@@ -14,27 +15,6 @@ interface ReportCardProps {
   showDate?: boolean;
   /** Oculta el botón de editar/borrar. */
   readOnly?: boolean;
-}
-
-function Thumbs({ report, onOpen }: { report: ReportView; onOpen: (i: number) => void }) {
-  if (report.photos.length === 0) return null;
-  return (
-    <ul className="mt-2 flex flex-wrap gap-2" aria-label="Fotos del aviso">
-      {report.photos.map((p, i) => (
-        <li key={p.id}>
-          <button
-            type="button"
-            onClick={() => onOpen(i)}
-            aria-label={`Abrir foto ${i + 1} de ${report.photos.length}`}
-            className="block h-[72px] w-[72px] overflow-hidden rounded-control bg-surface-2 active:opacity-70"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={p.url} alt="" loading="lazy" className="h-full w-full object-cover" />
-          </button>
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 export function ReportCard({ report, showDate, readOnly }: ReportCardProps) {
@@ -53,7 +33,7 @@ export function ReportCard({ report, showDate, readOnly }: ReportCardProps) {
         </span>
       </header>
       <p className="mt-1 whitespace-pre-wrap break-words text-[15px]">{report.text}</p>
-      <Thumbs report={report} onOpen={setViewer} />
+      <PhotoThumbs photos={report.photos} onOpen={setViewer} />
       {!readOnly && (
         <div className="mt-1 flex justify-end">
           <button

@@ -9,12 +9,17 @@ import { BackHeader, ConfirmButton, Stepper, useRun } from "./kit";
 
 interface Props {
   reports: number;
+  /** Notas de ficha de empleado. */
+  notes: number;
+  /** Fotos totales (avisos + fichas). */
   photos: number;
+  reportPhotos: number;
+  notePhotos: number;
   bytes: number;
   mode: "blob" | "local";
 }
 
-export function StorageSettings({ reports, photos, bytes, mode }: Props) {
+export function StorageSettings({ reports, notes, photos, reportPhotos, notePhotos, bytes, mode }: Props) {
   const [months, setMonths] = useState(6);
   const { pending, run } = useRun();
 
@@ -22,11 +27,15 @@ export function StorageSettings({ reports, photos, bytes, mode }: Props) {
   return (
     <div>
       <BackHeader title="Almacenamiento" />
-      <Card title="Avisos con foto">
+      <Card title="Fotos guardadas">
         <dl>
           <div className={row}>
             <dt>Avisos</dt>
             <dd className="font-semibold tabular-nums" data-testid="stat-reports">{reports}</dd>
+          </div>
+          <div className={row}>
+            <dt>Notas de ficha</dt>
+            <dd className="font-semibold tabular-nums" data-testid="stat-notes">{notes}</dd>
           </div>
           <div className={row}>
             <dt>Fotos</dt>
@@ -48,7 +57,8 @@ export function StorageSettings({ reports, photos, bytes, mode }: Props) {
 
       <Card title="Limpieza" className="mt-4">
         <p className="text-[14px] text-muted">
-          Borra los avisos de noches anteriores a N meses, junto con sus fotos. No se puede deshacer.
+          Borra los avisos de noches anteriores a N meses, junto con sus fotos. Las notas de ficha de los
+          empleados no se borran nunca desde aquí. No se puede deshacer.
         </p>
         <div className="my-3 flex items-center justify-between gap-3">
           <span className="text-[16px]">Anteriores a</span>
@@ -67,7 +77,10 @@ export function StorageSettings({ reports, photos, bytes, mode }: Props) {
         />
         {reports === 0 && <p className="mt-2 text-[13px] text-muted">No hay avisos guardados.</p>}
       </Card>
-      <p className="mt-3 px-1 text-[12px] text-muted">{photoCountLabel(photos)} en {reports} {reports === 1 ? "aviso" : "avisos"}.</p>
+      <p className="mt-3 px-1 text-[12px] text-muted">
+        {photoCountLabel(reportPhotos)} en {reports} {reports === 1 ? "aviso" : "avisos"} y {photoCountLabel(notePhotos)} en{" "}
+        {notes} {notes === 1 ? "nota de ficha" : "notas de ficha"}.
+      </p>
     </div>
   );
 }

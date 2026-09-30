@@ -30,12 +30,15 @@ function CellButton({
   status,
   label,
   hasReason,
+  pending,
   onTap,
   onLong,
 }: {
   status: GridStatus;
   label: string;
   hasReason: boolean;
+  /** Hay una petición pendiente que cubre esta celda. */
+  pending: boolean;
   onTap: () => void;
   onLong: () => void;
 }) {
@@ -94,6 +97,13 @@ function CellButton({
       {hasReason && (
         <span aria-hidden="true" className="absolute right-0.5 top-1.5 h-1.5 w-1.5 rounded-full bg-fg/60" />
       )}
+      {pending && (
+        <span
+          aria-hidden="true"
+          data-pending-dot
+          className="absolute bottom-1 right-0.5 h-2 w-2 rounded-full bg-warning ring-1 ring-surface"
+        />
+      )}
     </button>
   );
 }
@@ -143,16 +153,26 @@ function NameCell({
 function CellSheetBody({
   statuses,
   initial,
+  pending,
   onSave,
 }: {
   statuses: GridStatus[];
   initial: CellValue;
+  pending: string | null;
   onSave: (v: CellValue) => void;
 }) {
   const [statusId, setStatusId] = useState(initial.statusId);
   const [reason, setReason] = useState(initial.reason ?? "");
   return (
     <div className="flex flex-col gap-4 pt-1">
+      {pending && (
+        <p
+          data-testid="pending-request"
+          className="rounded-control bg-warning/20 px-3 py-2 text-[14px] font-medium text-[#92600a] dark:text-warning"
+        >
+          Petición pendiente: {pending}
+        </p>
+      )}
       <Segmented
         wrap
         aria-label="Estado"
@@ -250,6 +270,15 @@ export function PeopleGrid({ data }: { data: PeopleGridData }) {
 
   const sheetKey = sheet ? keyOf(sheet.target.employeeId, sheet.target.date) : "";
   const sheetValue = sheet ? cells[sheetKey] : undefined;
+  const pendingByKey = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const g of groups)
+      for (const r of g.rows)
+        r.cells.forEach((c, i) => {
+          if (c.pending) m[keyOf(r.employeeId, days[i]!)] = c.pending;
+        });
+    return m;
+  }, [groups, days]);
   const sheetStatuses = sheetValue
     ? statuses.filter((s) => s.active || s.id === sheetValue.statusId)
     : [];
@@ -318,7 +347,8 @@ export function PeopleGrid({ data }: { data: PeopleGridData }) {
                         key={d}
                         status={status}
                         hasReason={!!v.reason}
-                        label={`${r.name}, ${formatDayLong(d)}: ${status.label}${v.reason ? ` (${v.reason})` : ""}`}
+                        pending={!!pendingByKey[keyOf(r.employeeId, d)]}
+                        label={`${r.name}, ${formatDayLong(d)}: ${status.label}${v.reason ? ` (${v.reason})` : ""}${pendingByKey[keyOf(r.employeeId, d)] ? ". Petición pendiente" : ""}`}
                         onTap={() => onTap(target)}
                         onLong={() => setSheet({ target, open: true })}
                       />
@@ -357,6 +387,7 @@ export function PeopleGrid({ data }: { data: PeopleGridData }) {
             key={sheetKey}
             statuses={sheetStatuses}
             initial={sheetValue}
+            pending={pendingByKey[sheetKey] ?? null}
             onSave={(v) => {
               change(sheet.target, v);
               setSheet({ ...sheet, open: false });

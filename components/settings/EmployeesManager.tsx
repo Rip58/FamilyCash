@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Card } from "@/components/ui/Card";
@@ -64,10 +65,7 @@ export function DepartmentSelect({
 
 export function EmployeesManager({ employees, departments }: { employees: EmployeeRow[]; departments: DeptOption[] }) {
   const [query, setQuery] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-
-  const editing = employees.find((e) => e.id === editingId) ?? null;
 
   const { groups, inactive } = useMemo(() => {
     const q = norm(query.trim());
@@ -81,11 +79,10 @@ export function EmployeesManager({ employees, departments }: { employees: Employ
   }, [employees, departments, query]);
 
   const row = (e: EmployeeRow) => (
-    <button
+    <Link
       key={e.id}
-      type="button"
-      onClick={() => setEditingId(e.id)}
-      className="flex min-h-14 w-full items-center justify-between gap-3 border-t border-line px-4 py-2 text-left first:border-t-0"
+      href={`/ajustes/empleados/${e.id}`}
+      className="flex min-h-14 w-full items-center justify-between gap-3 border-t border-line px-4 py-2 text-left first:border-t-0 active:bg-surface-2"
     >
       <span className="min-w-0">
         <span className="block truncate text-[17px]">
@@ -98,7 +95,7 @@ export function EmployeesManager({ employees, departments }: { employees: Employ
         </span>
       </span>
       <span aria-hidden className="text-muted">›</span>
-    </button>
+    </Link>
   );
 
   return (
@@ -143,16 +140,11 @@ export function EmployeesManager({ employees, departments }: { employees: Employ
       <BottomSheet open={creating} onClose={() => setCreating(false)} title="Nuevo empleado">
         {creating && <NewEmployee departments={departments} onDone={() => setCreating(false)} />}
       </BottomSheet>
-      <BottomSheet open={!!editing} onClose={() => setEditingId(null)} title={editing?.name ?? "Empleado"}>
-        {editing && (
-          <EditEmployee key={editing.id} employee={editing} departments={departments} onClose={() => setEditingId(null)} />
-        )}
-      </BottomSheet>
     </div>
   );
 }
 
-function DaysChips({ value, onChange }: { value: number[]; onChange: (v: number[]) => void }) {
+export function DaysChips({ value, onChange }: { value: number[]; onChange: (v: number[]) => void }) {
   return (
     <div className="flex justify-between gap-1" role="group" aria-label="Días fijos de fiesta">
       {WEEKDAY_LETTERS.map((l, i) => (
@@ -210,7 +202,7 @@ function NewEmployee({ departments, onDone }: { departments: DeptOption[]; onDon
   );
 }
 
-function EditEmployee({
+export function EditEmployee({
   employee: initial,
   departments,
   onClose,
@@ -267,7 +259,7 @@ function EditEmployee({
           />
         ) : (
           <p className="text-[13px] text-muted">
-            Tiene {employee.entryCount} día{employee.entryCount === 1 ? "" : "s"} de historial: no se puede borrar,
+            Tiene historial ({employee.entryCount} registro{employee.entryCount === 1 ? "" : "s"}): no se puede borrar,
             solo desactivar.
           </p>
         )}

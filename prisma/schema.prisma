@@ -63,6 +63,8 @@ model Employee {
   notes               String?               // nota permanente
   days                DayEntry[]
   reports             Report[]
+  fileNotes           EmployeeNote[]
+  leaveRequests       LeaveRequest[]
 }
 
 model DayEntry {            // solo existe si el día difiere del patrón o tiene datos
@@ -136,4 +138,47 @@ model ReportPhoto {
   height    Int
   size      Int    @default(0)            // bytes, para el resumen de Almacenamiento
   sortOrder Int    @default(0)
+}
+
+model EmployeeNote {        // nota de ficha (privada, con fecha y hora)
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  occurredAt  DateTime                    // fecha y hora del evento
+  category    String   @default("NOTE")   // NOTE | INCIDENT | PRAISE | TALK
+  text        String
+  photos      EmployeeNotePhoto[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@index([employeeId, occurredAt])
+}
+
+model EmployeeNotePhoto {   // mismos campos que ReportPhoto
+  id        String @id @default(cuid())
+  noteId    String
+  note      EmployeeNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  url       String
+  pathname  String
+  width     Int
+  height    Int
+  size      Int    @default(0)
+  sortOrder Int    @default(0)
+}
+
+model LeaveRequest {        // petición de cambio de fiesta / vacaciones / permiso
+  id           String   @id @default(cuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  type         String                     // SWAP_OFF | VACATION | PAID_OFF | OTHER
+  dateFrom     DateTime @db.Date          // SWAP_OFF: día que deja de librar (A)
+  dateTo       DateTime @db.Date          // SWAP_OFF: día que pasa a librar (B); rango: fin
+  note         String?
+  requestedAt  DateTime @db.Date
+  status       String   @default("PENDING") // PENDING | APPROVED | DENIED
+  decisionNote String?
+  decidedAt    DateTime?
+  appliedChanges Json?                    // estados previos de cada día, para poder revertir
+  createdAt    DateTime @default(now())
+  @@index([status])
+  @@index([employeeId])
 }

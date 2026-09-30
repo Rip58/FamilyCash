@@ -100,12 +100,22 @@ export function useSynced<T>(prop: T): [T, (v: T) => void] {
 
 // -------------------------------------------------------------------- Layout
 
-export function BackHeader({ title, action }: { title: string; action?: ReactNode }) {
+export function BackHeader({
+  title,
+  action,
+  href = "/ajustes",
+  backLabel = "Volver a Ajustes",
+}: {
+  title: string;
+  action?: ReactNode;
+  href?: string;
+  backLabel?: string;
+}) {
   return (
     <header className="sticky top-0 z-10 -mx-4 mb-2 flex min-h-14 items-center gap-2 bg-bg/90 px-2 pt-[env(safe-area-inset-top)] backdrop-blur">
       <Link
-        href="/ajustes"
-        aria-label="Volver a Ajustes"
+        href={href}
+        aria-label={backLabel}
         className="flex min-h-11 min-w-11 items-center justify-center text-accent"
       >
         <svg width="12" height="20" viewBox="0 0 12 20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

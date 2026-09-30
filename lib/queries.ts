@@ -49,13 +49,11 @@ export async function getSections() {
   return db.section.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
 }
 
-/** DayEntries (con tramos) entre dos fechas incluidas, ya con fechas "YYYY-MM-DD". */
-export async function getEntriesBetween(from: DateStr, to: DateStr): Promise<DayEntryLite[]> {
-  const rows = await db.dayEntry.findMany({
-    where: { date: { gte: toDbDate(from), lte: toDbDate(to) } },
-    include: { segments: { orderBy: { sortOrder: "asc" } } },
-  });
-  return rows.map((r) => ({
+type EntryRow = Awaited<ReturnType<typeof db.dayEntry.findMany<{ include: { segments: true } }>>>[number];
+
+/** Fila de Prisma -> DayEntryLite (fechas "YYYY-MM-DD", tramos ordenados). */
+export function toEntryLite(r: EntryRow): DayEntryLite {
+  return {
     employeeId: r.employeeId,
     date: fromDbDate(r.date),
     statusTypeId: r.statusTypeId,
@@ -67,16 +65,27 @@ export async function getEntriesBetween(from: DateStr, to: DateStr): Promise<Day
     timeReason: r.timeReason,
     extraMinutes: r.extraMinutes,
     extraNote: r.extraNote,
-    segments: r.segments.map((s) => ({
-      id: s.id,
-      sectionId: s.sectionId,
-      label: s.label,
-      start: s.start,
-      end: s.end,
-      note: s.note,
-      sortOrder: s.sortOrder,
-    })),
-  }));
+    segments: [...r.segments]
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((s) => ({
+        id: s.id,
+        sectionId: s.sectionId,
+        label: s.label,
+        start: s.start,
+        end: s.end,
+        note: s.note,
+        sortOrder: s.sortOrder,
+      })),
+  };
+}
+
+/** DayEntries (con tramos) entre dos fechas incluidas, ya con fechas "YYYY-MM-DD". */
+export async function getEntriesBetween(from: DateStr, to: DateStr): Promise<DayEntryLite[]> {
+  const rows = await db.dayEntry.findMany({
+    where: { date: { gte: toDbDate(from), lte: toDbDate(to) } },
+    include: { segments: { orderBy: { sortOrder: "asc" } } },
+  });
+  return rows.map(toEntryLite);
 }
 
 export async function getDayNote(date: DateStr): Promise<string | null> {

@@ -144,14 +144,17 @@ export async function purgeOldReports(
 }
 
 /**
- * Descarta fotos subidas que no llegaron a formar parte de un aviso (el usuario
+ * Descarta fotos subidas que no llegaron a formar parte de un aviso ni de una nota de ficha (el usuario
  * las quitó o cerró el formulario). Nunca toca archivos que ya pertenecen a un aviso.
  */
 export async function discardUploadedFiles(input: { pathnames: string[] }): Promise<ReportActionResult> {
   const names = Array.isArray(input?.pathnames) ? input.pathnames.filter((n) => typeof n === "string" && isSafePathname(n)) : [];
   if (names.length === 0) return { ok: true };
-  const used = await db.reportPhoto.findMany({ where: { pathname: { in: names } }, select: { pathname: true } });
-  const usedSet = new Set(used.map((u) => u.pathname));
+  const [used, usedByNotes] = await Promise.all([
+    db.reportPhoto.findMany({ where: { pathname: { in: names } }, select: { pathname: true } }),
+    db.employeeNotePhoto.findMany({ where: { pathname: { in: names } }, select: { pathname: true } }),
+  ]);
+  const usedSet = new Set([...used, ...usedByNotes].map((u) => u.pathname));
   await deleteStoredFiles(names.filter((n) => !usedSet.has(n)));
   return { ok: true };
 }

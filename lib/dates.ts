@@ -160,3 +160,53 @@ export function toDbDate(date: DateStr): Date {
 export function fromDbDate(dt: Date): DateStr {
   return fmt(dt);
 }
+
+// ---- Instantes (fecha + hora de pared en Madrid) --------------------------
+
+/**
+ * Instante UTC correcto para una fecha y hora de pared en Madrid
+ * (respeta el horario de verano/invierno).
+ */
+export function madridInstant(date: DateStr, time: string): Date {
+  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time);
+  if (!m) throw new Error(`Hora inválida: ${time}`);
+  const base = parse(date);
+  const wall = Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate(), Number(m[1]), Number(m[2]));
+  let guess = wall;
+  for (let i = 0; i < 3; i++) {
+    const p = madridParts(new Date(guess));
+    const d = parse(p.date);
+    const shown = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), p.hour, p.minute);
+    if (shown === wall) break;
+    guess += wall - shown;
+  }
+  return new Date(guess);
+}
+
+/** Hora "HH:mm" de pared en Madrid para un instante. */
+export function madridTime(instant: Date): string {
+  const p = madridParts(instant);
+  return `${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`;
+}
+
+/** "Mar 29 sep · 23:40" (día de la semana abreviado, día, mes y hora en Madrid). */
+export function formatStamp(instant: Date): string {
+  const date = madridParts(instant).date;
+  return `${WEEKDAY_SHORT[weekdayIndex(date)]} ${formatDayMonth(date)} · ${madridTime(instant)}`;
+}
+
+export const MONTH_LONG = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+] as const;
+
+/** "Septiembre 2026" para una fecha civil. */
+export function formatMonthYear(date: DateStr): string {
+  const dt = parse(date);
+  return `${MONTH_LONG[dt.getUTCMonth()]} ${dt.getUTCFullYear()}`;
+}
+
+/** Días entre dos fechas civiles (b - a). */
+export function diffDays(a: DateStr, b: DateStr): number {
+  return Math.round((parse(b).getTime() - parse(a).getTime()) / 86400000);
+}

@@ -4,6 +4,7 @@
  */
 import { db } from "./db";
 import { type DateStr, fromDbDate, operationalToday, toDbDate, weekDays } from "./dates";
+import { loadPendingCoverage } from "./employee-file-queries";
 import { getDepartments, getEmployees, getEntriesBetween, getSettings, getStatusTypes } from "./queries";
 import { type DayRoster, type WeekGrid, getDayRoster, getWeekGrid } from "./schedule";
 import type { StatusTypeLite } from "./schedule";
@@ -18,6 +19,8 @@ export interface WeekData {
   /** Día operativo actual (para resaltar «hoy»). */
   today: DateStr;
   daysOffPerWeek: number;
+  /** Celdas "empleado|fecha" cubiertas por una petición pendiente -> texto. */
+  pending: Record<string, string>;
 }
 
 /** `date` = cualquier día de la semana; null = semana de «hoy». */
@@ -26,7 +29,7 @@ export async function loadWeekData(requested: DateStr | null): Promise<WeekData>
   const today = operationalToday(new Date(), settings.dayRolloverHour);
   const date = requested ?? today;
   const days = weekDays(date);
-  const [employees, departments, statusTypes, entries, notes] = await Promise.all([
+  const [employees, departments, statusTypes, entries, notes, pending] = await Promise.all([
     getEmployees(),
     getDepartments(),
     getStatusTypes(),
@@ -35,6 +38,7 @@ export async function loadWeekData(requested: DateStr | null): Promise<WeekData>
       where: { date: { gte: toDbDate(days[0]!), lte: toDbDate(days[6]!) }, NOT: { text: "" } },
       select: { date: true },
     }),
+    loadPendingCoverage(days[0]!, days[6]!),
   ]);
   const grid = getWeekGrid({
     date,
@@ -54,5 +58,6 @@ export async function loadWeekData(requested: DateStr | null): Promise<WeekData>
     statusTypes,
     today,
     daysOffPerWeek: settings.daysOffPerWeek,
+    pending,
   };
 }

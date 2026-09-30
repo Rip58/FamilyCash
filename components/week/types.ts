@@ -15,6 +15,8 @@ export interface GridStatus {
 export interface GridCell {
   statusId: string;
   reason: string | null;
+  /** Resumen de la petición PENDIENTE que cubre esta celda (null = ninguna). */
+  pending: string | null;
 }
 
 export interface GridRow {

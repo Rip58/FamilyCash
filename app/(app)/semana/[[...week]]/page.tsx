@@ -44,7 +44,11 @@ export default async function Page({
         name: r.employee.name,
         alias: r.employee.alias ?? null,
         departmentName: g.department?.name ?? null,
-        cells: r.cells.map((c) => ({ statusId: c.status.id, reason: c.reason })),
+        cells: r.cells.map((c) => ({
+          statusId: c.status.id,
+          reason: c.reason,
+          pending: data.pending[`${r.employee.id}|${c.date}`] ?? null,
+        })),
       })),
     })),
   };
