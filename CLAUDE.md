@@ -13,3 +13,10 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 
 ## Comprobaciones antes de commit
 `npm run lint && npm run typecheck && npm test && npm run build`
+
+## Notas técnicas (tras Fases 1–2)
+- Next.js 16: el middleware se llama `proxy.ts` (export `proxy`).
+- Prisma 7 con `@prisma/adapter-pg`. Cliente generado en `lib/generated/prisma` (gitignored, `postinstall`). Importar tipos desde `@/lib/generated/prisma/client`; instancia en `lib/db.ts` (`db`). URL de migraciones en `prisma.config.ts` (`DIRECT_URL`).
+- Fechas de turno como `DateStr` "YYYY-MM-DD"; a BD con `toDbDate`, desde BD con `fromDbDate`.
+- Carga de datos en `lib/queries.ts` (`loadDayRoster`, `loadWeekGrid`, ...). UI base en `components/ui` (BottomSheet, Segmented, Chip, Tag, TimeInput, Card, cn).
+- Dev local: Postgres en `postgresql://app:app@localhost:5432/plantilla`, contraseña de la app `noche`.
