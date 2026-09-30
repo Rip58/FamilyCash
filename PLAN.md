@@ -144,6 +144,49 @@ model ReportPhoto {
   sortOrder Int    @default(0)
 }
 
+model EmployeeNote {        // nota de ficha (privada, con fecha y hora)
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  occurredAt  DateTime                    // fecha y hora del evento
+  category    String   @default("NOTE")   // NOTE | INCIDENT | PRAISE | TALK
+  text        String
+  photos      EmployeeNotePhoto[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@index([employeeId, occurredAt])
+}
+
+model EmployeeNotePhoto {   // mismos campos que ReportPhoto
+  id        String @id @default(cuid())
+  noteId    String
+  note      EmployeeNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  url       String
+  pathname  String
+  width     Int
+  height    Int
+  size      Int?
+  sortOrder Int    @default(0)
+}
+
+model LeaveRequest {        // petición de cambio de fiesta / vacaciones / permiso
+  id           String   @id @default(cuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  type         String                     // SWAP_OFF | VACATION | PAID_OFF | OTHER
+  dateFrom     DateTime @db.Date          // SWAP_OFF: día que deja de librar (A)
+  dateTo       DateTime @db.Date          // SWAP_OFF: día que pasa a librar (B); rango: fin
+  note         String?
+  requestedAt  DateTime @db.Date
+  status       String   @default("PENDING") // PENDING | APPROVED | DENIED
+  decisionNote String?
+  decidedAt    DateTime?
+  appliedChanges Json?                    // estados previos de cada día, para poder revertir
+  createdAt    DateTime @default(now())
+  @@index([status])
+  @@index([employeeId])
+}
+
 model DayNote {             // nota general de la noche
   date  DateTime @id @db.Date
   text  String
@@ -217,6 +260,18 @@ Así la semana se "rellena sola" y solo se guardan las excepciones. Un `DayEntry
 - Editar texto / borrar aviso (borra también las fotos del Blob).
 - Privacidad: los archivos de Blob llevan nombre aleatorio no adivinable; la app solo muestra URLs a usuarios con sesión.
 
+### 2.5b Ficha del empleado (Ajustes → Empleados → tocar un empleado)
+Página propia `/ajustes/empleados/[id]` con cabecera (nombre, alias, departamento, días fijos, estado de hoy) y 3 pestañas:
+- **Datos**: lo que ya se edita hoy (nombre, alias, departamento, días fijos, nota permanente, activo).
+- **Historial**: línea de tiempo (más reciente arriba) de **notas de ficha** con **fecha y hora** del evento (por defecto ahora, editable) + texto + fotos (hasta 6, misma subida/compresión que los avisos) + categoría (Nota · Incidencia · Felicitación · Conversación). Mezcla también, marcados como "Aviso del día", los avisos con foto de 2.5 en los que aparece el empleado. Filtro por categoría. Editar/borrar.
+  - Las notas de ficha son **privadas de la ficha**: no salen en Hoy ni en el Informe diario.
+- **Peticiones**: solicitudes del empleado con su estado.
+  - Tipos: **Cambio de fiesta** (libra el día B en vez del A), **Vacaciones** (rango de fechas), **Fiesta retribuida / Permiso** (un día o rango), **Otro** (texto).
+  - Campos: fechas, nota, fecha de la petición (hoy por defecto), estado **Pendiente / Aprobada / Denegada** + motivo de la decisión.
+  - **Aprobar aplica al calendario** (vía las mismas acciones de DayEntry): vacaciones/permiso → estado en cada día del rango; cambio de fiesta → A pasa a Trabaja y B a Fiesta. Si los días ya tenían otro estado distinto del patrón, se avisa antes de sobrescribir. Revertir una aprobada deshace esos cambios (se guarda qué se cambió).
+  - Aviso de conflicto: al aprobar, indica si ese día el departamento queda vacío o bajo plazas.
+- Listado global **Ajustes → Peticiones** con filtro Pendientes/Todas y contador de pendientes en la fila de Ajustes; en Semana, las celdas con petición pendiente llevan un puntito.
+
 ### 2.6 Ajustes
 - **Empleados**: alta/edición/baja (desactivar, nunca borrar con historial), departamento habitual, días fijos de fiesta (7 chips L–D), nota permanente.
 - **Departamentos**: nombre, color, plazas previstas, orden (arrastrar). Dentro de cada uno, **ordenar empleados** arrastrando.
@@ -281,6 +336,7 @@ Cada fase termina con `npm run lint && npm run typecheck && npm test && npm run 
 | 6b | **Protocolos** | Pestaña Protocolos: acordeón por categorías, buscador, editor de viñetas con vista previa, reordenar. Modelo `Protocol` + migración. Seed con 1–2 protocolos de ejemplo. |
 | 6c | **Avisos con foto** | Modelos `Report`/`ReportPhoto` + migración, subida a Vercel Blob con compresión en cliente, hoja de creación, bloque Avisos en Hoy, en Informe y listado filtrable, visor a pantalla completa, borrar (incluye Blob). Tests de la compresión/validación. |
 | 6d | **Horas extra** | Campos `extraMinutes`/`extraNote` en DayEntry + migración; stepper en la hoja del empleado (propuesta automática desde "Sale a"); hoja "Cierre de turno" en Hoy; bloque en Informe diario, texto compartido y suma semanal; columna en el CSV. Tests. |
+| 6e | **Ficha del empleado** | Página `/ajustes/empleados/[id]` (Datos · Historial · Peticiones), modelos `EmployeeNote`/`EmployeeNotePhoto`/`LeaveRequest` + migración, notas con fecha/hora y fotos reutilizando la subida de avisos, peticiones con aprobar/denegar/revertir aplicadas al calendario, listado global de peticiones con contador, puntito en Semana. Tests de la lógica de aplicar/revertir. |
 | 7 | **Pulido + deploy** | Modo oscuro, accesibilidad, iconos PWA, prueba en viewport iPhone (Playwright), deploy en Vercel con Neon, README con instrucciones de instalación en iPhone. |
 
 ### Prompt tipo para cada agente
