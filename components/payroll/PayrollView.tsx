@@ -10,7 +10,8 @@ import { cn } from "@/components/ui/cn";
 import { type MonthStr, formatMonth } from "@/lib/dates";
 import {
   type MonthStats, type PayrollConfig, type PayrollPeriod, type ShiftKind, calculatePay, configForMonth, formatDateEs, formatEuros,
-  andorraIrpfAnnualCents, formatHours, hoursOver40, mergeStats, parseEuros, periodForMonth,
+  MONTHLY_HOURS, andorraIrpfAnnualCents, formatHours, hoursOver40, mergeStats, nightPlusPerHourCents, overtimeRateCents, parseEuros,
+  periodForMonth,
 } from "@/lib/payroll";
 import type { PayrollMonth } from "@/lib/payroll-queries";
 
@@ -211,8 +212,8 @@ function Registry({
             >
               <span className="flex items-baseline justify-between gap-2">
                 <span className="text-[16px] font-semibold">{formatMonth(m.month)}</span>
-                {m.netCents != null ? (
-                  <span className="text-[16px] font-semibold tabular-nums">{formatEuros(m.netCents)}</span>
+                {(m.netCents ?? m.bankCents) != null ? (
+                  <span className="text-[16px] font-semibold tabular-nums">{formatEuros((m.netCents ?? m.bankCents)!)}</span>
                 ) : estimate != null ? (
                   <span className="text-[15px] tabular-nums text-muted">≈ {formatEuros(estimate)}</span>
                 ) : null}
@@ -230,6 +231,19 @@ function Registry({
                   )}
                 </span>
               )}
+              {estimate != null && (m.netCents ?? m.bankCents) != null && (() => {
+                const real = (m.netCents ?? m.bankCents)!;
+                const diff = real - estimate;
+                const ok = Math.abs(diff) < 500;
+                return (
+                  <span className="truncate text-[13px] text-muted">
+                    Esperado ≈ {formatEuros(estimate)} ·{" "}
+                    <span className={ok ? "text-success" : diff < 0 ? "text-danger" : "text-warning"}>
+                      {ok ? "cuadra" : `${diff > 0 ? "+" : ""}${formatEuros(diff)}`}
+                    </span>
+                  </span>
+                );
+              })()}
               {m.note && <span className="truncate text-[13px] text-muted">💬 {m.note}</span>}
             </button>
             <button
@@ -244,7 +258,8 @@ function Registry({
         );
       })}
       <p className="px-1 pt-1 text-[12px] text-muted">
-        Importe en negrita = neto real que has apuntado; ≈ = estimación de la calculadora (turno de noche).
+        Importe en negrita = neto real (o cobrado) que has apuntado; ≈ = estimación de la calculadora (turno de noche). Si la
+        diferencia con lo esperado pasa de 5 € sale en rojo (cobras menos) o ámbar (cobras más).
       </p>
       <BottomSheet
         open={!!editing?.open}
@@ -276,6 +291,39 @@ function Counter({ label, value, onChange, max }: { label: string; value: number
         </button>
       </div>
     </div>
+  );
+}
+
+function RatesCard({ cfg, shift }: { cfg: PayrollConfig; shift: ShiftKind }) {
+  const ordinary = (cfg.baseMonthlyCents + cfg.respPlusCents) / MONTHLY_HOURS;
+  const night = shift === "NIGHT" ? nightPlusPerHourCents(cfg) : 0;
+  const lawCfg: PayrollConfig = { ...cfg, overtimeMode: "LAW", overtimeSurchargePercent: Math.max(cfg.overtimeSurchargePercent, 40) };
+  const law = overtimeRateCents(lawCfg, shift);
+  const used = overtimeRateCents(cfg, shift);
+  const row = (label: string, cents: number, extra?: string, strong?: boolean) => (
+    <li className={cn("flex items-baseline justify-between gap-3", strong && "font-semibold")}>
+      <span className="min-w-0">
+        {label}
+        {extra && <span className="text-[13px] font-normal text-muted"> · {extra}</span>}
+      </span>
+      <span className="shrink-0 tabular-nums">{formatEuros(Math.round(cents))}/h</span>
+    </li>
+  );
+  return (
+    <Card title="Tus precios por hora">
+      <ul className="space-y-1.5 text-[15px]">
+        {row("Hora normal", ordinary, cfg.respPlusCents > 0 ? "base + responsabilidad" : "salario base")}
+        {shift === "NIGHT" && row("Nocturnidad", night, "por hora de noche")}
+        {shift === "NIGHT" && row("Hora normal de noche", ordinary + night)}
+        {row("Hora extra mínima por ley", law, `+${String(lawCfg.overtimeSurchargePercent).replace(".", ",")} %${shift === "NIGHT" ? " + nocturnidad" : ""}`, true)}
+        {cfg.overtimeMode === "FIXED" && row("Hora extra que usa el cálculo", used, "precio fijo de Ajustes")}
+      </ul>
+      {cfg.overtimeMode === "FIXED" && used < law - 0.5 && (
+        <p className="mt-2 rounded-control bg-warning/20 px-3 py-2 text-[13px] text-[#92600a] dark:text-warning">
+          El precio fijo es {formatEuros(Math.round(law - used))}/h menor que el mínimo legal (art. 58.2 LRL).
+        </p>
+      )}
+    </Card>
   );
 }
 
@@ -391,6 +439,8 @@ function CalculatorBody({ data, months, config, periods, setMonth }: CalcProps &
           </p>
         </div>
       </Card>
+
+      <RatesCard cfg={cfg} shift={shift} />
 
       <Card title="Resultado (estimación)">
         <ul className="space-y-1.5 text-[15px]">
