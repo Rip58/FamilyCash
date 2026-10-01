@@ -5,7 +5,7 @@
  *  - "local": POST multipart a /api/upload/local (desarrollo).
  */
 import { compressImage } from "./image-compress";
-import { UPLOAD_PREFIX, validateUpload } from "./upload-rules";
+import { UPLOAD_PREFIX, extensionFor, validateUpload } from "./upload-rules";
 
 export type StorageMode = "blob" | "local";
 
@@ -45,29 +45,29 @@ function uploadLocal(blob: Blob, opts: UploadOptions): Promise<{ url: string; pa
     };
     opts.signal?.addEventListener("abort", () => xhr.abort());
     const form = new FormData();
-    form.append("file", blob, "foto.jpg");
+    form.append("file", blob, `foto.${extensionFor(blob.type) ?? "webp"}`);
     xhr.send(form);
   });
 }
 
 async function uploadBlob(blob: Blob, opts: UploadOptions): Promise<{ url: string; pathname: string }> {
   const { upload } = await import("@vercel/blob/client");
-  const name = `${UPLOAD_PREFIX}foto.jpg`;
+  const name = `${UPLOAD_PREFIX}foto.${extensionFor(blob.type) ?? "webp"}`;
   const res = await upload(name, blob, {
     access: "public",
     handleUploadUrl: "/api/upload",
-    contentType: "image/jpeg",
+    contentType: blob.type,
     abortSignal: opts.signal,
     onUploadProgress: (p) => opts.onProgress?.(p.percentage / 100),
   });
   return { url: res.url, pathname: res.pathname };
 }
 
-/** Comprime (1600 px, JPEG 0.8) y sube una foto. Lanza Error con mensaje en español. */
+/** Comprime (WebP 0,85, 1600 px, ≤ 300 KB) y sube una foto. Lanza Error con mensaje en español. */
 export async function uploadPhoto(file: File, opts: UploadOptions): Promise<UploadedPhoto> {
   if (file.size === 0) throw new Error("El archivo está vacío.");
   const { blob, width, height } = await compressImage(file);
-  const check = validateUpload("image/jpeg", blob.size);
+  const check = validateUpload(blob.type, blob.size);
   if (!check.ok) throw new Error(check.error);
   opts.onProgress?.(0);
   const stored = opts.mode === "blob" ? await uploadBlob(blob, opts) : await uploadLocal(blob, opts);

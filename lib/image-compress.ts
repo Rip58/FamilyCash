@@ -1,9 +1,15 @@
 /**
- * Compresión de fotos en el cliente: lado mayor 1600 px, JPEG 0.8.
- * La lógica de dimensiones es pura (testeada); el resto usa APIs del navegador.
+ * Compresión de fotos en el cliente: WebP calidad 0,85, lado mayor 1600 px y como mucho
+ * 300 KB (si pasa, baja la calidad hasta 0,6 y luego reduce el tamaño). Si el navegador no
+ * sabe codificar WebP (Safari antiguo), usa JPEG con el mismo límite.
+ * La lógica de dimensiones e intentos es pura (testeada); el resto usa APIs del navegador.
  */
 export const MAX_SIDE = 1600;
-export const JPEG_QUALITY = 0.8;
+export const PHOTO_QUALITY = 0.85;
+export const MIN_QUALITY = 0.6;
+export const MAX_PHOTO_BYTES = 300 * 1024;
+/** Lado mayor mínimo al que se reduce para cumplir el límite de peso. */
+export const MIN_SIDE = 800;
 
 export interface Dimensions {
   width: number;
@@ -19,8 +25,31 @@ export function fitDimensions(width: number, height: number, max: number = MAX_S
   return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
 }
 
+export interface Attempt {
+  side: number;
+  quality: number;
+}
+
+/**
+ * Orden de intentos para no pasar de MAX_PHOTO_BYTES: primero bajar la calidad
+ * (0,85 → 0,6 de 0,05 en 0,05) y, si no basta, reducir el lado mayor un 15 % y volver a empezar.
+ */
+export function compressionAttempts(longest: number, max: number = MAX_SIDE): Attempt[] {
+  const out: Attempt[] = [];
+  const start = Math.max(1, Math.min(max, Math.round(longest)));
+  const min = Math.min(MIN_SIDE, start);
+  for (let side = start; side >= min; side = Math.round(side * 0.85)) {
+    for (let q = Math.round(PHOTO_QUALITY * 100); q >= Math.round(MIN_QUALITY * 100); q -= 5) {
+      out.push({ side, quality: q / 100 });
+    }
+  }
+  return out;
+}
+
 export interface CompressedImage extends Dimensions {
   blob: Blob;
+  type: "image/webp" | "image/jpeg";
+  quality: number;
 }
 
 export class ImageDecodeError extends Error {
@@ -58,23 +87,44 @@ async function decode(file: Blob): Promise<Decoded> {
   }
 }
 
-/** Decodifica (corrigiendo la orientación EXIF), reescala y devuelve un JPEG. */
-export async function compressImage(file: File): Promise<CompressedImage> {
+function encode(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob | null> {
+  return new Promise((res) => canvas.toBlob(res, type, quality));
+}
+
+/** Decodifica (corrigiendo la orientación EXIF), reescala y devuelve un WebP de ≤ 300 KB. */
+export async function compressImage(file: Blob): Promise<CompressedImage> {
   const d = await decode(file);
   try {
     if (!d.width || !d.height) throw new ImageDecodeError();
-    const { width, height } = fitDimensions(d.width, d.height);
     const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new ImageDecodeError();
-    ctx.fillStyle = "#ffffff"; // PNG con transparencia -> fondo blanco
-    ctx.fillRect(0, 0, width, height);
-    ctx.drawImage(d.source, 0, 0, width, height);
-    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", JPEG_QUALITY));
-    if (!blob) throw new ImageDecodeError();
-    return { blob, width, height };
+    let type: CompressedImage["type"] = "image/webp";
+    let last: CompressedImage | null = null;
+    let drawnSide = 0;
+    for (const a of compressionAttempts(Math.max(d.width, d.height))) {
+      const { width, height } = fitDimensions(d.width, d.height, a.side);
+      if (a.side !== drawnSide) {
+        canvas.width = width;
+        canvas.height = height;
+        ctx.fillStyle = "#ffffff"; // PNG con transparencia -> fondo blanco
+        ctx.fillRect(0, 0, width, height);
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(d.source, 0, 0, width, height);
+        drawnSide = a.side;
+      }
+      let blob = await encode(canvas, type, a.quality);
+      if (blob && blob.type !== type) {
+        // El navegador no codifica WebP: seguimos en JPEG.
+        type = "image/jpeg";
+        blob = await encode(canvas, type, a.quality);
+      }
+      if (!blob) throw new ImageDecodeError();
+      last = { blob, width, height, type, quality: a.quality };
+      if (blob.size <= MAX_PHOTO_BYTES) return last;
+    }
+    if (!last) throw new ImageDecodeError();
+    return last;
   } finally {
     d.close();
   }
