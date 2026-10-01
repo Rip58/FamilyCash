@@ -38,6 +38,7 @@ const payslipSchema = z.object({
   extraMinutes: z.number().int().min(0).max(744 * 60).nullable(),
   grossCents: cents.nullable(),
   netCents: cents.nullable(),
+  bankCents: cents.nullable(),
   note: z.string().trim().max(500).nullable().transform((v) => v || null),
 });
 

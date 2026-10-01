@@ -212,6 +212,7 @@ model Payslip {             // registro mensual; los campos null se calculan del
   extraMinutes   Int?
   grossCents     Int?                          // importes reales de la nómina
   netCents       Int?
+  bankCents      Int?                          // lo cobrado realmente en el banco
   note           String?
   updatedAt      DateTime @updatedAt
 }

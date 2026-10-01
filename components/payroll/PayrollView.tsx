@@ -55,6 +55,7 @@ function MonthEditor({ m, onDone }: { m: PayrollMonth; onDone: () => void }) {
   const [extra, setExtra] = useState(m.overrides.extraMinutes != null ? formatHours(m.overrides.extraMinutes) : "");
   const [gross, setGross] = useState(m.grossCents != null ? (m.grossCents / 100).toFixed(2).replace(".", ",") : "");
   const [net, setNet] = useState(m.netCents != null ? (m.netCents / 100).toFixed(2).replace(".", ",") : "");
+  const [bank, setBank] = useState(m.bankCents != null ? (m.bankCents / 100).toFixed(2).replace(".", ",") : "");
   const [note, setNote] = useState(m.note ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -69,20 +70,28 @@ function MonthEditor({ m, onDone }: { m: PayrollMonth; onDone: () => void }) {
     const hours = extra.trim() === "" ? null : Number(extra.replace(",", "."));
     const grossCents = toEuros(gross);
     const netCents = toEuros(net);
-    if (!reset && ((hours !== null && Number.isNaN(hours)) || (gross.trim() && grossCents === null) || (net.trim() && netCents === null))) {
+    const bankCents = toEuros(bank);
+    if (
+      !reset &&
+      ((hours !== null && Number.isNaN(hours)) ||
+        (gross.trim() && grossCents === null) ||
+        (net.trim() && netCents === null) ||
+        (bank.trim() && bankCents === null))
+    ) {
       setError("Revisa los números.");
       return;
     }
     start(async () => {
       const r = await savePayslip(
         reset
-          ? { month: m.month, contractDays: null, daysOff: null, vacationDays: null, sickDays: null, absentDays: null, holidaysWorked: null, extraMinutes: null, grossCents: null, netCents: null, note: null }
+          ? { month: m.month, contractDays: null, daysOff: null, vacationDays: null, sickDays: null, absentDays: null, holidaysWorked: null, extraMinutes: null, grossCents: null, netCents: null, bankCents: null, note: null }
           : {
               month: m.month,
               ...typed,
               extraMinutes: hours === null ? null : Math.round(hours * 60),
               grossCents,
               netCents,
+              bankCents,
               note,
             },
       );
@@ -143,6 +152,10 @@ function MonthEditor({ m, onDone }: { m: PayrollMonth; onDone: () => void }) {
           <input inputMode="decimal" aria-label="Neto real" value={net} onChange={(e) => setNet(e.target.value)} placeholder="0,00" className={inputClass} />
         </label>
       </div>
+      <label className="flex flex-col gap-1">
+        <span className="text-[13px] text-muted">Cobrado en el banco (€)</span>
+        <input inputMode="decimal" aria-label="Cobrado en el banco" value={bank} onChange={(e) => setBank(e.target.value)} placeholder="0,00" className={inputClass} />
+      </label>
       <label className="flex flex-col gap-1">
         <span className="text-[13px] text-muted">Nota</span>
         <input aria-label="Nota" value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} placeholder="Ej.: atrasos, plus, error en nómina…" className={inputClass} />
@@ -205,6 +218,18 @@ function Registry({
                 ) : null}
               </span>
               <span className="truncate text-[13px] text-muted">{statsLine(m.stats)}</span>
+              {m.bankCents != null && (
+                <span className="truncate text-[13px] text-muted">
+                  🏦 Cobrado {formatEuros(m.bankCents)}
+                  {m.netCents != null && m.bankCents !== m.netCents && (
+                    <span className={m.bankCents < m.netCents ? "text-danger" : "text-success"}>
+                      {" "}
+                      ({m.bankCents > m.netCents ? "+" : ""}
+                      {formatEuros(m.bankCents - m.netCents)})
+                    </span>
+                  )}
+                </span>
+              )}
               {m.note && <span className="truncate text-[13px] text-muted">💬 {m.note}</span>}
             </button>
             <button

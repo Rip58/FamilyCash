@@ -33,6 +33,7 @@ export interface PayrollMonth {
   stats: MonthStats;
   grossCents: number | null;
   netCents: number | null;
+  bankCents: number | null;
   note: string | null;
 }
 
@@ -68,6 +69,7 @@ export async function loadPayrollMonths(from: MonthStr, to: MonthStr, employeeId
       stats: mergeStats(auto, overrides),
       grossCents: s?.grossCents ?? null,
       netCents: s?.netCents ?? null,
+      bankCents: s?.bankCents ?? null,
       note: s?.note ?? null,
     };
   });
