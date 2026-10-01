@@ -140,10 +140,20 @@ export interface EmployeeDayNote {
   note: string;
 }
 
+/** Nota de la noche (Informe). employeeId null = general. */
+export interface NightNoteView {
+  id: string;
+  employeeId: string | null;
+  name: string | null;
+  text: string;
+}
+
 export interface DayReport {
   date: DateStr;
   title: string;
   note: string | null;
+  /** Notas de la noche añadidas desde Informe (varias por noche). */
+  nightNotes: NightNoteView[];
   /** Notas de la noche sobre empleados concretos (vengan o no). */
   employeeNotes: EmployeeDayNote[];
   shift: {
@@ -181,6 +191,7 @@ export interface BuildDayReportInput {
   departments: { id: string; name: string }[];
   /** Avisos con foto de la noche (opcional). */
   reports?: ReportView[];
+  nightNotes?: NightNoteView[];
 }
 
 export function buildDayReport(input: BuildDayReportInput): DayReport {
@@ -295,6 +306,7 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
     date: roster.date,
     title: formatDayLong(roster.date),
     note: input.dayNote?.trim() ? input.dayNote.trim() : null,
+    nightNotes: input.nightNotes ?? [],
     employeeNotes,
     shift: {
       start: shift.shiftStart,
@@ -325,6 +337,7 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
       absentCount === 0 &&
       (input.reports ?? []).length === 0 &&
       employeeNotes.length === 0 &&
+      (input.nightNotes ?? []).length === 0 &&
       !input.dayNote?.trim(),
   };
 }
@@ -351,6 +364,8 @@ export interface WeekSummary {
   totalLate: number;
   totalExtraMinutes: number;
   emptyDays: { date: DateStr; label: string; departments: string[] }[];
+  /** Notas agrupadas por noche (más antigua primero). */
+  notes: { date: DateStr; label: string; items: { name: string | null; text: string }[] }[];
   isEmpty: boolean;
 }
 
@@ -361,6 +376,8 @@ export interface BuildWeekSummaryInput {
   /** Un DayRoster por cada día de la semana (mismas fechas que grid.days). */
   rosters: DayRoster[];
   shift: ShiftConfig;
+  /** Notas de la semana (Informe, nota del día y notas de empleado), ya con nombre. */
+  notes?: { date: DateStr; name: string | null; text: string }[];
 }
 
 export function buildWeekSummary(input: BuildWeekSummaryInput): WeekSummary {
@@ -400,6 +417,14 @@ export function buildWeekSummary(input: BuildWeekSummaryInput): WeekSummary {
       departments: r.emptyDepartments.map((d) => d.name),
     }));
 
+  const notes = days
+    .map((d) => ({
+      date: d,
+      label: formatDayLong(d),
+      items: (input.notes ?? []).filter((n) => n.date === d).map((n) => ({ name: n.name, text: n.text })),
+    }))
+    .filter((d) => d.items.length > 0);
+
   const totalLate = byEmployee.reduce((n, e) => n + e.lateArrivals, 0);
   const totalExtraMinutes = byEmployee.reduce((n, e) => n + e.extraMinutes, 0);
   return {
@@ -411,7 +436,8 @@ export function buildWeekSummary(input: BuildWeekSummaryInput): WeekSummary {
     totalLate,
     totalExtraMinutes,
     emptyDays,
-    isEmpty: byType.length === 0 && totalLate === 0 && totalExtraMinutes === 0 && emptyDays.length === 0,
+    notes,
+    isEmpty: byType.length === 0 && totalLate === 0 && totalExtraMinutes === 0 && emptyDays.length === 0 && notes.length === 0,
   };
 }
 
@@ -427,12 +453,15 @@ export function reportToText(report: DayReport): string {
   L.push(`*Informe de noche · ${report.title}*`);
   L.push(`Turno ${report.shift.start}–${report.shift.end} · ${report.presentCount} trabajan`);
 
-  if (report.note) {
-    L.push("", "*Nota del día*", report.note);
-  }
-  if (report.employeeNotes.length > 0) {
-    L.push("", "*Notas de empleados*");
-    for (const n of report.employeeNotes) L.push(`• ${n.name}: ${n.note}`);
+  const general = [...(report.note ? [report.note] : []), ...report.nightNotes.filter((n) => !n.name).map((n) => n.text)];
+  const personal = [
+    ...report.employeeNotes.map((n) => ({ name: n.name, text: n.note })),
+    ...report.nightNotes.filter((n) => n.name).map((n) => ({ name: n.name!, text: n.text })),
+  ];
+  if (general.length > 0 || personal.length > 0) {
+    L.push("", "*Notas de la noche*");
+    for (const t of general) L.push(`• ${t}`);
+    for (const n of personal) L.push(`• ${n.name}: ${n.text}`);
   }
 
   if (report.hasIncidents) {

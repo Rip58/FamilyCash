@@ -47,3 +47,6 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 - Funciones de Vercel en `cdg1` (París, `vercel.json`), junto a la BD (eu-west-3). No cambiar una sin la otra.
 - Cada sección tiene su `loading.tsx` (no uno global en `(app)`, que rompería los 404 de fechas inválidas).
 
+## Notas técnicas (notas de la noche)
+- `NightNote` (varias por noche, `employeeId` null = general), acciones en `app/actions/notes.ts`, lectura `getNightNotes` en `lib/queries.ts`. El Informe las junta con la nota del día (`DayNote`) y las notas de empleado del día (`DayEntry.note`) en "Notas de la noche"; el resumen semanal las agrupa por noche.
+

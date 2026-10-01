@@ -83,9 +83,18 @@ function report() {
 
 describe("buildDayReport", () => {
   const r = report();
+  it("varias notas de la noche, generales y de empleado", () => {
+    const roster = r; // reutiliza datos del informe base
+    void roster;
+    const withNotes = { ...r, note: null, employeeNotes: [], nightNotes: [
+      { id: "n1", employeeId: null, name: null, text: "Han llegado todos a la hora" },
+      { id: "n2", employeeId: "x", name: "Ana", text: "Muy bien con el inventario" },
+    ] };
+    expect(reportToText(withNotes)).toContain("*Notas de la noche*\n• Han llegado todos a la hora\n• Ana: Muy bien con el inventario");
+  });
   it("notas de empleados", () => {
     expect(r.employeeNotes).toEqual([{ employeeId: expect.any(String), name: "Beto", note: "Rápido" }]);
-    expect(reportToText(r)).toContain("*Notas de empleados*\n• Beto: Rápido");
+    expect(reportToText(r)).toContain("*Notas de la noche*\n• Noche tranquila\n• Beto: Rápido");
   });
   it("incidencias", () => {
     expect(r.lateArrivals).toEqual([{ name: "Ana", arrivedAt: "22:15", minutes: 45, reason: "Tren" }]);

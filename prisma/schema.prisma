@@ -65,6 +65,7 @@ model Employee {
   reports             Report[]
   fileNotes           EmployeeNote[]
   leaveRequests       LeaveRequest[]
+  nightNotes          NightNote[]
 }
 
 model DayEntry {            // solo existe si el día difiere del patrón o tiene datos
@@ -226,4 +227,14 @@ model PayrollPeriod {       // salario por tramos de fechas (propuestas, subidas
   baseCents     Int                         // salario bruto mensual (jornada base)
   respPlusCents Int       @default(0)       // plus de responsabilidad
   @@index([from])
+}
+
+model NightNote {           // notas de la noche (Informe): varias por noche, generales o de un empleado
+  id         String    @id @default(cuid())
+  date       DateTime  @db.Date
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  text       String
+  createdAt  DateTime  @default(now())
+  @@index([date])
 }

@@ -17,9 +17,11 @@ import {
 } from "@/lib/dates";
 import {
   getDayNote,
+  getDayNotesBetween,
   getDepartments,
   getEmployees,
   getEntriesBetween,
+  getNightNotes,
   getSections,
   getSettings,
   getStatusTypes,
@@ -72,30 +74,42 @@ export default async function Page({
   let share: React.ReactNode = null;
 
   if (view === "dia") {
-    const [entries, dayNote, reports] = await Promise.all([
+    const [entries, dayNote, reports, nightNotes] = await Promise.all([
       getEntriesBetween(date, date),
       getDayNote(date),
       getReportsForDate(date),
+      getNightNotes(date, date),
     ]);
     const roster = getDayRoster({ date, employees, entries, departments, statusTypes });
-    const report = buildDayReport({ roster, dayNote, shift: settings, sections, departments, reports });
+    const report = buildDayReport({ roster, dayNote, shift: settings, sections, departments, reports, nightNotes });
     title = formatDayLong(date);
     subtitle = `Turno ${settings.shiftStart}–${settings.shiftEnd} · ${report.presentCount} trabajan`;
-    const notes = new Map(entries.filter((e) => e.note?.trim()).map((e) => [e.employeeId, e.note!.trim()]));
     const people = employees
       .filter((e) => e.active)
-      .map((e) => ({ id: e.id, name: e.name, note: notes.get(e.id) ?? null }))
+      .map((e) => ({ id: e.id, name: e.name }))
       .sort((a, b) => a.name.localeCompare(b.name, "es"));
     body = (
       <>
-        <ReportAdd date={date} dayNote={dayNote} employees={people} />
+        <ReportAdd date={date} employees={people} />
         <DayReportView report={report} />
       </>
     );
     if (!report.isEmpty) share = <ShareButton text={reportToText(report)} title={`Informe de noche · ${report.title}`} />;
   } else {
     const days = weekDays(date);
-    const entries = await getEntriesBetween(days[0]!, days[6]!);
+    const [entries, nightNotes, dayNotes] = await Promise.all([
+      getEntriesBetween(days[0]!, days[6]!),
+      getNightNotes(days[0]!, days[6]!),
+      getDayNotesBetween(days[0]!, days[6]!),
+    ]);
+    const nameById = new Map(employees.map((e) => [e.id, e.name]));
+    const notes = [
+      ...dayNotes.map((n) => ({ date: n.date, name: null, text: n.text })),
+      ...nightNotes.map((n) => ({ date: n.date, name: n.name, text: n.text })),
+      ...entries
+        .filter((e) => e.note?.trim())
+        .map((e) => ({ date: e.date, name: nameById.get(e.employeeId) ?? null, text: e.note!.trim() })),
+    ];
     const grid = getWeekGrid({
       date,
       employees,
@@ -105,7 +119,7 @@ export default async function Page({
       daysOffPerWeek: settings.daysOffPerWeek,
     });
     const rosters = days.map((d) => getDayRoster({ date: d, employees, entries, departments, statusTypes }));
-    const summary = buildWeekSummary({ date, grid, statusTypes, rosters, shift: settings });
+    const summary = buildWeekSummary({ date, grid, statusTypes, rosters, shift: settings, notes });
     title = `Semana ${isoWeekNumber(days[0]!)}`;
     subtitle = formatWeekRange(date);
     body = <WeekSummaryView summary={summary} />;

@@ -140,3 +140,24 @@ export async function loadWeekGrid(date: DateStr): Promise<WeekGrid> {
     daysOffPerWeek: settings.daysOffPerWeek,
   });
 }
+
+/** Notas de la noche (Informe) entre dos fechas incluidas, en orden de creación. */
+export async function getNightNotes(from: DateStr, to: DateStr) {
+  const rows = await db.nightNote.findMany({
+    where: { date: { gte: toDbDate(from), lte: toDbDate(to) } },
+    include: { employee: { select: { name: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    date: fromDbDate(r.date),
+    employeeId: r.employeeId,
+    name: r.employee?.name ?? null,
+    text: r.text,
+  }));
+}
+
+export async function getDayNotesBetween(from: DateStr, to: DateStr): Promise<{ date: DateStr; text: string }[]> {
+  const rows = await db.dayNote.findMany({ where: { date: { gte: toDbDate(from), lte: toDbDate(to) } } });
+  return rows.filter((r) => r.text.trim()).map((r) => ({ date: fromDbDate(r.date), text: r.text.trim() }));
+}

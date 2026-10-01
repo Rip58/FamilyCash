@@ -2,6 +2,7 @@ import { ReportCard } from "@/components/reports/ReportCard";
 import { Card, Tag } from "@/components/ui";
 import { formatOvertime } from "@/lib/overtime";
 import { formatDuration, type DayReport, type ReportMember } from "@/lib/report";
+import { DeleteNoteButton } from "./ReportAdd";
 import { Timeline, segmentColor } from "./Timeline";
 
 function MemberBlock({ m, report, fallbackDept }: { m: ReportMember; report: DayReport; fallbackDept: string }) {
@@ -59,19 +60,28 @@ export function DayReportView({ report }: { report: DayReport }) {
   }
   return (
     <div className="space-y-3">
-      {report.note && (
-        <Card title="Nota del día">
-          <p className="whitespace-pre-wrap text-[15px]">{report.note}</p>
-        </Card>
-      )}
-
-      {report.employeeNotes.length > 0 && (
-        <Card title="Notas de empleados">
-          <ul className="space-y-2 text-[15px]">
+      {(report.note || report.nightNotes.length > 0 || report.employeeNotes.length > 0) && (
+        <Card title="Notas de la noche">
+          <ul className="divide-y divide-line text-[15px]">
+            {report.note && (
+              <li className="py-2">
+                <span className="text-[13px] font-semibold text-muted">General</span>
+                <p className="whitespace-pre-wrap">{report.note}</p>
+              </li>
+            )}
+            {report.nightNotes.map((n) => (
+              <li key={n.id} className="flex items-start gap-2 py-2">
+                <div className="min-w-0 flex-1">
+                  <span className="text-[13px] font-semibold text-muted">{n.name ?? "General"}</span>
+                  <p className="whitespace-pre-wrap">{n.text}</p>
+                </div>
+                <DeleteNoteButton id={n.id} />
+              </li>
+            ))}
             {report.employeeNotes.map((n) => (
-              <li key={n.employeeId}>
-                <b>{n.name}</b>
-                <p className="whitespace-pre-wrap text-fg">{n.note}</p>
+              <li key={n.employeeId} className="py-2">
+                <span className="text-[13px] font-semibold text-muted">{n.name}</span>
+                <p className="whitespace-pre-wrap">{n.note}</p>
               </li>
             ))}
           </ul>

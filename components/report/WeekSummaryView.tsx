@@ -16,6 +16,24 @@ export function WeekSummaryView({ summary }: { summary: WeekSummary }) {
   const columns = summary.byType.map((t) => t.status);
   return (
     <div className="space-y-3">
+      {summary.notes.length > 0 && (
+        <Card title="Notas de la semana">
+          <div className="space-y-3">
+            {summary.notes.map((d) => (
+              <div key={d.date}>
+                <h3 className="text-[13px] font-semibold uppercase tracking-wide text-muted">{d.label}</h3>
+                <ul className="mt-1 space-y-1 text-[15px]">
+                  {d.items.map((n, i) => (
+                    <li key={i} className="whitespace-pre-wrap">
+                      <b>{n.name ?? "General"}:</b> {n.text}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
       <Card title="Ausencias por tipo">
         <ul className="space-y-2">
           {summary.byType.length === 0 && <li className="text-muted">Nadie ha faltado.</li>}
