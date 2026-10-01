@@ -185,7 +185,7 @@ export function calculatePay(cfg: PayrollConfig, stats: MonthStats, shift: Shift
 
   const grossCents = Math.max(earnings.reduce((n, l) => n + l.cents, 0), 0);
   const deductions: PayLine[] = [
-    { key: "ss", label: "Seguridad Social", cents: round((grossCents * cfg.ssPercent) / 100), detail: `${cfg.ssPercent}%` },
+    { key: "ss", label: "CASS", cents: round((grossCents * cfg.ssPercent) / 100), detail: `${cfg.ssPercent}%` },
     { key: "irpf", label: "IRPF", cents: round((grossCents * cfg.irpfPercent) / 100), detail: `${cfg.irpfPercent}%` },
   ];
   const netCents = grossCents - deductions.reduce((n, l) => n + l.cents, 0);

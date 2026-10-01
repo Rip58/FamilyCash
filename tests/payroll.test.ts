@@ -90,12 +90,12 @@ describe("parseEuros", () => {
 
 describe("periodos y propuesta salarial", () => {
   const periods = [
-    { id: "a", from: "2026-09-21", to: "2026-11-30", baseCents: 186007, respPlusCents: 0 },
-    { id: "b", from: "2026-12-01", to: "2027-03-31", baseCents: 186007, respPlusCents: 50000 },
-    { id: "c", from: "2027-04-01", to: "2027-09-30", baseCents: 186007, respPlusCents: 95000 },
-    { id: "d", from: "2027-10-01", to: null, baseCents: 186007, respPlusCents: 129361 },
+    { id: "a", from: "2026-09-21", to: "2026-11-30", baseCents: 156867, respPlusCents: 0 },
+    { id: "b", from: "2026-12-01", to: "2027-03-31", baseCents: 156867, respPlusCents: 50000 },
+    { id: "c", from: "2027-04-01", to: "2027-09-30", baseCents: 156867, respPlusCents: 95000 },
+    { id: "d", from: "2027-10-01", to: null, baseCents: 156867, respPlusCents: 129361 },
   ];
-  const cfg = { ...DEFAULT_PAYROLL, nightPlusPercent: 0, overtimeHourCents: 1374, ssPercent: 6.5, irpfPercent: 0 };
+  const cfg = { ...DEFAULT_PAYROLL, nightPlusPercent: 18.5762, overtimeHourCents: 1374, ssPercent: 6.5, irpfPercent: 0 };
   const stats: MonthStats = { daysInMonth: 31, daysWorked: 23, daysOff: 8, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 0, extraMinutes: 0 };
   const net = (month: string, extraMinutes = 0) =>
     calculatePay(configForMonth(cfg, periods, month), { ...stats, extraMinutes }, "NIGHT");
@@ -105,6 +105,10 @@ describe("periodos y propuesta salarial", () => {
     expect(periodForMonth(periods, "2026-09")!.id).toBe("a");
     expect(periodForMonth(periods, "2027-01")!.id).toBe("b");
     expect(periodForMonth(periods, "2030-01")!.id).toBe("d");
+  });
+  it("salario mínimo + plus de noche = bruto de la propuesta; de día, sin plus", () => {
+    expect(net("2026-10").grossCents).toBe(186007);
+    expect(calculatePay(configForMonth(cfg, periods, "2026-10"), stats, "DAY").grossCents).toBe(156867);
   });
   it("cuadra con la propuesta (40 h)", () => {
     expect(net("2026-10").netCents).toBe(173917);

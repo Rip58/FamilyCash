@@ -187,7 +187,7 @@ export function PayrollSettingsForm({
             ]}
           />
           {cfg.nightPlusMode === "PERCENT" ? (
-            <Field label="Porcentaje sobre el salario base" hint="Se aplica en proporción a las noches trabajadas.">
+            <Field label="Porcentaje sobre el salario base" hint="Se aplica en proporción a las noches trabajadas. 18,5762 % = 291,40 € sobre el salario mínimo (1.568,67 €).">
               <PercentInput label="Porcentaje de nocturnidad" value={cfg.nightPlusPercent} onCommit={(v) => save({ nightPlusPercent: v })} />
             </Field>
           ) : (
@@ -206,8 +206,8 @@ export function PayrollSettingsForm({
         </Card>
         <Card title="Retenciones">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Seguridad Social">
-              <PercentInput label="Seguridad Social" value={cfg.ssPercent} onCommit={(v) => save({ ssPercent: v })} />
+            <Field label="CASS (cotización)">
+              <PercentInput label="CASS" value={cfg.ssPercent} onCommit={(v) => save({ ssPercent: v })} />
             </Field>
             <Field label="IRPF">
               <PercentInput label="IRPF" value={cfg.irpfPercent} onCommit={(v) => save({ irpfPercent: v })} />
