@@ -18,6 +18,8 @@ const settingsSchema = z.object({
   nightPlusMode: z.enum(["PER_NIGHT", "PERCENT"]),
   nightPlusPerNightCents: cents,
   nightPlusPercent: percent,
+  overtimeMode: z.enum(["LAW", "FIXED"]),
+  overtimeSurchargePercent: percent,
   overtimeHourCents: cents,
   holidayWorkedCents: cents,
   ssPercent: percent,
@@ -27,7 +29,7 @@ const settingsSchema = z.object({
 const count = z.number().int().min(0).max(31).nullable();
 const payslipSchema = z.object({
   month: z.string().refine(isMonthStr, "Mes no válido."),
-  daysWorked: count,
+  contractDays: count,
   daysOff: count,
   vacationDays: count,
   sickDays: count,

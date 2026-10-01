@@ -2,7 +2,7 @@ import "server-only";
 import { type MonthStr, addMonths, fromDbDate, monthDays } from "./dates";
 import { db } from "./db";
 import {
-  DEFAULT_PAYROLL, type MonthOverrides, type MonthStats, type NightPlusMode, type PayrollConfig, type PayrollPeriod,
+  DEFAULT_PAYROLL, type MonthOverrides, type MonthStats, type NightPlusMode, type OvertimeMode, type PayrollConfig, type PayrollPeriod,
   mergeStats, monthStatsFromSchedule,
 } from "./payroll";
 import { getEmployees, getEntriesBetween, getStatusTypes } from "./queries";
@@ -12,7 +12,7 @@ export async function getPayrollConfig(): Promise<PayrollConfig> {
   if (!row) return DEFAULT_PAYROLL;
   const { id: _id, ...rest } = row;
   void _id;
-  return { ...rest, nightPlusMode: rest.nightPlusMode as NightPlusMode };
+  return { ...rest, nightPlusMode: rest.nightPlusMode as NightPlusMode, overtimeMode: rest.overtimeMode as OvertimeMode };
 }
 
 export async function getPayrollPeriods(): Promise<PayrollPeriod[]> {
@@ -57,7 +57,7 @@ export async function loadPayrollMonths(from: MonthStr, to: MonthStr, employeeId
     const s = byMonth.get(month);
     const overrides: MonthOverrides = s
       ? {
-          daysWorked: s.daysWorked, daysOff: s.daysOff, vacationDays: s.vacationDays, sickDays: s.sickDays,
+          contractDays: s.contractDays, daysOff: s.daysOff, vacationDays: s.vacationDays, sickDays: s.sickDays,
           absentDays: s.absentDays, holidaysWorked: s.holidaysWorked, extraMinutes: s.extraMinutes,
         }
       : {};

@@ -5,7 +5,7 @@ import { deletePayrollPeriod, savePayrollPeriod, savePayrollSettings } from "@/a
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Card } from "@/components/ui/Card";
 import { Segmented } from "@/components/ui/Segmented";
-import { type NightPlusMode, type PayrollConfig, type PayrollPeriod, formatDateEs, formatEuros, parseEuros } from "@/lib/payroll";
+import { type NightPlusMode, type OvertimeMode, type PayrollConfig, overtimeRateCents, type PayrollPeriod, formatDateEs, formatEuros, parseEuros } from "@/lib/payroll";
 import { AddButton, BackHeader, ConfirmButton, Field, PrimaryButton, inputClass, useRun } from "./kit";
 
 const toText = (cents: number) => (cents ? (cents / 100).toFixed(2).replace(".", ",") : "");
@@ -197,9 +197,29 @@ export function PayrollSettingsForm({
           )}
         </Card>
         <Card title="Extras">
-          <Field label="Precio de la hora extra" hint="Jornada 48 h = 8 h extra a la semana (≈ 34,67 h al mes).">
-            <EuroInput label="Precio hora extra" cents={cfg.overtimeHourCents} onCommit={(v) => save({ overtimeHourCents: v })} />
-          </Field>
+          <Segmented<OvertimeMode>
+            aria-label="Precio de la hora extra"
+            value={cfg.overtimeMode}
+            onChange={(m) => save({ overtimeMode: m })}
+            options={[
+              { value: "LAW", label: "Según ley" },
+              { value: "FIXED", label: "Precio fijo" },
+            ]}
+          />
+          {cfg.overtimeMode === "LAW" ? (
+            <Field
+              label="Recargo sobre la hora fija"
+              hint={`Mínimo legal +40 % (art. 58.2 LRL), más la nocturnidad por hora si es de noche. Con el primer periodo: ${formatEuros(
+                Math.round(overtimeRateCents({ ...cfg, baseMonthlyCents: periods[0]?.baseCents ?? cfg.baseMonthlyCents, respPlusCents: periods[0]?.respPlusCents ?? cfg.respPlusCents }, "NIGHT")),
+              )}/h de noche.`}
+            >
+              <PercentInput label="Recargo hora extra" value={cfg.overtimeSurchargePercent} onCommit={(v) => save({ overtimeSurchargePercent: v })} />
+            </Field>
+          ) : (
+            <Field label="Precio de la hora extra" hint="Jornada 48 h = 8 h extra a la semana (≈ 34,67 h al mes).">
+              <EuroInput label="Precio hora extra" cents={cfg.overtimeHourCents} onCommit={(v) => save({ overtimeHourCents: v })} />
+            </Field>
+          )}
           <Field label="Plus por festivo trabajado (por día)">
             <EuroInput label="Plus festivo trabajado" cents={cfg.holidayWorkedCents} onCommit={(v) => save({ holidayWorkedCents: v })} />
           </Field>

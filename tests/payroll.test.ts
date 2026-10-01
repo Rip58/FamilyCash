@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { addMonths, isMonthStr, monthDays, monthOf } from "@/lib/dates";
 import {
   DEFAULT_PAYROLL, type MonthStats, calculatePay, configForMonth, mergeStats, monthStatsFromSchedule, parseEuros,
-  periodForMonth, weeklyExtraToMonthlyMinutes,
+  andorraIrpfAnnualCents, hoursOver40, overtimeRateCents, periodForMonth, weeklyExtraToMonthlyMinutes,
 } from "@/lib/payroll";
 import type { DayEntryLite, EmployeeLite, StatusTypeLite } from "@/lib/schedule";
 
@@ -42,15 +42,20 @@ describe("resumen del mes desde el cuadrante", () => {
       holidaysWorked: 0, extraMinutes: 90,
     });
   });
-  it("los valores a mano sustituyen a los automáticos", () => {
+  it("los días trabajados se deducen de los demás", () => {
     const auto: MonthStats = { daysInMonth: 30, daysWorked: 20, daysOff: 8, vacationDays: 2, sickDays: 0, absentDays: 0, holidaysWorked: 0, extraMinutes: 0 };
-    expect(mergeStats(auto, { daysWorked: 21, extraMinutes: null }).daysWorked).toBe(21);
-    expect(mergeStats(auto, { daysWorked: 21, extraMinutes: null }).extraMinutes).toBe(0);
+    // 1 día de fiesta a la semana = 4 al mes, sin nada más → 26 trabajados
+    const m = mergeStats(auto, { daysOff: 4, vacationDays: 0, extraMinutes: null });
+    expect(m.daysWorked).toBe(26);
+    expect(m.extraMinutes).toBe(0);
+    // mes parcial: 11 días de contrato, 1 de fiesta → 10
+    const first = mergeStats(auto, { contractDays: 11, daysOff: 1, vacationDays: 0 });
+    expect(first).toMatchObject({ contractDays: 11, daysWorked: 10 });
   });
 });
 
 describe("calculadora", () => {
-  const cfg = { ...DEFAULT_PAYROLL, baseMonthlyCents: 150000, overtimeHourCents: 1500, holidayWorkedCents: 4000, ssPercent: 6.5, irpfPercent: 10 };
+  const cfg = { ...DEFAULT_PAYROLL, baseMonthlyCents: 150000, overtimeMode: "FIXED" as const, overtimeHourCents: 1500, holidayWorkedCents: 4000, ssPercent: 6.5, irpfPercent: 10 };
   const stats: MonthStats = { daysInMonth: 30, daysWorked: 22, daysOff: 8, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 1, extraMinutes: 120 };
 
   it("turno de noche con plus en %", () => {
@@ -95,7 +100,7 @@ describe("periodos y propuesta salarial", () => {
     { id: "c", from: "2027-04-01", to: "2027-09-30", baseCents: 156867, respPlusCents: 95000 },
     { id: "d", from: "2027-10-01", to: null, baseCents: 156867, respPlusCents: 129361 },
   ];
-  const cfg = { ...DEFAULT_PAYROLL, nightPlusPercent: 18.5762, overtimeHourCents: 1374, ssPercent: 6.5, irpfPercent: 0 };
+  const cfg = { ...DEFAULT_PAYROLL, nightPlusPercent: 18.5762, overtimeMode: "FIXED" as const, overtimeHourCents: 1374, ssPercent: 6.5, irpfPercent: 0 };
   const stats: MonthStats = { daysInMonth: 31, daysWorked: 23, daysOff: 8, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 0, extraMinutes: 0 };
   const net = (month: string, extraMinutes = 0) =>
     calculatePay(configForMonth(cfg, periods, month), { ...stats, extraMinutes }, "NIGHT");
@@ -121,5 +126,34 @@ describe("periodos y propuesta salarial", () => {
     expect(m48).toBe(2080);
     expect(Math.abs(net("2026-10", m48).grossCents - 233647)).toBeLessThanOrEqual(10);
     expect(Math.abs(net("2027-11", m48).netCents - 339412)).toBeLessThanOrEqual(10);
+  });
+});
+
+describe("Andorra: horas extra por ley, mes parcial e IRPF", () => {
+  const law = { ...DEFAULT_PAYROLL, baseMonthlyCents: 156867, nightPlusPercent: 18.5762, ssPercent: 6.5, irpfPercent: 0 };
+
+  it("hora extra = fijo/h × 1,40 (+ nocturnidad/h de noche)", () => {
+    expect(Math.round(overtimeRateCents(law, "DAY"))).toBe(1267); // 9,05 × 1,4
+    expect(Math.round(overtimeRateCents(law, "NIGHT"))).toBe(1435); // + 1,68 €/h
+    expect(overtimeRateCents({ ...law, overtimeMode: "FIXED", overtimeHourCents: 1374 }, "NIGHT")).toBe(1374);
+  });
+
+  it("primera nómina del 20 al 30 de septiembre con 1 día de fiesta", () => {
+    const stats: MonthStats = {
+      daysInMonth: 30, contractDays: 11, daysWorked: 10, daysOff: 1, vacationDays: 0, sickDays: 0, absentDays: 0,
+      holidaysWorked: 0, extraMinutes: 0,
+    };
+    expect(hoursOver40(stats)).toBeCloseTo(17.14, 2);
+    const r = calculatePay(law, { ...stats, extraMinutes: Math.round(hoursOver40(stats) * 60) }, "NIGHT");
+    const line = (k: string) => r.earnings.find((l) => l.key === k)!.cents;
+    expect(line("base")).toBe(57518);
+    expect(line("night")).toBe(10685);
+    expect(line("overtime")).toBe(24612); // 17,15 h × 14,35 €
+    expect(r.grossCents).toBe(57518 + 10685 + 24612);
+  });
+
+  it("IRPF anual (Llei 5/2014)", () => {
+    expect(andorraIrpfAnnualCents(2200000, 6.5)).toBe(0);
+    expect(andorraIrpfAnnualCents(3000000, 6.5)).toBe(15750);
   });
 });

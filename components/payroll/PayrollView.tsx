@@ -10,19 +10,29 @@ import { cn } from "@/components/ui/cn";
 import { type MonthStr, formatMonth } from "@/lib/dates";
 import {
   type MonthStats, type PayrollConfig, type PayrollPeriod, type ShiftKind, calculatePay, configForMonth, formatDateEs, formatEuros,
-  formatHours, parseEuros, periodForMonth, weeklyExtraToMonthlyMinutes,
+  andorraIrpfAnnualCents, formatHours, hoursOver40, mergeStats, parseEuros, periodForMonth, weeklyExtraToMonthlyMinutes,
 } from "@/lib/payroll";
 import type { PayrollMonth } from "@/lib/payroll-queries";
 
 type View = "registro" | "calculadora";
 
+const SUMMARY_FIELDS = [
+  { key: "daysWorked", short: "T" },
+  { key: "daysOff", short: "F" },
+  { key: "vacationDays", short: "V" },
+  { key: "sickDays", short: "B" },
+  { key: "absentDays", short: "Fa" },
+  { key: "holidaysWorked", short: "Fe" },
+] as const;
+
+/** Campos editables del mes; los días trabajados se deducen de ellos. */
 const COUNT_FIELDS = [
-  { key: "daysWorked", label: "Días trabajados", short: "T" },
-  { key: "daysOff", label: "Días de fiesta", short: "F" },
-  { key: "vacationDays", label: "Vacaciones", short: "V" },
-  { key: "sickDays", label: "Baja", short: "B" },
-  { key: "absentDays", label: "Faltas", short: "Fa" },
-  { key: "holidaysWorked", label: "Festivos trabajados", short: "Fe" },
+  { key: "contractDays", label: "Días de contrato" },
+  { key: "daysOff", label: "Días de fiesta" },
+  { key: "vacationDays", label: "Vacaciones" },
+  { key: "sickDays", label: "Baja" },
+  { key: "absentDays", label: "Faltas" },
+  { key: "holidaysWorked", label: "Festivos trabajados" },
 ] as const;
 type CountKey = (typeof COUNT_FIELDS)[number]["key"];
 
@@ -30,7 +40,7 @@ const inputClass =
   "min-h-11 w-full rounded-control bg-surface-2 px-3 text-[17px] outline-none focus-visible:ring-2 focus-visible:ring-accent";
 
 function statsLine(s: MonthStats): string {
-  const parts = COUNT_FIELDS.filter((f) => s[f.key] > 0).map((f) => `${s[f.key]}${f.short}`);
+  const parts = SUMMARY_FIELDS.filter((f) => s[f.key] > 0).map((f) => `${s[f.key]}${f.short}`);
   if (s.extraMinutes > 0) parts.push(`${formatHours(s.extraMinutes)}X`);
   return parts.join(" · ") || "Sin datos";
 }
@@ -49,6 +59,9 @@ function MonthEditor({ m, onDone }: { m: PayrollMonth; onDone: () => void }) {
   const [pending, start] = useTransition();
 
   const toInt = (v: string) => (v.trim() === "" ? null : Number.parseInt(v, 10));
+  const typed = Object.fromEntries(COUNT_FIELDS.map((f) => [f.key, toInt(counts[f.key])])) as Record<CountKey, number | null>;
+  const live = mergeStats(m.auto, { ...typed, extraMinutes: null });
+  const autoValue = (k: CountKey) => (k === "contractDays" ? (m.auto.contractDays ?? m.auto.daysInMonth) : m.auto[k]);
   const toEuros = (v: string) => (v.trim() === "" ? null : parseEuros(v));
 
   function save(reset = false) {
@@ -62,10 +75,10 @@ function MonthEditor({ m, onDone }: { m: PayrollMonth; onDone: () => void }) {
     start(async () => {
       const r = await savePayslip(
         reset
-          ? { month: m.month, daysWorked: null, daysOff: null, vacationDays: null, sickDays: null, absentDays: null, holidaysWorked: null, extraMinutes: null, grossCents: null, netCents: null, note: null }
+          ? { month: m.month, contractDays: null, daysOff: null, vacationDays: null, sickDays: null, absentDays: null, holidaysWorked: null, extraMinutes: null, grossCents: null, netCents: null, note: null }
           : {
               month: m.month,
-              ...(Object.fromEntries(COUNT_FIELDS.map((f) => [f.key, toInt(counts[f.key])])) as Record<CountKey, number | null>),
+              ...typed,
               extraMinutes: hours === null ? null : Math.round(hours * 60),
               grossCents,
               netCents,
@@ -79,7 +92,14 @@ function MonthEditor({ m, onDone }: { m: PayrollMonth; onDone: () => void }) {
 
   return (
     <div className="flex flex-col gap-3 pb-2">
-      <p className="text-[13px] text-muted">Vacío = automático (lo apuntado en Hoy/Semana). Escribe un número para corregirlo.</p>
+      <p className="text-[13px] text-muted">
+        Vacío = automático (lo apuntado en Hoy/Semana). Los días trabajados se calculan solos: contrato − fiestas − vacaciones − baja
+        − faltas.
+      </p>
+      <p className="rounded-control bg-surface-2 px-3 py-2 text-[15px]" aria-live="polite">
+        Días trabajados: <b>{live.daysWorked}</b>
+        <span className="text-muted"> de {live.contractDays ?? live.daysInMonth}</span>
+      </p>
       <div className="grid grid-cols-2 gap-x-3 gap-y-2">
         {COUNT_FIELDS.map((f) => (
           <label key={f.key} className="flex flex-col gap-1">
@@ -88,7 +108,7 @@ function MonthEditor({ m, onDone }: { m: PayrollMonth; onDone: () => void }) {
               inputMode="numeric"
               aria-label={f.label}
               value={counts[f.key]}
-              placeholder={String(m.auto[f.key])}
+              placeholder={String(autoValue(f.key))}
               onChange={(e) => setCounts((c) => ({ ...c, [f.key]: e.target.value.replace(/\D/g, "").slice(0, 2) }))}
               className={inputClass}
             />
@@ -237,17 +257,23 @@ function CalculatorBody({ data, months, config, periods, setMonth }: CalcProps &
   const [shift, setShift] = useState<ShiftKind>("NIGHT");
   const [week, setWeek] = useState<"40" | "48">("40");
   const [s, setS] = useState(data.stats);
+  const contract = s.contractDays ?? s.daysInMonth;
+  const partial = contract < s.daysInMonth;
   const others = s.daysOff + s.vacationDays + s.sickDays + s.absentDays;
+  const extra48 = Math.round(EXTRA_48 * (partial ? Math.min(contract, 30) / 30 : 1));
   const stats: MonthStats = {
     ...s,
-    daysWorked: Math.max(s.daysInMonth - others, 0),
-    extraMinutes: s.extraMinutes + (week === "48" ? EXTRA_48 : 0),
+    daysWorked: Math.max(contract - others, 0),
+    extraMinutes: s.extraMinutes + (week === "48" ? extra48 : 0),
   };
+  const over40 = hoursOver40({ ...stats, extraMinutes: 0 });
+  const over40Unpaid = week === "40" && over40 >= 0.5 && Math.abs(over40 * 60 - s.extraMinutes) > 30;
   const period = periodForMonth(periods, data.month);
   const cfg = configForMonth(config, periods, data.month);
   const result = calculatePay(cfg, stats, shift);
   const set = (k: keyof MonthStats) => (v: number) => setS((x) => ({ ...x, [k]: v }));
-  const maxOf = (k: keyof MonthStats) => Math.max(s.daysInMonth - others + s[k], 0);
+  const maxOf = (k: "daysOff" | "vacationDays" | "sickDays" | "absentDays") => Math.max(contract - others + s[k], 0);
+  const annualIrpf = partial ? null : andorraIrpfAnnualCents(result.grossCents * 12, cfg.ssPercent);
 
   return (
     <div className="flex flex-col gap-3">
@@ -287,7 +313,7 @@ function CalculatorBody({ data, months, config, periods, setMonth }: CalcProps &
         {period
           ? `Salario del periodo ${formatDateEs(period.from)} – ${period.to ? formatDateEs(period.to) : "indefinido"}`
           : "Sin periodo de salario para este mes: se usa el salario base de Ajustes."}
-        {week === "48" && ` · 48 h = +${formatHours(EXTRA_48)} h extra al mes`}
+        {week === "48" && ` · 48 h = +${formatHours(extra48)} h extra al mes`}
       </p>
       {cfg.baseMonthlyCents === 0 && (
         <p className="rounded-control bg-warning/20 px-3 py-2 text-[14px] text-[#92600a] dark:text-warning">
@@ -298,8 +324,14 @@ function CalculatorBody({ data, months, config, periods, setMonth }: CalcProps &
           .
         </p>
       )}
-      <Card title={`${stats.daysWorked} ${shift === "NIGHT" ? "noches trabajadas" : "días trabajados"} de ${s.daysInMonth}`}>
+      <Card title={`${stats.daysWorked} ${shift === "NIGHT" ? "noches trabajadas" : "días trabajados"} de ${contract}`}>
         <div className="divide-y divide-line">
+          <Counter
+            label="Días de contrato"
+            value={contract}
+            onChange={(v) => setS((x) => ({ ...x, contractDays: Math.max(v, 1) }))}
+            max={s.daysInMonth}
+          />
           <Counter label="Días de fiesta" value={s.daysOff} onChange={set("daysOff")} max={maxOf("daysOff")} />
           <Counter label="Vacaciones" value={s.vacationDays} onChange={set("vacationDays")} max={maxOf("vacationDays")} />
           <Counter label="Baja" value={s.sickDays} onChange={set("sickDays")} max={maxOf("sickDays")} />
@@ -328,6 +360,20 @@ function CalculatorBody({ data, months, config, periods, setMonth }: CalcProps &
               </button>
             </div>
           </div>
+          {over40Unpaid && (
+            <div className="flex min-h-12 items-center justify-between gap-3 text-[14px]">
+              <span className="text-muted">
+                Por encima de 40 h/semana: <b className="text-fg">{formatHours(Math.round(over40 * 60))} h</b>
+              </span>
+              <button
+                type="button"
+                onClick={() => setS((x) => ({ ...x, extraMinutes: Math.round(over40 * 60) }))}
+                className="min-h-11 rounded-full bg-surface-2 px-4 font-semibold text-accent"
+              >
+                Usar
+              </button>
+            </div>
+          )}
         </div>
       </Card>
 
@@ -364,9 +410,16 @@ function CalculatorBody({ data, months, config, periods, setMonth }: CalcProps &
         {data.netCents != null && (
           <p className="mt-2 text-[13px] text-muted">Neto real apuntado ese mes: {formatEuros(data.netCents)}</p>
         )}
+        {annualIrpf != null && (
+          <p className="mt-2 text-[13px] text-muted">
+            IRPF anual si todo el año fuera así ({formatEuros(result.grossCents * 12)} brutos):{" "}
+            <b className="text-fg">{annualIrpf > 0 ? formatEuros(annualIrpf) : "0 € (por debajo del mínimo exento)"}</b>
+          </p>
+        )}
       </Card>
       <p className="px-1 text-[12px] text-muted">
-        Cálculo orientativo con tus importes de Ajustes; la nómina oficial puede variar (bajas, atrasos, IRPF regularizado…).
+        Cálculo orientativo (Andorra: Llei 31/2018 de relacions laborals, CASS, Llei 5/2014 de l’IRPF). Mes parcial
+        prorrateado por días/30. La nómina oficial puede variar.
       </p>
     </div>
   );

@@ -193,7 +193,9 @@ model PayrollSettings {     // fila única id=1: importes para la calculadora de
   nightPlusMode          String  @default("PERCENT") // PER_NIGHT | PERCENT
   nightPlusPerNightCents Int     @default(0)
   nightPlusPercent       Float   @default(25)
-  overtimeHourCents      Int     @default(0)
+  overtimeMode           String  @default("LAW")   // LAW (fijo/h × recargo + nocturnidad/h) | FIXED
+  overtimeSurchargePercent Float @default(40)      // art. 58.2 LRL: mínimo +40 %
+  overtimeHourCents      Int     @default(0)       // si FIXED
   holidayWorkedCents     Int     @default(0)
   ssPercent              Float   @default(6.48)
   irpfPercent            Float   @default(12)
@@ -201,7 +203,7 @@ model PayrollSettings {     // fila única id=1: importes para la calculadora de
 
 model Payslip {             // registro mensual; los campos null se calculan del cuadrante
   month          String   @id                  // "YYYY-MM"
-  daysWorked     Int?
+  contractDays   Int?                          // alta/baja a mitad de mes (null = mes completo)
   daysOff        Int?
   vacationDays   Int?
   sickDays       Int?
