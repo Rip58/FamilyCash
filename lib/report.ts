@@ -134,10 +134,18 @@ export interface ReportDepartment {
   members: ReportMember[];
 }
 
+export interface EmployeeDayNote {
+  employeeId: string;
+  name: string;
+  note: string;
+}
+
 export interface DayReport {
   date: DateStr;
   title: string;
   note: string | null;
+  /** Notas de la noche sobre empleados concretos (vengan o no). */
+  employeeNotes: EmployeeDayNote[];
   shift: {
     start: string;
     end: string;
@@ -269,6 +277,15 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
     members: g.members.map((m) => ({ name: m.employee.name, reason: m.day.reason })),
   }));
   const absentCount = absences.reduce((n, g) => n + g.members.length, 0);
+  const allMembers = [
+    ...roster.departments.flatMap((d) => d.present),
+    ...roster.unassigned,
+    ...roster.absentByStatus.flatMap((g) => g.members),
+  ];
+  const employeeNotes: EmployeeDayNote[] = allMembers
+    .filter((m) => m.day.note?.trim())
+    .map((m) => ({ employeeId: m.employee.id, name: m.employee.name, note: m.day.note!.trim() }))
+    .sort((a, b) => a.name.localeCompare(b.name, "es"));
   const emptyDepartments = roster.emptyDepartments.map((d) => d.name);
 
   const hasIncidents =
@@ -278,6 +295,7 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
     date: roster.date,
     title: formatDayLong(roster.date),
     note: input.dayNote?.trim() ? input.dayNote.trim() : null,
+    employeeNotes,
     shift: {
       start: shift.shiftStart,
       end: shift.shiftEnd,
@@ -302,7 +320,12 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
     overtime: { items: overtimeItems, totalMinutes: totalOvertime(overtimeItems.map((i) => ({ extraMinutes: i.minutes }))) },
     hasIncidents,
     reports: input.reports ?? [],
-    isEmpty: roster.presentCount === 0 && absentCount === 0 && (input.reports ?? []).length === 0,
+    isEmpty:
+      roster.presentCount === 0 &&
+      absentCount === 0 &&
+      (input.reports ?? []).length === 0 &&
+      employeeNotes.length === 0 &&
+      !input.dayNote?.trim(),
   };
 }
 
@@ -407,6 +430,10 @@ export function reportToText(report: DayReport): string {
   if (report.note) {
     L.push("", "*Nota del día*", report.note);
   }
+  if (report.employeeNotes.length > 0) {
+    L.push("", "*Notas de empleados*");
+    for (const n of report.employeeNotes) L.push(`• ${n.name}: ${n.note}`);
+  }
 
   if (report.hasIncidents) {
     L.push("", "*Incidencias*");
@@ -442,7 +469,6 @@ export function reportToText(report: DayReport): string {
       const where = m.departmentName ?? deptName;
       L.push(`• ${m.name}${moved}: turno completo${where ? ` en ${where}` : ""}`);
     }
-    if (m.note) L.push(`   ${m.note}`);
   };
 
   for (const d of report.departments) {

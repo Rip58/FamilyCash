@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DayReportView } from "@/components/report/DayReportView";
+import { ReportAdd } from "@/components/report/ReportAdd";
 import { ReportTabs } from "@/components/report/ReportTabs";
 import { ShareButton } from "@/components/report/ShareButton";
 import { WeekSummaryView } from "@/components/report/WeekSummaryView";
@@ -80,7 +81,17 @@ export default async function Page({
     const report = buildDayReport({ roster, dayNote, shift: settings, sections, departments, reports });
     title = formatDayLong(date);
     subtitle = `Turno ${settings.shiftStart}–${settings.shiftEnd} · ${report.presentCount} trabajan`;
-    body = <DayReportView report={report} />;
+    const notes = new Map(entries.filter((e) => e.note?.trim()).map((e) => [e.employeeId, e.note!.trim()]));
+    const people = employees
+      .filter((e) => e.active)
+      .map((e) => ({ id: e.id, name: e.name, note: notes.get(e.id) ?? null }))
+      .sort((a, b) => a.name.localeCompare(b.name, "es"));
+    body = (
+      <>
+        <ReportAdd date={date} dayNote={dayNote} employees={people} />
+        <DayReportView report={report} />
+      </>
+    );
     if (!report.isEmpty) share = <ShareButton text={reportToText(report)} title={`Informe de noche · ${report.title}`} />;
   } else {
     const days = weekDays(date);

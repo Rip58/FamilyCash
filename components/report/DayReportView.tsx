@@ -45,7 +45,6 @@ function MemberBlock({ m, report, fallbackDept }: { m: ReportMember; report: Day
           {m.timeReason && ` (${m.timeReason})`}
         </p>
       )}
-      {m.note && <p className="mt-1 rounded-control bg-surface-2 px-3 py-2 text-[14px]">{m.note}</p>}
     </li>
   );
 }
@@ -63,6 +62,19 @@ export function DayReportView({ report }: { report: DayReport }) {
       {report.note && (
         <Card title="Nota del día">
           <p className="whitespace-pre-wrap text-[15px]">{report.note}</p>
+        </Card>
+      )}
+
+      {report.employeeNotes.length > 0 && (
+        <Card title="Notas de empleados">
+          <ul className="space-y-2 text-[15px]">
+            {report.employeeNotes.map((n) => (
+              <li key={n.employeeId}>
+                <b>{n.name}</b>
+                <p className="whitespace-pre-wrap text-fg">{n.note}</p>
+              </li>
+            ))}
+          </ul>
         </Card>
       )}
 

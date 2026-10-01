@@ -83,6 +83,10 @@ function report() {
 
 describe("buildDayReport", () => {
   const r = report();
+  it("notas de empleados", () => {
+    expect(r.employeeNotes).toEqual([{ employeeId: expect.any(String), name: "Beto", note: "Rápido" }]);
+    expect(reportToText(r)).toContain("*Notas de empleados*\n• Beto: Rápido");
+  });
   it("incidencias", () => {
     expect(r.lateArrivals).toEqual([{ name: "Ana", arrivedAt: "22:15", minutes: 45, reason: "Tren" }]);
     expect(r.leaveDeviations.map((d) => [d.name, d.kind, d.minutes])).toEqual([
