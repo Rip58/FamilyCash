@@ -16,6 +16,14 @@ export function storageMode(): StorageMode {
   return process.env.BLOB_READ_WRITE_TOKEN ? "blob" : "local";
 }
 
+export const BLOB_MISSING =
+  "Falta conectar el almacenamiento de fotos: en Vercel → Storage, crea un Blob y conéctalo al proyecto.";
+
+/** En Vercel sin token de Blob no se pueden guardar fotos (el disco es de solo lectura). */
+export function blobMissing(): boolean {
+  return storageMode() === "local" && !!process.env.VERCEL;
+}
+
 const ROOT = path.resolve(process.cwd(), ".uploads");
 
 /** Ruta absoluta dentro de `.uploads/`, o null si el pathname no es seguro. */

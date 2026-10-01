@@ -19,9 +19,11 @@ interface Props {
   protocolPhotos: number;
   bytes: number;
   mode: "blob" | "local";
+  /** Publicada en Vercel sin Blob conectado: no se pueden subir fotos. */
+  blobMissing?: boolean;
 }
 
-export function StorageSettings({ reports, notes, photos, reportPhotos, notePhotos, protocolPhotos, bytes, mode }: Props) {
+export function StorageSettings({ reports, notes, photos, reportPhotos, notePhotos, protocolPhotos, bytes, mode, blobMissing }: Props) {
   const [months, setMonths] = useState(6);
   const { pending, run } = useRun();
 
@@ -29,6 +31,15 @@ export function StorageSettings({ reports, notes, photos, reportPhotos, notePhot
   return (
     <div>
       <BackHeader title="Almacenamiento" />
+      {blobMissing && (
+        <div role="alert" className="mb-4 rounded-card bg-danger/10 p-4 text-[15px] text-danger">
+          <p className="font-semibold">No se pueden subir fotos</p>
+          <p className="mt-1">
+            Falta conectar Vercel Blob: en vercel.com → proyecto → Storage → Create → Blob, conéctalo a este
+            proyecto y vuelve a publicar.
+          </p>
+        </div>
+      )}
       <Card title="Fotos guardadas">
         <dl>
           <div className={row}>
@@ -49,7 +60,9 @@ export function StorageSettings({ reports, notes, photos, reportPhotos, notePhot
           </div>
           <div className={row}>
             <dt>Almacén</dt>
-            <dd className="text-muted">{mode === "blob" ? "Vercel Blob" : "Local (desarrollo)"}</dd>
+            <dd className={blobMissing ? "font-semibold text-danger" : "text-muted"}>
+              {mode === "blob" ? "Vercel Blob" : blobMissing ? "Sin configurar" : "Local (desarrollo)"}
+            </dd>
           </div>
         </dl>
         <p className="mt-2 text-[13px] text-muted">

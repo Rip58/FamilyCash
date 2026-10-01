@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
-import { saveLocalFile, storageMode } from "@/lib/storage";
+import { BLOB_MISSING, saveLocalFile, storageMode } from "@/lib/storage";
 import { sniffImageType, validateUpload } from "@/lib/upload-rules";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +13,8 @@ export async function POST(req: Request) {
   const jar = await cookies();
   if (!(await verifySessionToken(jar.get(SESSION_COOKIE)?.value))) return err("No autorizado", 401);
   if (storageMode() !== "local") return err("La subida local está desactivada.", 404);
+  // En Vercel el disco es de solo lectura: sin Vercel Blob no hay dónde guardar fotos.
+  if (process.env.VERCEL) return err(BLOB_MISSING, 503);
 
   let file: FormDataEntryValue | null;
   try {
@@ -29,6 +31,10 @@ export async function POST(req: Request) {
   const real = sniffImageType(bytes);
   if (!real) return err("El archivo no es una imagen válida.", 400);
 
-  const saved = await saveLocalFile(bytes, real);
-  return NextResponse.json(saved);
+  try {
+    return NextResponse.json(await saveLocalFile(bytes, real));
+  } catch (e) {
+    console.error(e);
+    return err("No se pudo guardar la foto en el servidor.", 500);
+  }
 }
