@@ -10,11 +10,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ v
   const { v } = await searchParams;
   const config = await getPayrollConfig();
   const current = monthOf(madridToday());
-  const [months, employees, periods] = await Promise.all([
-    loadPayrollMonths(addMonths(current, -11), addMonths(current, 12), config.employeeId),
-    getEmployees(),
-    getPayrollPeriods(),
-  ]);
+  const periods = await getPayrollPeriods();
+  // Desde el primer periodo de salario (inicio del contrato) hasta diciembre del año siguiente.
+  const first = periods[0] ? monthOf(periods[0].from) : addMonths(current, -11);
+  const last = `${Number(current.slice(0, 4)) + 1}-12`;
+  const [months, employees] = await Promise.all([loadPayrollMonths(first, last, config.employeeId), getEmployees()]);
   const me = config.employeeId ? employees.find((e) => e.id === config.employeeId) : undefined;
   return (
     <PayrollView

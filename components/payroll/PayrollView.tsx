@@ -167,18 +167,26 @@ function Registry({
   months,
   config,
   periods,
+  nowYear,
   onCalc,
 }: {
   months: PayrollMonth[];
+  nowYear: string;
   config: PayrollConfig;
   periods: PayrollPeriod[];
   onCalc: (m: MonthStr) => void;
 }) {
   const [editing, setEditing] = useState<{ month: MonthStr; open: boolean } | null>(null);
   const current = editing ? months.find((m) => m.month === editing.month) : undefined;
+  const years = [...new Set(months.map((m) => m.month.slice(0, 4)))].sort();
+  const [year, setYear] = useState(() => (years.includes(nowYear) ? nowYear : years[0]!));
+  const shown = months.filter((m) => m.month.startsWith(year)).sort((a, b) => b.month.localeCompare(a.month));
   return (
     <div className="flex flex-col gap-2">
-      {months.map((m) => {
+      {years.length > 1 && (
+        <Segmented aria-label="Año" value={year} onChange={setYear} options={years.map((y) => ({ value: y, label: y }))} />
+      )}
+      {shown.map((m) => {
         const cfg = configForMonth(config, periods, m.month);
         const estimate = cfg.baseMonthlyCents > 0 ? calculatePay(cfg, m.stats, "NIGHT").netCents : null;
         return (
@@ -425,7 +433,6 @@ export function PayrollView({
 }) {
   const [view, setView] = useState<View>(initialView);
   const [calcMonth, setCalcMonth] = useState<MonthStr>(current);
-  const past = months.filter((m) => m.month <= current);
   return (
     <div className="flex flex-col gap-3 pb-6 pt-4">
       <div className="flex items-baseline justify-between gap-3">
@@ -454,7 +461,8 @@ export function PayrollView({
       />
       {view === "registro" ? (
         <Registry
-          months={past}
+          months={months}
+          nowYear={current.slice(0, 4)}
           config={config}
           periods={periods}
           onCalc={(m) => {
