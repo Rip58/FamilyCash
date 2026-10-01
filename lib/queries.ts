@@ -141,20 +141,40 @@ export async function loadWeekGrid(date: DateStr): Promise<WeekGrid> {
   });
 }
 
-/** Notas de la noche (Informe) entre dos fechas incluidas, en orden de creación. */
-export async function getNightNotes(from: DateStr, to: DateStr) {
-  const rows = await db.nightNote.findMany({
-    where: { date: { gte: toDbDate(from), lte: toDbDate(to) } },
-    include: { employee: { select: { name: true } } },
-    orderBy: { createdAt: "asc" },
-  });
-  return rows.map((r) => ({
+const NOTE_INCLUDE = { employee: { select: { name: true } }, department: { select: { name: true } } } as const;
+type NoteRow = Awaited<ReturnType<typeof db.nightNote.findMany<{ include: typeof NOTE_INCLUDE }>>>[number];
+
+function toNoteView(r: NoteRow) {
+  return {
     id: r.id,
     date: fromDbDate(r.date),
     employeeId: r.employeeId,
     name: r.employee?.name ?? null,
+    department: r.department?.name ?? null,
+    isTask: r.kind === "TASK",
+    done: r.doneAt !== null,
     text: r.text,
-  }));
+  };
+}
+
+/** Notas de la noche (Informe) entre dos fechas incluidas, en orden de creación. */
+export async function getNightNotes(from: DateStr, to: DateStr) {
+  const rows = await db.nightNote.findMany({
+    where: { date: { gte: toDbDate(from), lte: toDbDate(to) } },
+    include: NOTE_INCLUDE,
+    orderBy: { createdAt: "asc" },
+  });
+  return rows.map(toNoteView);
+}
+
+/** Tareas aún sin hacer de noches anteriores a `before`. */
+export async function getPendingTasksBefore(before: DateStr) {
+  const rows = await db.nightNote.findMany({
+    where: { kind: "TASK", doneAt: null, date: { lt: toDbDate(before) } },
+    include: NOTE_INCLUDE,
+    orderBy: [{ date: "asc" }, { createdAt: "asc" }],
+  });
+  return rows.map(toNoteView);
 }
 
 export async function getDayNotesBetween(from: DateStr, to: DateStr): Promise<{ date: DateStr; text: string }[]> {

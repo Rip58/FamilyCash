@@ -27,6 +27,7 @@ model Department {          // Droguería, Botellería, ...
   active      Boolean @default(true)
   employees   Employee[]
   sections    Section[]
+  nightNotes  NightNote[]
 }
 
 model Section {             // pasillos / tareas: Cerveza, Chocolate, ...
@@ -234,6 +235,10 @@ model NightNote {           // notas de la noche (Informe): varias por noche, ge
   date       DateTime  @db.Date
   employeeId String?
   employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  departmentId String?
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  kind       String    @default("INFO")   // INFO (informativa) | TASK (tarea pendiente de hacer)
+  doneAt     DateTime?                    // tarea hecha
   text       String
   createdAt  DateTime  @default(now())
   @@index([date])

@@ -1,54 +1,9 @@
 import { ReportCard } from "@/components/reports/ReportCard";
 import { Card, Tag } from "@/components/ui";
+import { cn } from "@/components/ui/cn";
 import { formatOvertime } from "@/lib/overtime";
-import { formatDuration, type DayReport, type ReportMember } from "@/lib/report";
-import { DeleteNoteButton } from "./ReportAdd";
-import { Timeline, segmentColor } from "./Timeline";
-
-function MemberBlock({ m, report, fallbackDept }: { m: ReportMember; report: DayReport; fallbackDept: string }) {
-  const { shift } = report;
-  return (
-    <li className="py-3">
-      <div className="flex flex-wrap items-baseline gap-x-2">
-        <span className="text-[16px] font-semibold">{m.name}</span>
-        {m.movedFrom && (
-          <span className="text-[13px] text-muted">
-            {m.movedFrom} → {m.departmentName}
-          </span>
-        )}
-      </div>
-      {m.segments.length > 0 ? (
-        <div className="mt-2 space-y-2">
-          <Timeline segments={m.segments} length={shift.length} breakFrom={shift.breakFrom} breakTo={shift.breakTo} />
-          <p className="text-[14px] leading-snug">
-            {m.segments.map((s, i) => (
-              <span key={i}>
-                {i > 0 && <span className="text-muted"> → </span>}
-                <span className="whitespace-nowrap">
-                  <span
-                    className="mr-1 inline-block h-2 w-2 rounded-full align-middle"
-                    style={{ backgroundColor: segmentColor(s.colorIndex) }}
-                  />
-                  {s.start}–{s.end} {s.label}
-                </span>
-              </span>
-            ))}
-          </p>
-        </div>
-      ) : (
-        <p className="mt-0.5 text-[14px] text-muted">Turno completo{(m.departmentName ?? fallbackDept) && ` en ${m.departmentName ?? fallbackDept}`}</p>
-      )}
-      {(m.arrivedAt || m.leftAt) && (
-        <p className="mt-1 text-[13px] text-muted">
-          {m.arrivedAt && <>Llega {m.arrivedAt}</>}
-          {m.arrivedAt && m.leftAt && " · "}
-          {m.leftAt && <>Sale {m.leftAt}</>}
-          {m.timeReason && ` (${m.timeReason})`}
-        </p>
-      )}
-    </li>
-  );
-}
+import { formatDuration, noteWho, type DayReport } from "@/lib/report";
+import { DeleteNoteButton, TaskCheck } from "./ReportAdd";
 
 export function DayReportView({ report }: { report: DayReport }) {
   if (report.isEmpty) {
@@ -70,10 +25,14 @@ export function DayReportView({ report }: { report: DayReport }) {
               </li>
             )}
             {report.nightNotes.map((n) => (
-              <li key={n.id} className="flex items-start gap-2 py-2">
-                <div className="min-w-0 flex-1">
-                  <span className="text-[13px] font-semibold text-muted">{n.name ?? "General"}</span>
-                  <p className="whitespace-pre-wrap">{n.text}</p>
+              <li key={n.id} className={cn("flex items-start gap-1 py-2", n.isTask && "-mx-2 rounded-control bg-warning/10 px-2")}>
+                {n.isTask && <TaskCheck id={n.id} done={!!n.done} label={n.text} />}
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <span className="text-[13px] font-semibold text-muted">
+                    {n.isTask && <span className="mr-1 rounded bg-warning/30 px-1 text-[11px] uppercase text-fg">Tarea</span>}
+                    {noteWho(n)}
+                  </span>
+                  <p className={cn("whitespace-pre-wrap", n.isTask && n.done && "text-muted line-through")}>{n.text}</p>
                 </div>
                 <DeleteNoteButton id={n.id} />
               </li>
@@ -184,42 +143,6 @@ export function DayReportView({ report }: { report: DayReport }) {
         </section>
       )}
 
-      {report.departments.map((d) => (
-        <Card
-          key={d.id}
-          title={
-            <span className="flex items-center gap-2">
-              <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: d.color }} />
-              {d.name}
-            </span>
-          }
-          action={
-            <span className="text-[13px] text-muted">
-              {d.presentCount}
-              {d.targetStaff > 0 ? `/${d.targetStaff}` : ""}
-            </span>
-          }
-        >
-          <ul className="divide-y divide-line">
-            {d.members.map((m) => (
-              <MemberBlock key={m.employeeId} m={m} report={report} fallbackDept={d.name} />
-            ))}
-          </ul>
-        </Card>
-      ))}
-      {report.unassigned.length > 0 && (
-        <Card title="Sin departamento">
-          <ul className="divide-y divide-line">
-            {report.unassigned.map((m) => (
-              <MemberBlock key={m.employeeId} m={m} report={report} fallbackDept="" />
-            ))}
-          </ul>
-        </Card>
-      )}
-      <p className="px-1 text-center text-[12px] text-muted">
-        Barra: turno {report.shift.start}–{report.shift.end}; zona rayada = descanso {report.shift.breakStart}–
-        {report.shift.breakEnd}.
-      </p>
     </div>
   );
 }

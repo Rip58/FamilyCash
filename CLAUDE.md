@@ -48,5 +48,5 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 - Cada sección tiene su `loading.tsx` (no uno global en `(app)`, que rompería los 404 de fechas inválidas).
 
 ## Notas técnicas (notas de la noche)
-- `NightNote` (varias por noche, `employeeId` null = general), acciones en `app/actions/notes.ts`, lectura `getNightNotes` en `lib/queries.ts`. El Informe las junta con la nota del día (`DayNote`) y las notas de empleado del día (`DayEntry.note`) en "Notas de la noche"; el resumen semanal las agrupa por noche.
+- `NightNote` (varias por noche, `employeeId`/`departmentId` opcionales; `kind` INFO | TASK, `doneAt` = tarea hecha; las tareas pendientes de semanas anteriores salen en la Semana del Informe vía `getPendingTasksBefore`), acciones en `app/actions/notes.ts`, lectura `getNightNotes` en `lib/queries.ts`. El Informe las junta con la nota del día (`DayNote`) y las notas de empleado del día (`DayEntry.note`) en "Notas de la noche"; el resumen semanal las agrupa por noche.
 

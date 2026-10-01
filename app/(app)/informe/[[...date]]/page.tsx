@@ -5,6 +5,7 @@ import { ReportAdd } from "@/components/report/ReportAdd";
 import { ReportTabs } from "@/components/report/ReportTabs";
 import { ShareButton } from "@/components/report/ShareButton";
 import { WeekSummaryView } from "@/components/report/WeekSummaryView";
+import { WeekTasks } from "@/components/report/WeekTasks";
 import {
   type DateStr,
   addDays,
@@ -22,12 +23,13 @@ import {
   getEmployees,
   getEntriesBetween,
   getNightNotes,
+  getPendingTasksBefore,
   getSections,
   getSettings,
   getStatusTypes,
 } from "@/lib/queries";
 import { getReportsForDate } from "@/lib/report-queries";
-import { buildDayReport, buildWeekSummary, reportToText } from "@/lib/report";
+import { buildDayReport, buildWeekSummary, noteWho, reportToText } from "@/lib/report";
 import { getDayRoster, getWeekGrid } from "@/lib/schedule";
 
 export const metadata = { title: "Informe" };
@@ -90,22 +92,28 @@ export default async function Page({
       .sort((a, b) => a.name.localeCompare(b.name, "es"));
     body = (
       <>
-        <ReportAdd date={date} employees={people} />
+        <ReportAdd
+          date={date}
+          employees={people}
+          departments={departments.filter((d) => d.active !== false).map((d) => ({ id: d.id, name: d.name }))}
+        />
         <DayReportView report={report} />
       </>
     );
     if (!report.isEmpty) share = <ShareButton text={reportToText(report)} title={`Informe de noche · ${report.title}`} />;
   } else {
     const days = weekDays(date);
-    const [entries, nightNotes, dayNotes] = await Promise.all([
+    const [entries, nightNotes, dayNotes, olderTasks] = await Promise.all([
       getEntriesBetween(days[0]!, days[6]!),
       getNightNotes(days[0]!, days[6]!),
       getDayNotesBetween(days[0]!, days[6]!),
+      getPendingTasksBefore(days[0]!),
     ]);
+    const tasks = [...olderTasks, ...nightNotes.filter((n) => n.isTask)];
     const nameById = new Map(employees.map((e) => [e.id, e.name]));
     const notes = [
       ...dayNotes.map((n) => ({ date: n.date, name: null, text: n.text })),
-      ...nightNotes.map((n) => ({ date: n.date, name: n.name, text: n.text })),
+      ...nightNotes.filter((n) => !n.isTask).map((n) => ({ date: n.date, name: n.name || n.department ? noteWho(n) : null, text: n.text })),
       ...entries
         .filter((e) => e.note?.trim())
         .map((e) => ({ date: e.date, name: nameById.get(e.employeeId) ?? null, text: e.note!.trim() })),
@@ -122,7 +130,12 @@ export default async function Page({
     const summary = buildWeekSummary({ date, grid, statusTypes, rosters, shift: settings, notes });
     title = `Semana ${isoWeekNumber(days[0]!)}`;
     subtitle = formatWeekRange(date);
-    body = <WeekSummaryView summary={summary} />;
+    body = (
+      <>
+        <WeekTasks tasks={tasks} weekStart={days[0]!} />
+        <WeekSummaryView summary={summary} />
+      </>
+    );
   }
 
   return (

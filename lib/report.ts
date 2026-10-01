@@ -145,7 +145,15 @@ export interface NightNoteView {
   id: string;
   employeeId: string | null;
   name: string | null;
+  department?: string | null;
+  isTask?: boolean;
+  done?: boolean;
   text: string;
+}
+
+/** "Ana · Droguería", "Droguería", "Ana" o "General". */
+export function noteWho(n: { name: string | null; department?: string | null }): string {
+  return [n.name, n.department].filter(Boolean).join(" · ") || "General";
 }
 
 export interface DayReport {
@@ -443,20 +451,20 @@ export function buildWeekSummary(input: BuildWeekSummaryInput): WeekSummary {
 
 // ---- Texto para compartir (WhatsApp) -------------------------------------
 
-function segText(s: ReportSegment): string {
-  return `${s.start}–${s.end} ${s.label}`;
-}
-
 /** Texto plano con *negritas* estilo WhatsApp. */
 export function reportToText(report: DayReport): string {
   const L: string[] = [];
   L.push(`*Informe de noche · ${report.title}*`);
   L.push(`Turno ${report.shift.start}–${report.shift.end} · ${report.presentCount} trabajan`);
 
-  const general = [...(report.note ? [report.note] : []), ...report.nightNotes.filter((n) => !n.name).map((n) => n.text)];
+  const mark = (n: NightNoteView) => (n.isTask ? (n.done ? "✅ " : "☐ Tarea: ") : "");
+  const general = [
+    ...(report.note ? [report.note] : []),
+    ...report.nightNotes.filter((n) => !n.name && !n.department).map((n) => `${mark(n)}${n.text}`),
+  ];
   const personal = [
     ...report.employeeNotes.map((n) => ({ name: n.name, text: n.note })),
-    ...report.nightNotes.filter((n) => n.name).map((n) => ({ name: n.name!, text: n.text })),
+    ...report.nightNotes.filter((n) => n.name || n.department).map((n) => ({ name: noteWho(n), text: `${mark(n)}${n.text}` })),
   ];
   if (general.length > 0 || personal.length > 0) {
     L.push("", "*Notas de la noche*");
@@ -489,25 +497,6 @@ export function reportToText(report: DayReport): string {
   }
 
   L.push(...reportsToTextLines(report.reports));
-
-  const block = (m: ReportMember, deptName: string) => {
-    const moved = m.movedFrom ? ` (${m.movedFrom} → ${m.departmentName ?? "—"})` : "";
-    if (m.segments.length > 0) {
-      L.push(`• ${m.name}${moved}: ${m.segments.map(segText).join(" → ")}`);
-    } else {
-      const where = m.departmentName ?? deptName;
-      L.push(`• ${m.name}${moved}: turno completo${where ? ` en ${where}` : ""}`);
-    }
-  };
-
-  for (const d of report.departments) {
-    L.push("", `*${d.name}* (${d.presentCount}${d.targetStaff > 0 ? `/${d.targetStaff}` : ""})`);
-    for (const m of d.members) block(m, d.name);
-  }
-  if (report.unassigned.length > 0) {
-    L.push("", "*Sin departamento*");
-    for (const m of report.unassigned) block(m, "");
-  }
 
   return L.join("\n");
 }

@@ -4,7 +4,7 @@ import {
   getDayRoster, getWeekGrid,
 } from "@/lib/schedule";
 import {
-  DEFAULT_SHIFT, buildDayReport, buildWeekSummary, formatDuration, lateMinutes, leaveDelta,
+  DEFAULT_SHIFT, buildDayReport, noteWho, buildWeekSummary, formatDuration, lateMinutes, leaveDelta,
   minutesFromShiftStart, reportToText,
 } from "@/lib/report";
 
@@ -92,6 +92,17 @@ describe("buildDayReport", () => {
     ] };
     expect(reportToText(withNotes)).toContain("*Notas de la noche*\n• Han llegado todos a la hora\n• Ana: Muy bien con el inventario");
   });
+  it("tareas y departamento en las notas", () => {
+    expect(noteWho({ name: "Ana", department: "Droguería" })).toBe("Ana · Droguería");
+    expect(noteWho({ name: null, department: "Droguería" })).toBe("Droguería");
+    expect(noteWho({ name: null, department: null })).toBe("General");
+    const t = reportToText({ ...r, note: null, employeeNotes: [], nightNotes: [
+      { id: "t1", employeeId: "x", name: "Ana", department: null, isTask: true, done: false, text: "Apuntar horas extra en el Excel" },
+      { id: "t2", employeeId: null, name: null, department: "Droguería", isTask: true, done: true, text: "Pedir cajas" },
+    ] });
+    expect(t).toContain("• Ana: ☐ Tarea: Apuntar horas extra en el Excel");
+    expect(t).toContain("• Droguería: ✅ Pedir cajas");
+  });
   it("notas de empleados", () => {
     expect(r.employeeNotes).toEqual([{ employeeId: expect.any(String), name: "Beto", note: "Rápido" }]);
     expect(reportToText(r)).toContain("*Notas de la noche*\n• Noche tranquila\n• Beto: Rápido");
@@ -115,14 +126,13 @@ describe("buildDayReport", () => {
   it("texto para compartir", () => {
     const t = reportToText(r);
     expect(t).toContain("*Informe de noche · Lunes 28 sep*");
-    expect(t).toContain("• Ana: 21:30–05:00 Cerveza → 05:00–06:30 Chocolate");
-    expect(t).toContain("• Carla (Botellería → Droguería): turno completo en Droguería");
+    // Sin listado de departamentos/personas: el informe se centra en incidencias, horas extra y notas.
+    expect(t).not.toContain("turno completo");
     expect(t).toContain("Beto: se va 2 h 30 min antes (sale a las 04:00) — Médico");
     expect(t).toContain("Eva: se queda 1 h más");
     expect(t).toContain("*Baja laboral*: Dani (Gripe)");
     expect(t).toContain("Ana: llega tarde a las 22:15 (+45 min) — Tren");
     expect(t).toContain("Noche tranquila");
-    expect(t).toContain("*Botellería* (1/1)");
   });
 });
 

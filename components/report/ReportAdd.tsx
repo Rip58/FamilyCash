@@ -1,15 +1,19 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { addNightNote, deleteNightNote } from "@/app/actions/notes";
+import { addNightNote, deleteNightNote, setNoteDone } from "@/app/actions/notes";
 import { BottomSheet } from "@/components/ui/BottomSheet";
+import { Segmented } from "@/components/ui/Segmented";
+import { cn } from "@/components/ui/cn";
 import type { DateStr } from "@/lib/dates";
 
 const fieldClass =
   "w-full rounded-control bg-surface-2 px-3 text-[16px] outline-none focus:ring-2 focus:ring-accent";
 
-/** Botón "+ Nota de la noche": varias notas por noche, generales o de un empleado. */
-export function ReportAdd({ date, employees }: { date: DateStr; employees: { id: string; name: string }[] }) {
+type Opt = { id: string; name: string };
+
+/** Botón "+ Nota de la noche": varias notas por noche (informativas o tareas), generales o de un empleado. */
+export function ReportAdd({ date, employees, departments }: { date: DateStr; employees: Opt[]; departments: Opt[] }) {
   const [open, setOpen] = useState(false);
   const [n, setN] = useState(0);
   return (
@@ -25,28 +29,46 @@ export function ReportAdd({ date, employees }: { date: DateStr; employees: { id:
         + Nota de la noche
       </button>
       <BottomSheet open={open} onClose={() => setOpen(false)} title="Nota de la noche">
-        {open && <NoteForm key={n} date={date} employees={employees} onDone={() => setOpen(false)} />}
+        {open && (
+          <NoteForm key={n} date={date} employees={employees} departments={departments} onDone={() => setOpen(false)} />
+        )}
       </BottomSheet>
     </>
   );
 }
 
-function NoteForm({ date, employees, onDone }: { date: DateStr; employees: { id: string; name: string }[]; onDone: () => void }) {
+function NoteForm({
+  date,
+  employees,
+  departments,
+  onDone,
+}: {
+  date: DateStr;
+  employees: Opt[];
+  departments: Opt[];
+  onDone: () => void;
+}) {
+  const [kind, setKind] = useState<"INFO" | "TASK">("INFO");
   const [employeeId, setEmployeeId] = useState("");
+  const [departmentId, setDepartmentId] = useState("");
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   return (
     <div className="flex flex-col gap-3 pb-2">
+      <Segmented
+        aria-label="Tipo de nota"
+        value={kind}
+        onChange={setKind}
+        options={[
+          { value: "INFO", label: "📝 Informativa" },
+          { value: "TASK", label: "☐ Tarea" },
+        ]}
+      />
       <label className="flex flex-col gap-1.5">
-        <span className="text-[13px] font-medium text-muted">¿Sobre quién?</span>
-        <select
-          aria-label="Empleado"
-          value={employeeId}
-          onChange={(e) => setEmployeeId(e.target.value)}
-          className={`${fieldClass} min-h-11`}
-        >
-          <option value="">General (toda la noche)</option>
+        <span className="text-[13px] font-medium text-muted">Empleado (opcional)</span>
+        <select aria-label="Empleado" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className={`${fieldClass} min-h-11`}>
+          <option value="">General (ninguno)</option>
           {employees.map((e) => (
             <option key={e.id} value={e.id}>
               {e.name}
@@ -55,13 +77,31 @@ function NoteForm({ date, employees, onDone }: { date: DateStr; employees: { id:
         </select>
       </label>
       <label className="flex flex-col gap-1.5">
-        <span className="text-[13px] font-medium text-muted">Nota</span>
+        <span className="text-[13px] font-medium text-muted">Departamento (opcional)</span>
+        <select
+          aria-label="Departamento"
+          value={departmentId}
+          onChange={(e) => setDepartmentId(e.target.value)}
+          className={`${fieldClass} min-h-11`}
+        >
+          <option value="">—</option>
+          {departments.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="flex flex-col gap-1.5">
+        <span className="text-[13px] font-medium text-muted">{kind === "TASK" ? "Tarea" : "Nota"}</span>
         <textarea
           aria-label="Nota"
           value={text}
           maxLength={1000}
           onChange={(e) => setText(e.target.value)}
-          placeholder={employeeId ? "¿Qué hay que notificar de esta persona?" : "Ej.: han llegado todos a la hora…"}
+          placeholder={
+            kind === "TASK" ? "Ej.: apuntar sus horas extra en el Excel…" : employeeId ? "¿Qué ha pasado con esta persona?" : "Ej.: han llegado todos a la hora…"
+          }
           className={`${fieldClass} min-h-[120px] py-2`}
         />
       </label>
@@ -75,16 +115,56 @@ function NoteForm({ date, employees, onDone }: { date: DateStr; employees: { id:
         disabled={pending || !text.trim()}
         onClick={() =>
           start(async () => {
-            const r = await addNightNote({ date, employeeId: employeeId || null, text });
+            const r = await addNightNote({
+              date,
+              employeeId: employeeId || null,
+              departmentId: departmentId || null,
+              kind,
+              text,
+            });
             if (r.ok) onDone();
             else setError(r.error);
           })
         }
         className="min-h-11 rounded-control bg-accent text-[16px] font-semibold text-accent-fg disabled:opacity-40"
       >
-        {pending ? "Guardando…" : "Añadir nota"}
+        {pending ? "Guardando…" : kind === "TASK" ? "Añadir tarea" : "Añadir nota"}
       </button>
     </div>
+  );
+}
+
+/** Casilla de tarea hecha / pendiente. */
+export function TaskCheck({ id, done, label }: { id: string; done: boolean; label: string }) {
+  const [optimistic, setOptimistic] = useState(done);
+  const [pending, start] = useTransition();
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={optimistic}
+      aria-label={`${optimistic ? "Hecha" : "Pendiente"}: ${label}`}
+      disabled={pending}
+      onClick={() => {
+        const next = !optimistic;
+        setOptimistic(next);
+        start(async () => {
+          const r = await setNoteDone({ id, done: next });
+          if (!r.ok) setOptimistic(!next);
+        });
+      }}
+      className="flex min-h-11 min-w-11 shrink-0 items-center justify-center"
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "flex h-6 w-6 items-center justify-center rounded-[7px] border-2 text-[14px] font-bold",
+          optimistic ? "border-success bg-success text-white" : "border-warning",
+        )}
+      >
+        {optimistic && "✓"}
+      </span>
+    </button>
   );
 }
 
