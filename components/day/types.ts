@@ -17,7 +17,7 @@ export type SegmentWithId = SegmentLite & { id: string };
 
 /** Operaciones que la hoja del empleado pide a DayView (guardado optimista). */
 export interface SheetOps {
-  setStatus: (statusTypeId: string, reason?: string | null) => void;
+  setStatus: (statusTypeId: string, reason?: string | null, present?: boolean) => void;
   setReason: (reason: string) => void;
   setDepartment: (departmentId: string | null) => void;
   setTimes: (t: { arrivedAt: string; leftAt: string; timeReason: string }) => void;

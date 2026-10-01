@@ -45,6 +45,8 @@ const setStatusSchema = z.object({
   ...base,
   statusTypeId: idSchema,
   reason: optText(200).optional(),
+  /** Además, confirmar que ha venido (si el estado es de trabajo). */
+  present: z.boolean().optional(),
 });
 const setReasonSchema = z.object({ ...base, reason: optText(200) });
 const setDepartmentSchema = z.object({ ...base, departmentId: idSchema.nullable() });
@@ -235,6 +237,7 @@ export async function setStatus(input: z.input<typeof setStatusSchema>): Promise
     kind: "status",
     statusTypeId: p.data.statusTypeId,
     reason: p.data.reason,
+    present: p.data.present,
   });
 }
 

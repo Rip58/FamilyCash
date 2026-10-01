@@ -67,7 +67,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
   const [error, setError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ id: string; open: boolean } | null>(null);
   const [move, setMove] = useState<{ id: string; open: boolean; checkIn?: boolean } | null>(null);
-  const [absentSheet, setAbsentSheet] = useState<{ id: string; open: boolean } | null>(null);
+  const [absentSheet, setAbsentSheet] = useState<{ id: string; open: boolean; change?: boolean } | null>(null);
   const [closeSheet, setCloseSheet] = useState<{ open: boolean; n: number }>({ open: false, n: 0 });
   const madridHour = useSyncExternalStore(subscribeNever, currentMadridHour, () => null);
   const [composer, setComposer] = useState<{ open: boolean; employeeId: string | null }>({ open: false, employeeId: null });
@@ -115,9 +115,9 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
   const opsFor = (employeeId: string): SheetOps => {
     const base = { employeeId, date };
     return {
-      setStatus: (statusTypeId, reason) =>
-        commit(employeeId, { kind: "status", statusTypeId, reason }, () =>
-          setStatusAction({ ...base, statusTypeId, reason }),
+      setStatus: (statusTypeId, reason, present) =>
+        commit(employeeId, { kind: "status", statusTypeId, reason, present }, () =>
+          setStatusAction({ ...base, statusTypeId, reason, present }),
         ),
       setReason: (reason) =>
         commit(employeeId, { kind: "reason", reason }, () => setReasonAction({ ...base, reason: reason.trim() || null })),
@@ -414,6 +414,15 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
                   onMove={() => openMove(m.employee.id)}
                   hasReports={reportedIds.has(m.employee.id)}
                   showStatus
+                  absence={{
+                    onCame: () => {
+                      const work = statusTypes.find((s) => s.code === "WORK");
+                      if (!work) return;
+                      opsFor(m.employee.id).setStatus(work.id, null, true);
+                      if (activeDepartments.length > 0) setMove({ id: m.employee.id, open: true, checkIn: true });
+                    },
+                    onChange: () => setAbsentSheet({ id: m.employee.id, open: true, change: true }),
+                  }}
                 />
               ))}
             </div>
@@ -461,8 +470,15 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
           key={absentSheet.id}
           open={absentSheet.open}
           onClose={() => setAbsentSheet((s) => (s ? { ...s, open: false } : s))}
-          name={absentMember.employee.name}
-          planned={absentMember.day.status}
+          title={absentSheet.change ? `${absentMember.employee.name} · cambiar motivo` : `${absentMember.employee.name} no está hoy`}
+          note={
+            absentSheet.change ? undefined : (
+              <>
+                ¿Por qué? El planning ponía <b>{absentMember.day.status.label}</b>: se cambiará en la Semana y quedará marcado como aviso.
+              </>
+            )
+          }
+          current={absentSheet.change ? absentMember.day.status.id : null}
           statusTypes={statusTypes}
           onConfirm={(statusTypeId, reason) => opsFor(absentSheet.id).setStatus(statusTypeId, reason)}
         />

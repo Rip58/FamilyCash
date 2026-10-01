@@ -92,7 +92,7 @@ export function leftKind(leftAt: string, shift: ShiftTimes): "more" | "less" {
 export type SegmentWithId = SegmentLite & { id: string };
 
 export type EntryPatch =
-  | { kind: "status"; statusTypeId: string; reason?: string | null }
+  | { kind: "status"; statusTypeId: string; reason?: string | null; present?: boolean }
   | { kind: "reason"; reason: string | null }
   | { kind: "department"; departmentId: string | null }
   | { kind: "times"; arrivedAt: string | null; leftAt: string | null; timeReason: string | null }
@@ -150,6 +150,7 @@ export function applyEntryPatch(
       const st = statusTypes.find((s) => s.id === patch.statusTypeId);
       e.reason = st?.isWorking ? null : clean(patch.reason ?? e.reason);
       if (!st?.isWorking) e.present = null;
+      else if (patch.present) e.present = true;
       break;
     }
     case "attendance": {

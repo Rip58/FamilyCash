@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { ReportCard } from "@/components/reports/ReportCard";
 import type { ReportView } from "@/lib/reports";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Chip } from "@/components/ui/Chip";
-import { Segmented } from "@/components/ui/Segmented";
 import { TimeInput } from "@/components/ui/TimeInput";
 import type { DepartmentLite, RosterMember, StatusTypeLite } from "@/lib/schedule";
 import type { ShiftTimes } from "@/lib/segments";
@@ -13,6 +13,7 @@ import { clampOvertime, formatOvertime, proposeOvertime } from "@/lib/overtime";
 import { AutoText } from "./AutoText";
 import { OvertimeStepper } from "./OvertimeStepper";
 import { SegmentEditor } from "./SegmentEditor";
+import { StatusButtons } from "./StatusButtons";
 import type { SectionLite, SegmentWithId, SheetOps } from "./types";
 
 interface EmployeeSheetProps {
@@ -60,9 +61,8 @@ export function EmployeeSheet({
   const { employee, day } = member;
   const deptMap = new Map(departments.map((d) => [d.id, d]));
   const habitual = employee.defaultDepartmentId ? deptMap.get(employee.defaultDepartmentId) : undefined;
-  const statusOptions = statusTypes
-    .filter((s) => s.active !== false || s.id === day.status.id)
-    .map((s) => ({ value: s.id, label: s.label, color: s.color }));
+  const statusOptions = statusTypes.filter((s) => s.active !== false || s.id === day.status.id);
+  const [showTimes, setShowTimes] = useState(!!(day.arrivedAt || day.leftAt));
   const extra = day.extraMinutes ?? 0;
   const suggestion = proposeOvertime(day.leftAt, shift);
   const segments = day.segments.filter((s): s is SegmentWithId => !!s.id);
@@ -78,13 +78,7 @@ export function EmployeeSheet({
         )}
 
         <Block title="Estado">
-          <Segmented
-            wrap
-            aria-label="Estado"
-            options={statusOptions}
-            value={day.status.id}
-            onChange={(id) => ops.setStatus(id)}
-          />
+          <StatusButtons statuses={statusOptions} value={day.status.id} onPick={(s) => ops.setStatus(s.id)} />
           {!day.isWorking && (
             <AutoText
               label="Motivo"
@@ -126,37 +120,49 @@ export function EmployeeSheet({
               />
             </Block>
 
-            <Block title="Horario real">
-              <div className="grid grid-cols-2 gap-3">
-                <TimeInput
-                  label="Llega a"
-                  clearable
-                  value={day.arrivedAt ?? ""}
-                  onChange={(v) =>
-                    ops.setTimes({ arrivedAt: v, leftAt: day.leftAt ?? "", timeReason: day.timeReason ?? "" })
-                  }
-                />
-                <TimeInput
-                  label="Sale a"
-                  clearable
-                  value={day.leftAt ?? ""}
-                  onChange={(v) =>
-                    ops.setTimes({ arrivedAt: day.arrivedAt ?? "", leftAt: v, timeReason: day.timeReason ?? "" })
-                  }
-                />
+            {!showTimes ? (
+              <div className="py-2">
+                <button
+                  type="button"
+                  onClick={() => setShowTimes(true)}
+                  className="min-h-11 text-[15px] font-medium text-accent"
+                >
+                  + Llegó tarde o salió a otra hora
+                </button>
               </div>
-              {(day.arrivedAt || day.leftAt) && (
-                <AutoText
-                  label="Motivo del cambio de horario"
-                  value={day.timeReason ?? ""}
-                  onSave={(v) =>
-                    ops.setTimes({ arrivedAt: day.arrivedAt ?? "", leftAt: day.leftAt ?? "", timeReason: v })
-                  }
-                  maxLength={200}
-                  placeholder="Ej. médico, se queda a cubrir…"
-                />
-              )}
-            </Block>
+            ) : (
+              <Block title="Horario real">
+                <div className="grid grid-cols-2 gap-3">
+                  <TimeInput
+                    label="Llega a"
+                    clearable
+                    value={day.arrivedAt ?? ""}
+                    onChange={(v) =>
+                      ops.setTimes({ arrivedAt: v, leftAt: day.leftAt ?? "", timeReason: day.timeReason ?? "" })
+                    }
+                  />
+                  <TimeInput
+                    label="Sale a"
+                    clearable
+                    value={day.leftAt ?? ""}
+                    onChange={(v) =>
+                      ops.setTimes({ arrivedAt: day.arrivedAt ?? "", leftAt: v, timeReason: day.timeReason ?? "" })
+                    }
+                  />
+                </div>
+                {(day.arrivedAt || day.leftAt) && (
+                  <AutoText
+                    label="Motivo del cambio de horario"
+                    value={day.timeReason ?? ""}
+                    onSave={(v) =>
+                      ops.setTimes({ arrivedAt: day.arrivedAt ?? "", leftAt: day.leftAt ?? "", timeReason: v })
+                    }
+                    maxLength={200}
+                    placeholder="Ej. médico, se queda a cubrir…"
+                  />
+                )}
+              </Block>
+            )}
 
             <Block title="Horas extra">
               <div className="flex flex-wrap items-center gap-2">

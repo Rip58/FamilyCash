@@ -165,3 +165,12 @@ describe("avisos de planning", () => {
     expect(sick.plannedStatusTypeId).toBe("st-WORK");
   });
 });
+
+describe("ha venido desde una ausencia", () => {
+  it("Fiesta → Trabaja con present en un solo cambio", () => {
+    const off = applyEntryPatch(null, emp, MON, statusTypes, { kind: "status", statusTypeId: "st-OFF", reason: null }, shift.shiftStart);
+    const back = applyEntryPatch(off, emp, MON, statusTypes, { kind: "status", statusTypeId: "st-WORK", present: true }, shift.shiftStart);
+    expect(back.statusTypeId).toBe("st-WORK");
+    expect(back.present).toBe(true);
+  });
+});

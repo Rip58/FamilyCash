@@ -16,6 +16,8 @@ interface EmployeeRowProps {
   showStatus?: boolean;
   /** El empleado tiene avisos con foto esa noche. */
   hasReports?: boolean;
+  /** En las burbujas de ausencia: ✓ ha venido / ⇄ cambiar motivo. */
+  absence?: { onCame: () => void; onChange: () => void };
   /** Dentro de la burbuja de su departamento: no repetir el nombre del departamento. */
   hideDepartment?: boolean;
   /** Pasar lista: botones ✓/✗ (solo para quien está previsto que trabaje). */
@@ -25,7 +27,7 @@ interface EmployeeRowProps {
 const checkBtn =
   "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 text-[18px] font-bold active:opacity-70 [touch-action:manipulation]";
 
-export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, onMove, showStatus, hasReports, attendance, hideDepartment }: EmployeeRowProps) {
+export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, onMove, showStatus, hasReports, attendance, hideDepartment, absence }: EmployeeRowProps) {
   const { employee, day } = member;
   const press = useLongPress(onMove, onOpen);
   const habitual = employee.defaultDepartmentId ? departments.get(employee.defaultDepartmentId) : undefined;
@@ -88,6 +90,27 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
         )}
         </span>
       </button>
+      {absence && (
+        <span className="flex shrink-0 items-center gap-1.5 pr-3">
+          <button
+            type="button"
+            onClick={absence.onChange}
+            aria-label={`Cambiar motivo de ${name}`}
+            className={`${checkBtn} text-[20px]`}
+            style={{ borderColor: day.status.color, color: day.status.color }}
+          >
+            ⇄
+          </button>
+          <button
+            type="button"
+            onClick={absence.onCame}
+            aria-label={`${name} ha venido`}
+            className={`${checkBtn} border-success/60 text-success`}
+          >
+            ✓
+          </button>
+        </span>
+      )}
       {attendance && (
         <span className="flex shrink-0 items-center gap-1.5 pr-3">
           {day.present ? (
