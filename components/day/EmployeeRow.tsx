@@ -28,6 +28,7 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
   const press = useLongPress(onMove, onOpen);
   const habitual = employee.defaultDepartmentId ? departments.get(employee.defaultDepartmentId) : undefined;
   const moved = day.departmentId !== employee.defaultDepartmentId;
+  const today = day.departmentId ? departments.get(day.departmentId) : undefined;
   const sections = day.segments.map((s) => segmentName(s, sectionNames));
 
   const name = employee.name;
@@ -46,18 +47,20 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
               {day.reason ? ` · ${day.reason}` : ""}
             </span>
           ) : (
-            (sections.length > 0 || moved) && (
+            (sections.length > 0 || today || moved) && (
               <span className="mt-0.5 flex flex-wrap items-center gap-1">
+                {today && (
+                  <span className="inline-flex items-center gap-1 text-[12px] font-medium text-muted">
+                    <span aria-hidden className="h-2 w-2 rounded-full" style={{ backgroundColor: today.color }} />
+                    {today.name}
+                  </span>
+                )}
                 {sections.map((n, i) => (
                   <span key={i} className="rounded-full bg-surface-2 px-2 py-0.5 text-[12px] text-muted">
                     {n}
                   </span>
                 ))}
-                {moved && (
-                  <span className="text-[12px] text-warning">
-                    ↪ {habitual ? `de ${habitual.name}` : "movido"}
-                  </span>
-                )}
+                {moved && habitual && <span className="text-[12px] text-warning">↪ de {habitual.name}</span>}
               </span>
             )
           )}

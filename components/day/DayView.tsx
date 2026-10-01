@@ -66,7 +66,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ id: string; open: boolean } | null>(null);
-  const [move, setMove] = useState<{ id: string; open: boolean } | null>(null);
+  const [move, setMove] = useState<{ id: string; open: boolean; checkIn?: boolean } | null>(null);
   const [absentSheet, setAbsentSheet] = useState<{ id: string; open: boolean } | null>(null);
   const [absentOpen, setAbsentOpen] = useState(false);
   const [closeSheet, setCloseSheet] = useState<{ open: boolean; n: number }>({ open: false, n: 0 });
@@ -185,7 +185,10 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
       attendance={
         m.day.isWorking
           ? {
-              onPresent: () => setPresent(m.employee.id, true),
+              onPresent: () => {
+                setPresent(m.employee.id, true);
+                if (activeDepartments.length > 0) setMove({ id: m.employee.id, open: true, checkIn: true });
+              },
               onUndo: () => setPresent(m.employee.id, false),
               onAbsent: () => setAbsentSheet({ id: m.employee.id, open: true }),
             }
@@ -212,7 +215,16 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
   );
   const closeHighlight = isToday && madridHour !== null && madridHour >= 5 && madridHour < 12;
   const absentTotal = roster.absentByStatus.reduce((n, g) => n + g.members.length, 0);
-  const expected = [...roster.departments.flatMap((d) => d.present), ...roster.unassigned];
+  // Orden fijo (departamento habitual y orden de Ajustes) para que la fila no salte al asignar sitio.
+  const deptOrder = new Map(departments.map((d) => [d.id, d.sortOrder]));
+  const habitualOrder = (m: RosterMember) =>
+    m.employee.defaultDepartmentId ? (deptOrder.get(m.employee.defaultDepartmentId) ?? 9999) : 9999;
+  const expected = [...roster.departments.flatMap((d) => d.present), ...roster.unassigned].sort(
+    (a, b) =>
+      habitualOrder(a) - habitualOrder(b) ||
+      a.employee.sortOrder - b.employee.sortOrder ||
+      a.employee.name.localeCompare(b.employee.name, "es"),
+  );
   const confirmed = expected.filter((m) => m.day.present).length;
   const absentCode = roster.absentByStatus.find((g) => g.status.code === "ABSENT")?.members.length ?? 0;
 
@@ -373,6 +385,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
           open={move.open}
           onClose={() => setMove((m) => (m ? { ...m, open: false } : m))}
           name={moveMember.employee.name}
+          title={move.checkIn ? `${moveMember.employee.name} ha venido · ¿Dónde trabaja hoy?` : undefined}
           departments={activeDepartments}
           currentId={moveMember.day.departmentId}
           habitualId={moveMember.employee.defaultDepartmentId}
