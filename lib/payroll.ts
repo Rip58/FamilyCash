@@ -74,11 +74,6 @@ export function configForMonth(cfg: PayrollConfig, periods: PayrollPeriod[], mon
   return p ? { ...cfg, baseMonthlyCents: p.baseCents, respPlusCents: p.respPlusCents } : cfg;
 }
 
-/** Minutos extra al mes por hacer N horas más a la semana (52 semanas / 12 meses). */
-export function weeklyExtraToMonthlyMinutes(hoursPerWeek: number): number {
-  return Math.round((hoursPerWeek * 52 * 60) / 12);
-}
-
 /** Datos del mes (días por tipo y horas extra). */
 export interface MonthStats {
   daysInMonth: number;
@@ -169,6 +164,7 @@ export interface PayResult {
 }
 
 const round = (n: number) => Math.round(n);
+const pct = (n: number) => `${String(n).replace(".", ",")} %`;
 
 /** Horas ordinarias al mes con 40 h/semana (art. 76.2 LRL: mensual × 12 / 52 / 40). */
 export const MONTHLY_HOURS = (40 * 52) / 12;
@@ -188,10 +184,13 @@ export function overtimeRateCents(cfg: PayrollConfig, shift: ShiftKind): number 
   return fixedHour * (1 + cfg.overtimeSurchargePercent / 100) + (shift === "NIGHT" ? nightPlusPerHourCents(cfg) : 0);
 }
 
-/** Horas trabajadas por encima de 40 h/semana en el periodo de contrato del mes. */
+/**
+ * Horas por encima de 40 h/semana en el mes: noches trabajadas × 8 h − 40 h × (días de contrato
+ * sin vacaciones ni baja) / 7. Se cuenta en el conjunto del mes, así que da igual cómo se repartan las fiestas.
+ */
 export function hoursOver40(stats: MonthStats): number {
-  const days = stats.contractDays ?? stats.daysInMonth;
-  return Math.max(stats.daysWorked * SHIFT_HOURS - (40 * days) / 7, 0);
+  const days = (stats.contractDays ?? stats.daysInMonth) - stats.vacationDays - stats.sickDays;
+  return Math.max(stats.daysWorked * SHIFT_HOURS - (40 * Math.max(days, 0)) / 7, 0);
 }
 
 /**
@@ -236,14 +235,21 @@ export function calculatePay(cfg: PayrollConfig, stats: MonthStats, shift: Shift
         "night",
         "Plus nocturnidad",
         cfg.baseMonthlyCents * (cfg.nightPlusPercent / 100) * f * share,
-        `${cfg.nightPlusPercent}% · ${stats.daysWorked}/${workable} noches`,
+        `${pct(cfg.nightPlusPercent)} · ${stats.daysWorked}/${workable} noches`,
       );
     }
   }
   const rate = overtimeRateCents(cfg, shift);
+  const over40Minutes = Math.round(hoursOver40(stats) * 60);
+  add(
+    "over40",
+    "Horas extra (fiestas trabajadas)",
+    (rate * over40Minutes) / 60,
+    `${formatHours(over40Minutes)} h × ${formatEuros(round(rate))}`,
+  );
   add(
     "overtime",
-    "Horas extra",
+    "Horas extra (cierre de turno)",
     (rate * stats.extraMinutes) / 60,
     `${formatHours(stats.extraMinutes)} h × ${formatEuros(round(rate))}`,
   );
@@ -251,8 +257,8 @@ export function calculatePay(cfg: PayrollConfig, stats: MonthStats, shift: Shift
 
   const grossCents = Math.max(earnings.reduce((n, l) => n + l.cents, 0), 0);
   const deductions: PayLine[] = [
-    { key: "ss", label: "CASS", cents: round((grossCents * cfg.ssPercent) / 100), detail: `${cfg.ssPercent}%` },
-    { key: "irpf", label: "IRPF", cents: round((grossCents * cfg.irpfPercent) / 100), detail: `${cfg.irpfPercent}%` },
+    { key: "ss", label: "CASS", cents: round((grossCents * cfg.ssPercent) / 100), detail: pct(cfg.ssPercent) },
+    { key: "irpf", label: "IRPF", cents: round((grossCents * cfg.irpfPercent) / 100), detail: pct(cfg.irpfPercent) },
   ];
   const netCents = grossCents - deductions.reduce((n, l) => n + l.cents, 0);
   return { earnings, grossCents, deductions, netCents };

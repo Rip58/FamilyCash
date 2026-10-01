@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { addMonths, isMonthStr, monthDays, monthOf } from "@/lib/dates";
 import {
   DEFAULT_PAYROLL, type MonthStats, calculatePay, configForMonth, mergeStats, monthStatsFromSchedule, parseEuros,
-  andorraIrpfAnnualCents, hoursOver40, overtimeRateCents, periodForMonth, weeklyExtraToMonthlyMinutes,
+  andorraIrpfAnnualCents, hoursOver40, overtimeRateCents, periodForMonth,
 } from "@/lib/payroll";
 import type { DayEntryLite, EmployeeLite, StatusTypeLite } from "@/lib/schedule";
 
@@ -56,7 +56,8 @@ describe("resumen del mes desde el cuadrante", () => {
 
 describe("calculadora", () => {
   const cfg = { ...DEFAULT_PAYROLL, baseMonthlyCents: 150000, overtimeMode: "FIXED" as const, overtimeHourCents: 1500, holidayWorkedCents: 4000, ssPercent: 6.5, irpfPercent: 10 };
-  const stats: MonthStats = { daysInMonth: 30, daysWorked: 22, daysOff: 8, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 1, extraMinutes: 120 };
+  // 4 semanas exactas: 20 noches = 160 h = 40 h/semana → sin horas extra por fiestas
+  const stats: MonthStats = { daysInMonth: 28, daysWorked: 20, daysOff: 8, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 1, extraMinutes: 120 };
 
   it("turno de noche con plus en %", () => {
     const r = calculatePay(cfg, stats, "NIGHT");
@@ -73,12 +74,12 @@ describe("calculadora", () => {
   it("plus por noche y descuento de faltas", () => {
     const r = calculatePay(
       { ...cfg, nightPlusMode: "PER_NIGHT", nightPlusPerNightCents: 1000 },
-      { ...stats, daysWorked: 21, absentDays: 1, extraMinutes: 0, holidaysWorked: 0 },
+      { ...stats, daysWorked: 19, absentDays: 1, extraMinutes: 0, holidaysWorked: 0 },
       "NIGHT",
     );
-    expect(r.earnings.find((l) => l.key === "night")!.cents).toBe(21000);
+    expect(r.earnings.find((l) => l.key === "night")!.cents).toBe(19000);
     expect(r.earnings.find((l) => l.key === "absent")!.cents).toBe(-5000);
-    expect(r.grossCents).toBe(150000 - 5000 + 21000);
+    expect(r.grossCents).toBe(150000 - 5000 + 19000);
   });
 });
 
@@ -101,7 +102,7 @@ describe("periodos y propuesta salarial", () => {
     { id: "d", from: "2027-10-01", to: null, baseCents: 156867, respPlusCents: 129361 },
   ];
   const cfg = { ...DEFAULT_PAYROLL, nightPlusPercent: 18.5762, overtimeMode: "FIXED" as const, overtimeHourCents: 1374, ssPercent: 6.5, irpfPercent: 0 };
-  const stats: MonthStats = { daysInMonth: 31, daysWorked: 23, daysOff: 8, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 0, extraMinutes: 0 };
+  const stats: MonthStats = { daysInMonth: 28, daysWorked: 20, daysOff: 8, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 0, extraMinutes: 0 };
   const net = (month: string, extraMinutes = 0) =>
     calculatePay(configForMonth(cfg, periods, month), { ...stats, extraMinutes }, "NIGHT");
 
@@ -121,12 +122,6 @@ describe("periodos y propuesta salarial", () => {
     expect(net("2027-05").netCents).toBe(262742);
     expect(net("2027-11").netCents).toBe(294869);
   });
-  it("jornada 48 h ≈ propuesta (±0,10 €)", () => {
-    const m48 = weeklyExtraToMonthlyMinutes(8);
-    expect(m48).toBe(2080);
-    expect(Math.abs(net("2026-10", m48).grossCents - 233647)).toBeLessThanOrEqual(10);
-    expect(Math.abs(net("2027-11", m48).netCents - 339412)).toBeLessThanOrEqual(10);
-  });
 });
 
 describe("Andorra: horas extra por ley, mes parcial e IRPF", () => {
@@ -138,17 +133,25 @@ describe("Andorra: horas extra por ley, mes parcial e IRPF", () => {
     expect(overtimeRateCents({ ...law, overtimeMode: "FIXED", overtimeHourCents: 1374 }, "NIGHT")).toBe(1374);
   });
 
+  it("fiestas repartidas como sea: cuenta el total del mes", () => {
+    // 3 semanas con 1 fiesta + 1 semana con 4 = 7 fiestas en 28 días → 21 noches = 168 h → 8 h extra
+    const m: MonthStats = { daysInMonth: 28, daysWorked: 21, daysOff: 7, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 0, extraMinutes: 0 };
+    expect(hoursOver40(m)).toBeCloseTo(8, 5);
+    // vacaciones y baja no cuentan como jornada exigible
+    expect(hoursOver40({ ...m, daysWorked: 14, vacationDays: 7 })).toBeCloseTo(0, 5);
+  });
+
   it("primera nómina del 20 al 30 de septiembre con 1 día de fiesta", () => {
     const stats: MonthStats = {
       daysInMonth: 30, contractDays: 11, daysWorked: 10, daysOff: 1, vacationDays: 0, sickDays: 0, absentDays: 0,
       holidaysWorked: 0, extraMinutes: 0,
     };
     expect(hoursOver40(stats)).toBeCloseTo(17.14, 2);
-    const r = calculatePay(law, { ...stats, extraMinutes: Math.round(hoursOver40(stats) * 60) }, "NIGHT");
+    const r = calculatePay(law, stats, "NIGHT");
     const line = (k: string) => r.earnings.find((l) => l.key === k)!.cents;
     expect(line("base")).toBe(57518);
     expect(line("night")).toBe(10685);
-    expect(line("overtime")).toBe(24612); // 17,15 h × 14,35 €
+    expect(line("over40")).toBe(24612); // 17,15 h × 14,35 €
     expect(r.grossCents).toBe(57518 + 10685 + 24612);
   });
 

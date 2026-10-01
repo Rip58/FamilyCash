@@ -10,7 +10,7 @@ import { cn } from "@/components/ui/cn";
 import { type MonthStr, formatMonth } from "@/lib/dates";
 import {
   type MonthStats, type PayrollConfig, type PayrollPeriod, type ShiftKind, calculatePay, configForMonth, formatDateEs, formatEuros,
-  andorraIrpfAnnualCents, formatHours, hoursOver40, mergeStats, parseEuros, periodForMonth, weeklyExtraToMonthlyMinutes,
+  andorraIrpfAnnualCents, formatHours, hoursOver40, mergeStats, parseEuros, periodForMonth,
 } from "@/lib/payroll";
 import type { PayrollMonth } from "@/lib/payroll-queries";
 
@@ -41,7 +41,8 @@ const inputClass =
 
 function statsLine(s: MonthStats): string {
   const parts = SUMMARY_FIELDS.filter((f) => s[f.key] > 0).map((f) => `${s[f.key]}${f.short}`);
-  if (s.extraMinutes > 0) parts.push(`${formatHours(s.extraMinutes)}X`);
+  const extra = Math.round(hoursOver40(s) * 60) + s.extraMinutes;
+  if (extra > 0) parts.push(`${formatHours(extra)}X`);
   return parts.join(" · ") || "Sin datos";
 }
 
@@ -99,6 +100,12 @@ function MonthEditor({ m, onDone }: { m: PayrollMonth; onDone: () => void }) {
       <p className="rounded-control bg-surface-2 px-3 py-2 text-[15px]" aria-live="polite">
         Días trabajados: <b>{live.daysWorked}</b>
         <span className="text-muted"> de {live.contractDays ?? live.daysInMonth}</span>
+        {hoursOver40(live) > 0 && (
+          <span className="text-muted">
+            {" "}
+            · <b className="text-fg">{formatHours(Math.round(hoursOver40(live) * 60))} h</b> extra por fiestas trabajadas
+          </span>
+        )}
       </p>
       <div className="grid grid-cols-2 gap-x-3 gap-y-2">
         {COUNT_FIELDS.map((f) => (
@@ -115,10 +122,10 @@ function MonthEditor({ m, onDone }: { m: PayrollMonth; onDone: () => void }) {
           </label>
         ))}
         <label className="flex flex-col gap-1">
-          <span className="text-[13px] text-muted">Horas extra</span>
+          <span className="text-[13px] text-muted">Horas extra del cierre</span>
           <input
             inputMode="decimal"
-            aria-label="Horas extra"
+            aria-label="Horas extra del cierre"
             value={extra}
             placeholder={formatHours(m.auto.extraMinutes)}
             onChange={(e) => setExtra(e.target.value)}
@@ -251,23 +258,17 @@ function Calculator({ month, ...props }: CalcProps & { month: MonthStr }) {
   return <CalculatorBody key={data.month} data={data} {...props} />;
 }
 
-const EXTRA_48 = weeklyExtraToMonthlyMinutes(8);
-
 function CalculatorBody({ data, months, config, periods, setMonth }: CalcProps & { data: PayrollMonth }) {
   const [shift, setShift] = useState<ShiftKind>("NIGHT");
-  const [week, setWeek] = useState<"40" | "48">("40");
   const [s, setS] = useState(data.stats);
   const contract = s.contractDays ?? s.daysInMonth;
   const partial = contract < s.daysInMonth;
   const others = s.daysOff + s.vacationDays + s.sickDays + s.absentDays;
-  const extra48 = Math.round(EXTRA_48 * (partial ? Math.min(contract, 30) / 30 : 1));
   const stats: MonthStats = {
     ...s,
     daysWorked: Math.max(contract - others, 0),
-    extraMinutes: s.extraMinutes + (week === "48" ? extra48 : 0),
   };
-  const over40 = hoursOver40({ ...stats, extraMinutes: 0 });
-  const over40Unpaid = week === "40" && over40 >= 0.5 && Math.abs(over40 * 60 - s.extraMinutes) > 30;
+  const over40 = hoursOver40(stats);
   const period = periodForMonth(periods, data.month);
   const cfg = configForMonth(config, periods, data.month);
   const result = calculatePay(cfg, stats, shift);
@@ -289,31 +290,20 @@ function CalculatorBody({ data, months, config, periods, setMonth }: CalcProps &
           </option>
         ))}
       </select>
-      <div className="grid grid-cols-2 gap-2">
-        <Segmented
-          aria-label="Turno"
-          value={shift}
-          onChange={setShift}
-          options={[
-            { value: "NIGHT", label: "🌙 Noche" },
-            { value: "DAY", label: "☀️ Día" },
-          ]}
-        />
-        <Segmented
-          aria-label="Jornada"
-          value={week}
-          onChange={setWeek}
-          options={[
-            { value: "40", label: "40 h" },
-            { value: "48", label: "48 h" },
-          ]}
-        />
-      </div>
+      <Segmented
+        aria-label="Turno"
+        value={shift}
+        onChange={setShift}
+        options={[
+          { value: "NIGHT", label: "🌙 Noche" },
+          { value: "DAY", label: "☀️ Día" },
+        ]}
+      />
       <p className="px-1 text-[13px] text-muted">
         {period
           ? `Salario del periodo ${formatDateEs(period.from)} – ${period.to ? formatDateEs(period.to) : "indefinido"}`
           : "Sin periodo de salario para este mes: se usa el salario base de Ajustes."}
-        {week === "48" && ` · 48 h = +${formatHours(extra48)} h extra al mes`}
+        {" · Salario de 40 h/semana; lo que pase de 40 h por hacer menos fiestas son horas extra."}
       </p>
       {cfg.baseMonthlyCents === 0 && (
         <p className="rounded-control bg-warning/20 px-3 py-2 text-[14px] text-[#92600a] dark:text-warning">
@@ -338,7 +328,7 @@ function CalculatorBody({ data, months, config, periods, setMonth }: CalcProps &
           <Counter label="Faltas" value={s.absentDays} onChange={set("absentDays")} max={maxOf("absentDays")} />
           <Counter label="Festivos trabajados" value={s.holidaysWorked} onChange={set("holidaysWorked")} max={stats.daysWorked} />
           <div className="flex min-h-12 items-center justify-between gap-3">
-            <span className="text-[16px]">{week === "48" ? "Horas extra (además)" : "Horas extra"}</span>
+            <span className="text-[16px]">Horas extra del cierre</span>
             <div className="flex items-center gap-2" role="group" aria-label="Horas extra">
               <button
                 type="button"
@@ -360,20 +350,12 @@ function CalculatorBody({ data, months, config, periods, setMonth }: CalcProps &
               </button>
             </div>
           </div>
-          {over40Unpaid && (
-            <div className="flex min-h-12 items-center justify-between gap-3 text-[14px]">
-              <span className="text-muted">
-                Por encima de 40 h/semana: <b className="text-fg">{formatHours(Math.round(over40 * 60))} h</b>
-              </span>
-              <button
-                type="button"
-                onClick={() => setS((x) => ({ ...x, extraMinutes: Math.round(over40 * 60) }))}
-                className="min-h-11 rounded-full bg-surface-2 px-4 font-semibold text-accent"
-              >
-                Usar
-              </button>
-            </div>
-          )}
+          <p className="flex min-h-12 items-center justify-between gap-3 text-[15px]">
+            <span className="text-muted">Por fiestas trabajadas (más de 40 h/semana)</span>
+            <b className="tabular-nums" data-testid="over40">
+              {formatHours(Math.round(over40 * 60))} h
+            </b>
+          </p>
         </div>
       </Card>
 
