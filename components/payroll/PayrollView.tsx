@@ -10,7 +10,7 @@ import { cn } from "@/components/ui/cn";
 import { type MonthStr, formatMonth } from "@/lib/dates";
 import {
   type MonthStats, type PayrollConfig, type PayrollPeriod, type ShiftKind, calculatePay, configForMonth, formatDateEs, formatEuros,
-  MONTHLY_HOURS, andorraIrpfAnnualCents, formatHours, hoursOver40, mergeStats, nightPlusPerHourCents, overtimeRateCents, parseEuros,
+  MONTHLY_HOURS, andorraIrpfAnnualCents, formatHours, mergeStats, offDayOvertimeMinutes, nightPlusPerHourCents, overtimeRateCents, parseEuros,
   periodForMonth,
 } from "@/lib/payroll";
 import type { PayrollMonth } from "@/lib/payroll-queries";
@@ -24,11 +24,13 @@ const SUMMARY_FIELDS = [
   { key: "sickDays", short: "B" },
   { key: "absentDays", short: "Fa" },
   { key: "holidaysWorked", short: "Fe" },
+  { key: "offDaysWorked", short: "FT" },
 ] as const;
 
 /** Campos editables del mes; los días trabajados se deducen de ellos. */
 const COUNT_FIELDS = [
   { key: "contractDays", label: "Días de contrato" },
+  { key: "offDaysWorked", label: "Fiestas trabajadas (+8 h)" },
   { key: "daysOff", label: "Días de fiesta" },
   { key: "vacationDays", label: "Vacaciones" },
   { key: "sickDays", label: "Baja" },
@@ -42,7 +44,7 @@ const inputClass =
 
 function statsLine(s: MonthStats): string {
   const parts = SUMMARY_FIELDS.filter((f) => s[f.key] > 0).map((f) => `${s[f.key]}${f.short}`);
-  const extra = Math.round(hoursOver40(s) * 60) + s.extraMinutes;
+  const extra = offDayOvertimeMinutes(s) + s.extraMinutes;
   if (extra > 0) parts.push(`${formatHours(extra)}X`);
   return parts.join(" · ") || "Sin datos";
 }
@@ -85,7 +87,7 @@ function MonthEditor({ m, onDone }: { m: PayrollMonth; onDone: () => void }) {
     start(async () => {
       const r = await savePayslip(
         reset
-          ? { month: m.month, contractDays: null, daysOff: null, vacationDays: null, sickDays: null, absentDays: null, holidaysWorked: null, extraMinutes: null, grossCents: null, netCents: null, bankCents: null, note: null }
+          ? { month: m.month, contractDays: null, daysOff: null, vacationDays: null, sickDays: null, absentDays: null, holidaysWorked: null, extraMinutes: null, offDaysWorked: null, grossCents: null, netCents: null, bankCents: null, note: null }
           : {
               month: m.month,
               ...typed,
@@ -104,16 +106,17 @@ function MonthEditor({ m, onDone }: { m: PayrollMonth; onDone: () => void }) {
   return (
     <div className="flex flex-col gap-3 pb-2">
       <p className="text-[13px] text-muted">
-        Vacío = automático (lo apuntado en Hoy/Semana). Los días trabajados se calculan solos: contrato − fiestas − vacaciones − baja
-        − faltas.
+        Vacío = automático (lo apuntado en Hoy/Semana). El sueldo del mes es fijo; las fiestas trabajadas (semanas con más de 5
+        noches) suman 8 h extra cada una.
       </p>
       <p className="rounded-control bg-surface-2 px-3 py-2 text-[15px]" aria-live="polite">
         Días trabajados: <b>{live.daysWorked}</b>
         <span className="text-muted"> de {live.contractDays ?? live.daysInMonth}</span>
-        {hoursOver40(live) > 0 && (
+        {live.offDaysWorked > 0 && (
           <span className="text-muted">
             {" "}
-            · <b className="text-fg">{formatHours(Math.round(hoursOver40(live) * 60))} h</b> extra por fiestas trabajadas
+            · <b className="text-fg">{live.offDaysWorked * 8} h</b> extra por {live.offDaysWorked} fiesta
+            {live.offDaysWorked === 1 ? "" : "s"} trabajada{live.offDaysWorked === 1 ? "" : "s"}
           </span>
         )}
       </p>
@@ -349,7 +352,6 @@ function CalculatorBody({ data, months, config, periods, setMonth }: CalcProps &
     ...s,
     daysWorked: Math.max(contract - others, 0),
   };
-  const over40 = hoursOver40(stats);
   const period = periodForMonth(periods, data.month);
   const cfg = configForMonth(config, periods, data.month);
   const result = calculatePay(cfg, stats, shift);
@@ -384,7 +386,7 @@ function CalculatorBody({ data, months, config, periods, setMonth }: CalcProps &
         {period
           ? `Salario del periodo ${formatDateEs(period.from)} – ${period.to ? formatDateEs(period.to) : "indefinido"}`
           : "Sin periodo de salario para este mes: se usa el salario base de Ajustes."}
-        {" · Salario de 40 h/semana; lo que pase de 40 h por hacer menos fiestas son horas extra."}
+        {" · Sueldo fijo del mes (40 h/semana); cada fiesta trabajada suma 8 h extra."}
       </p>
       {cfg.baseMonthlyCents === 0 && (
         <p className="rounded-control bg-warning/20 px-3 py-2 text-[14px] text-[#92600a] dark:text-warning">
@@ -395,7 +397,7 @@ function CalculatorBody({ data, months, config, periods, setMonth }: CalcProps &
           .
         </p>
       )}
-      <Card title={`${stats.daysWorked} ${shift === "NIGHT" ? "noches trabajadas" : "días trabajados"} de ${contract}`}>
+      <Card title={partial ? `Mes parcial · ${contract} días de contrato` : "Mes completo"}>
         <div className="divide-y divide-line">
           <Counter
             label="Días de contrato"
@@ -403,7 +405,7 @@ function CalculatorBody({ data, months, config, periods, setMonth }: CalcProps &
             onChange={(v) => setS((x) => ({ ...x, contractDays: Math.max(v, 1) }))}
             max={s.daysInMonth}
           />
-          <Counter label="Días de fiesta" value={s.daysOff} onChange={set("daysOff")} max={maxOf("daysOff")} />
+          <Counter label="Fiestas trabajadas" value={s.offDaysWorked} onChange={set("offDaysWorked")} max={14} />
           <Counter label="Vacaciones" value={s.vacationDays} onChange={set("vacationDays")} max={maxOf("vacationDays")} />
           <Counter label="Baja" value={s.sickDays} onChange={set("sickDays")} max={maxOf("sickDays")} />
           <Counter label="Faltas" value={s.absentDays} onChange={set("absentDays")} max={maxOf("absentDays")} />
@@ -432,9 +434,9 @@ function CalculatorBody({ data, months, config, periods, setMonth }: CalcProps &
             </div>
           </div>
           <p className="flex min-h-12 items-center justify-between gap-3 text-[15px]">
-            <span className="text-muted">Por fiestas trabajadas (más de 40 h/semana)</span>
+            <span className="text-muted">Horas extra por fiestas trabajadas</span>
             <b className="tabular-nums" data-testid="over40">
-              {formatHours(Math.round(over40 * 60))} h
+              {s.offDaysWorked * 8} h
             </b>
           </p>
         </div>

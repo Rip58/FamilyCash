@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { addMonths, isMonthStr, monthDays, monthOf } from "@/lib/dates";
 import {
   DEFAULT_PAYROLL, type MonthStats, calculatePay, configForMonth, mergeStats, monthStatsFromSchedule, parseEuros,
-  andorraIrpfAnnualCents, hoursOver40, overtimeRateCents, periodForMonth,
+  andorraIrpfAnnualCents, offDayOvertimeMinutes, overtimeRateCents, periodForMonth,
 } from "@/lib/payroll";
 import type { DayEntryLite, EmployeeLite, StatusTypeLite } from "@/lib/schedule";
 
@@ -39,11 +39,11 @@ describe("resumen del mes desde el cuadrante", () => {
     ], statusTypes);
     expect(s).toEqual({
       daysInMonth: 30, daysWorked: 19, daysOff: 8, vacationDays: 1, sickDays: 1, absentDays: 1,
-      holidaysWorked: 0, extraMinutes: 90,
+      holidaysWorked: 0, offDaysWorked: 0, extraMinutes: 90,
     });
   });
   it("los días trabajados se deducen de los demás", () => {
-    const auto: MonthStats = { daysInMonth: 30, daysWorked: 20, daysOff: 8, vacationDays: 2, sickDays: 0, absentDays: 0, holidaysWorked: 0, extraMinutes: 0 };
+    const auto: MonthStats = { daysInMonth: 30, daysWorked: 20, daysOff: 8, vacationDays: 2, sickDays: 0, absentDays: 0, holidaysWorked: 0, offDaysWorked: 0, extraMinutes: 0 };
     // 1 día de fiesta a la semana = 4 al mes, sin nada más → 26 trabajados
     const m = mergeStats(auto, { daysOff: 4, vacationDays: 0, extraMinutes: null });
     expect(m.daysWorked).toBe(26);
@@ -57,7 +57,7 @@ describe("resumen del mes desde el cuadrante", () => {
 describe("calculadora", () => {
   const cfg = { ...DEFAULT_PAYROLL, baseMonthlyCents: 150000, overtimeMode: "FIXED" as const, overtimeHourCents: 1500, holidayWorkedCents: 4000, ssPercent: 6.5, irpfPercent: 10 };
   // 4 semanas exactas: 20 noches = 160 h = 40 h/semana → sin horas extra por fiestas
-  const stats: MonthStats = { daysInMonth: 28, daysWorked: 20, daysOff: 8, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 1, extraMinutes: 120 };
+  const stats: MonthStats = { daysInMonth: 28, daysWorked: 20, daysOff: 8, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 1, offDaysWorked: 0, extraMinutes: 120 };
 
   it("turno de noche con plus en %", () => {
     const r = calculatePay(cfg, stats, "NIGHT");
@@ -102,7 +102,7 @@ describe("periodos y propuesta salarial", () => {
     { id: "d", from: "2027-10-01", to: null, baseCents: 156867, respPlusCents: 129361 },
   ];
   const cfg = { ...DEFAULT_PAYROLL, nightPlusPercent: 18.5762, overtimeMode: "FIXED" as const, overtimeHourCents: 1374, ssPercent: 6.5, irpfPercent: 0 };
-  const stats: MonthStats = { daysInMonth: 28, daysWorked: 20, daysOff: 8, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 0, extraMinutes: 0 };
+  const stats: MonthStats = { daysInMonth: 28, daysWorked: 20, daysOff: 8, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 0, offDaysWorked: 0, extraMinutes: 0 };
   const net = (month: string, extraMinutes = 0) =>
     calculatePay(configForMonth(cfg, periods, month), { ...stats, extraMinutes }, "NIGHT");
 
@@ -133,26 +133,48 @@ describe("Andorra: horas extra por ley, mes parcial e IRPF", () => {
     expect(overtimeRateCents({ ...law, overtimeMode: "FIXED", overtimeHourCents: 1374 }, "NIGHT")).toBe(1374);
   });
 
-  it("fiestas repartidas como sea: cuenta el total del mes", () => {
-    // 3 semanas con 1 fiesta + 1 semana con 4 = 7 fiestas en 28 días → 21 noches = 168 h → 8 h extra
-    const m: MonthStats = { daysInMonth: 28, daysWorked: 21, daysOff: 7, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 0, extraMinutes: 0 };
-    expect(hoursOver40(m)).toBeCloseTo(8, 5);
-    // vacaciones y baja no cuentan como jornada exigible
-    expect(hoursOver40({ ...m, daysWorked: 14, vacationDays: 7 })).toBeCloseTo(0, 5);
+  it("mes completo: sueldo fijo sea de 28 o 31 días; cada fiesta trabajada = 8 h extra", () => {
+    const base: MonthStats = { daysInMonth: 28, daysWorked: 20, daysOff: 8, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 0, offDaysWorked: 0, extraMinutes: 0 };
+    const feb = calculatePay(law, base, "NIGHT");
+    const aug = calculatePay(law, { ...base, daysInMonth: 31, daysWorked: 22, daysOff: 9 }, "NIGHT");
+    expect(feb.grossCents).toBe(186007);
+    expect(aug.grossCents).toBe(186007);
+    const two = calculatePay(law, { ...base, offDaysWorked: 2 }, "NIGHT");
+    expect(offDayOvertimeMinutes({ ...base, offDaysWorked: 2 })).toBe(16 * 60);
+    expect(two.grossCents - feb.grossCents).toBe(Math.round(16 * overtimeRateCents(law, "NIGHT")));
   });
 
-  it("primera nómina del 20 al 30 de septiembre con 1 día de fiesta", () => {
+  it("vacaciones reducen el plus de noche, no el sueldo", () => {
+    const m: MonthStats = { daysInMonth: 30, daysWorked: 15, daysOff: 8, vacationDays: 7, sickDays: 0, absentDays: 0, holidaysWorked: 0, offDaysWorked: 0, extraMinutes: 0 };
+    const r = calculatePay(law, m, "NIGHT");
+    expect(r.earnings.find((l) => l.key === "base")!.cents).toBe(156867);
+    expect(r.earnings.find((l) => l.key === "night")!.cents).toBe(Math.round(29140 * 23 / 30));
+  });
+
+  it("fiestas trabajadas desde el cuadrante: semanas con más de 5 noches, en el mes de su domingo", () => {
+    // Octubre 2026 sin fiestas fijas → cada semana con domingo en octubre tiene 7 noches = 2 fiestas trabajadas
+    const noFixed = { ...me, fixedDaysOff: [] };
+    const all = monthStatsFromSchedule("2026-10", noFixed, [], statusTypes, 2);
+    expect(all.offDaysWorked).toBe(4 * 2); // domingos 4, 11, 18, 25
+    // con fiestas fijas sábado y domingo (2 por semana) no hay ninguna
+    expect(monthStatsFromSchedule("2026-10", me, [], statusTypes, 2).offDaysWorked).toBe(0);
+    // trabajando un sábado → 1
+    const one = monthStatsFromSchedule("2026-10", me, [entry("2026-10-10", "WORK")], statusTypes, 2);
+    expect(one.offDaysWorked).toBe(1);
+    // semanas aún no cerradas no cuentan
+    expect(monthStatsFromSchedule("2026-10", noFixed, [], statusTypes, 2, "2026-10-12").offDaysWorked).toBe(4); // domingos 4 y 11
+  });
+
+  it("primera nómina parcial: prorrata /30 + fiestas trabajadas", () => {
     const stats: MonthStats = {
-      daysInMonth: 30, contractDays: 11, daysWorked: 10, daysOff: 1, vacationDays: 0, sickDays: 0, absentDays: 0,
-      holidaysWorked: 0, extraMinutes: 0,
+      daysInMonth: 30, contractDays: 10, daysWorked: 9, daysOff: 1, vacationDays: 0, sickDays: 0, absentDays: 0,
+      holidaysWorked: 0, offDaysWorked: 1, extraMinutes: 0,
     };
-    expect(hoursOver40(stats)).toBeCloseTo(17.14, 2);
     const r = calculatePay(law, stats, "NIGHT");
     const line = (k: string) => r.earnings.find((l) => l.key === k)!.cents;
-    expect(line("base")).toBe(57518);
-    expect(line("night")).toBe(10685);
-    expect(line("over40")).toBe(24612); // 17,15 h × 14,35 €
-    expect(r.grossCents).toBe(57518 + 10685 + 24612);
+    expect(line("base")).toBe(52289);
+    expect(line("night")).toBe(9713);
+    expect(line("over40")).toBe(Math.round(8 * overtimeRateCents(law, "NIGHT")));
   });
 
   it("IRPF anual (Llei 5/2014)", () => {

@@ -209,6 +209,7 @@ model Payslip {             // registro mensual; los campos null se calculan del
   sickDays       Int?
   absentDays     Int?
   holidaysWorked Int?
+  offDaysWorked  Int?                          // fiestas trabajadas (8 h extra cada una)
   extraMinutes   Int?
   grossCents     Int?                          // importes reales de la nómina
   netCents       Int?

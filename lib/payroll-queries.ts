@@ -1,11 +1,11 @@
 import "server-only";
-import { type MonthStr, addMonths, fromDbDate, monthDays } from "./dates";
+import { type MonthStr, addDays, addMonths, fromDbDate, madridToday, monthDays } from "./dates";
 import { db } from "./db";
 import {
   DEFAULT_PAYROLL, type MonthOverrides, type MonthStats, type NightPlusMode, type OvertimeMode, type PayrollConfig, type PayrollPeriod,
   mergeStats, monthStatsFromSchedule,
 } from "./payroll";
-import { getEmployees, getEntriesBetween, getStatusTypes } from "./queries";
+import { getEmployees, getEntriesBetween, getSettings, getStatusTypes } from "./queries";
 
 export async function getPayrollConfig(): Promise<PayrollConfig> {
   const row = await db.payrollSettings.findUnique({ where: { id: 1 } });
@@ -43,23 +43,25 @@ export async function loadPayrollMonths(from: MonthStr, to: MonthStr, employeeId
   for (let m = from; m <= to; m = addMonths(m, 1)) months.push(m);
   const first = monthDays(from)[0]!;
   const last = monthDays(to).at(-1)!;
-  const [employees, statusTypes, entries, slips] = await Promise.all([
+  const [employees, statusTypes, settings, entries, slips] = await Promise.all([
     getEmployees(),
     getStatusTypes(),
-    employeeId ? getEntriesBetween(first, last) : Promise.resolve([]),
+    getSettings(),
+    // 6 días antes: la semana del primer domingo del mes empieza en el mes anterior.
+    employeeId ? getEntriesBetween(addDays(first, -6), last) : Promise.resolve([]),
     db.payslip.findMany({ where: { month: { gte: from, lte: to } } }),
   ]);
   const me = employeeId ? employees.find((e) => e.id === employeeId) : undefined;
   const byMonth = new Map(slips.map((s) => [s.month, s]));
   return months.map((month) => {
     const auto: MonthStats = me
-      ? monthStatsFromSchedule(month, me, entries, statusTypes)
-      : { daysInMonth: monthDays(month).length, daysWorked: 0, daysOff: 0, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 0, extraMinutes: 0 };
+      ? monthStatsFromSchedule(month, me, entries, statusTypes, settings.daysOffPerWeek, madridToday())
+      : { daysInMonth: monthDays(month).length, daysWorked: 0, daysOff: 0, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 0, offDaysWorked: 0, extraMinutes: 0 };
     const s = byMonth.get(month);
     const overrides: MonthOverrides = s
       ? {
           contractDays: s.contractDays, daysOff: s.daysOff, vacationDays: s.vacationDays, sickDays: s.sickDays,
-          absentDays: s.absentDays, holidaysWorked: s.holidaysWorked, extraMinutes: s.extraMinutes,
+          absentDays: s.absentDays, holidaysWorked: s.holidaysWorked, offDaysWorked: s.offDaysWorked, extraMinutes: s.extraMinutes,
         }
       : {};
     return {

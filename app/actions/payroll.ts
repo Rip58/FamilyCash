@@ -35,6 +35,7 @@ const payslipSchema = z.object({
   sickDays: count,
   absentDays: count,
   holidaysWorked: count,
+  offDaysWorked: count,
   extraMinutes: z.number().int().min(0).max(744 * 60).nullable(),
   grossCents: cents.nullable(),
   netCents: cents.nullable(),

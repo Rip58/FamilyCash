@@ -3,7 +3,7 @@
  * calculadora de bruto/neto. Importes en céntimos; porcentajes en %.
  * Es una estimación: no sustituye a la nómina oficial.
  */
-import { type DateStr, type MonthStr, monthDays } from "./dates";
+import { type DateStr, type MonthStr, addDays, monthDays, weekdayIndex } from "./dates";
 import { type DayEntryLite, type EmployeeLite, type StatusTypeLite, getEffectiveDay } from "./schedule";
 
 export type NightPlusMode = "PER_NIGHT" | "PERCENT";
@@ -85,6 +85,8 @@ export interface MonthStats {
   sickDays: number;
   absentDays: number;
   holidaysWorked: number;
+  /** Días de fiesta trabajados (noches por encima de 5 en una semana): cada uno son 8 h extra. */
+  offDaysWorked: number;
   extraMinutes: number;
 }
 
@@ -97,6 +99,9 @@ export function monthStatsFromSchedule(
   employee: EmployeeLite,
   entries: DayEntryLite[],
   statusTypes: StatusTypeLite[],
+  daysOffPerWeek = 2,
+  /** Hasta qué día contar fiestas trabajadas; las semanas futuras aún no están cerradas (= mes estándar). */
+  until?: DateStr,
 ): MonthStats {
   const byDate = new Map<DateStr, DayEntryLite>(
     entries.filter((e) => e.employeeId === employee.id).map((e) => [e.date, e]),
@@ -110,8 +115,18 @@ export function monthStatsFromSchedule(
     sickDays: 0,
     absentDays: 0,
     holidaysWorked: 0,
+    offDaysWorked: 0,
     extraMinutes: 0,
   };
+  // Fiestas trabajadas por semanas (lunes–domingo); cada semana cuenta en el mes de su domingo.
+  const workingNights = 7 - daysOffPerWeek;
+  for (const sunday of days.filter((d) => weekdayIndex(d) === 6 && (!until || d <= until))) {
+    let worked = 0;
+    for (let i = 6; i >= 0; i--) {
+      if (getEffectiveDay(employee, addDays(sunday, -i), byDate.get(addDays(sunday, -i)), statusTypes).isWorking) worked++;
+    }
+    s.offDaysWorked += Math.max(worked - workingNights, 0);
+  }
   for (const d of days) {
     const day = getEffectiveDay(employee, d, byDate.get(d), statusTypes);
     if (day.isWorking) {
@@ -145,6 +160,7 @@ export function mergeStats(auto: MonthStats, o: MonthOverrides): MonthStats {
     sickDays,
     absentDays,
     holidaysWorked: pick("holidaysWorked"),
+    offDaysWorked: pick("offDaysWorked"),
     extraMinutes: pick("extraMinutes"),
   };
 }
@@ -184,13 +200,9 @@ export function overtimeRateCents(cfg: PayrollConfig, shift: ShiftKind): number 
   return fixedHour * (1 + cfg.overtimeSurchargePercent / 100) + (shift === "NIGHT" ? nightPlusPerHourCents(cfg) : 0);
 }
 
-/**
- * Horas por encima de 40 h/semana en el mes: noches trabajadas × 8 h − 40 h × (días de contrato
- * sin vacaciones ni baja) / 7. Se cuenta en el conjunto del mes, así que da igual cómo se repartan las fiestas.
- */
-export function hoursOver40(stats: MonthStats): number {
-  const days = (stats.contractDays ?? stats.daysInMonth) - stats.vacationDays - stats.sickDays;
-  return Math.max(stats.daysWorked * SHIFT_HOURS - (40 * Math.max(days, 0)) / 7, 0);
+/** Horas extra por fiestas trabajadas: 8 h por cada una. */
+export function offDayOvertimeMinutes(stats: MonthStats): number {
+  return stats.offDaysWorked * SHIFT_HOURS * 60;
 }
 
 /**
@@ -229,23 +241,24 @@ export function calculatePay(cfg: PayrollConfig, stats: MonthStats, shift: Shift
     if (cfg.nightPlusMode === "PER_NIGHT") {
       add("night", "Plus nocturnidad", cfg.nightPlusPerNightCents * stats.daysWorked, `${stats.daysWorked} noches`);
     } else {
-      const workable = Math.max(contract - stats.daysOff, 0);
-      const share = workable > 0 ? Math.min(stats.daysWorked / workable, 1) : 0;
+      // Plus fijo del mes; solo se reduce por los días sin trabajar (vacaciones, baja, faltas).
+      const away = stats.vacationDays + stats.sickDays + stats.absentDays;
+      const share = contract > 0 ? Math.max(contract - away, 0) / contract : 0;
       add(
         "night",
         "Plus nocturnidad",
         cfg.baseMonthlyCents * (cfg.nightPlusPercent / 100) * f * share,
-        `${pct(cfg.nightPlusPercent)} · ${stats.daysWorked}/${workable} noches`,
+        away > 0 ? `${pct(cfg.nightPlusPercent)} · sin ${away} días fuera` : pct(cfg.nightPlusPercent),
       );
     }
   }
   const rate = overtimeRateCents(cfg, shift);
-  const over40Minutes = Math.round(hoursOver40(stats) * 60);
+  const offMinutes = offDayOvertimeMinutes(stats);
   add(
     "over40",
     "Horas extra (fiestas trabajadas)",
-    (rate * over40Minutes) / 60,
-    `${formatHours(over40Minutes)} h × ${formatEuros(round(rate))}`,
+    (rate * offMinutes) / 60,
+    `${stats.offDaysWorked} × 8 h × ${formatEuros(round(rate))}`,
   );
   add(
     "overtime",

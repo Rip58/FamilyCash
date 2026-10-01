@@ -37,7 +37,8 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 ## Notas técnicas (Nómina personal)
 - Pestaña `/nomina` (Registro + Calculadora) y `/ajustes/nomina` (importes y "quién eres"). Lógica pura en `lib/payroll.ts` (céntimos, % ), consultas en `lib/payroll-queries.ts`, acciones en `app/actions/payroll.ts`.
 - `Payslip` por mes "YYYY-MM": los campos null se calculan del cuadrante del empleado elegido en `PayrollSettings.employeeId` (vía `getEffectiveDay`).
-- Andorra: hora extra por ley = (base + resp.)/173,33 h × (1 + recargo, mín. 40 % art. 58.2 LRL) + nocturnidad/h de noche; mes parcial prorrateado por días/30 (`contractDays`); CASS 6,5 %; IRPF anual en `andorraIrpfAnnualCents` (Llei 5/2014). Los días trabajados nunca se escriben: `mergeStats` los deduce (contrato − fiestas − vacaciones − baja − faltas).
+- Andorra: hora extra por ley = (base + resp.)/173,33 h × (1 + recargo, mín. 40 % art. 58.2 LRL) + nocturnidad/h de noche; mes parcial prorrateado por días/30 (`contractDays`); CASS 6,5 %; IRPF anual en `andorraIrpfAnnualCents` (Llei 5/2014).
+- Sueldo del mes completo FIJO (no depende de 28/31 días). Horas extra = fiestas trabajadas (`offDaysWorked`, noches > 5 por semana lunes–domingo, la semana cuenta en el mes de su domingo, solo semanas ya cerradas) × 8 h + horas del cierre. El plus de noche solo baja por vacaciones/baja/faltas. Los días trabajados se deducen en `mergeStats`.
 
 ## Notas técnicas (rendimiento)
 - Datos de referencia (`getSettings`, `getStatusTypes`, `getDepartments`, `getEmployees`, `getSections`) cacheados con `unstable_cache` (tag `REF_TAG`); `done()` de `app/actions/settings.ts` hace `updateTag(REF_TAG)`. Si añades otra escritura a esas tablas fuera de ahí, invalida el tag.
