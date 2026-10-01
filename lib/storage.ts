@@ -7,7 +7,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { del } from "@vercel/blob";
+import { del, get } from "@vercel/blob";
 import { LOCAL_FILES_BASE, UPLOAD_PREFIX, extensionFor, isSafePathname } from "./upload-rules";
 
 export type StorageMode = "blob" | "local";
@@ -24,7 +24,8 @@ export function blobMissing(): boolean {
   return storageMode() === "local" && !!process.env.VERCEL;
 }
 
-const ROOT = path.resolve(process.cwd(), ".uploads");
+// turbopackIgnore: carpeta solo de desarrollo; sin esto Turbopack empaqueta todo el proyecto en el servidor.
+const ROOT = path.resolve(/* turbopackIgnore: true */ process.cwd(), ".uploads");
 
 /** Ruta absoluta dentro de `.uploads/`, o null si el pathname no es seguro. */
 export function localFilePath(pathname: string): string | null {
@@ -40,7 +41,7 @@ export async function saveLocalFile(bytes: Uint8Array, contentType: string): Pro
   const full = localFilePath(pathname);
   if (!full) throw new Error("Ruta no válida.");
   await mkdir(path.dirname(full), { recursive: true });
-  await writeFile(full, bytes);
+  await writeFile(/* turbopackIgnore: true */ full, bytes);
   return { url: `${LOCAL_FILES_BASE}${pathname}`, pathname };
 }
 
@@ -48,10 +49,26 @@ export async function readLocalFile(pathname: string): Promise<Buffer | null> {
   const full = localFilePath(pathname);
   if (!full) return null;
   try {
-    return await readFile(full);
+    return await readFile(/* turbopackIgnore: true */ full);
   } catch {
     return null;
   }
+}
+
+/** Lee una foto del almacenamiento (Blob privado o local). null si no existe. */
+export async function readStoredFile(pathname: string): Promise<BodyInit | null> {
+  if (!isSafePathname(pathname)) return null;
+  if (storageMode() === "blob") {
+    try {
+      const r = await get(pathname, { access: "private" });
+      return r?.statusCode === 200 ? r.stream : null;
+    } catch (e) {
+      console.error("No se pudo leer", pathname, e);
+      return null;
+    }
+  }
+  const data = await readLocalFile(pathname);
+  return data ? new Uint8Array(data) as Uint8Array<ArrayBuffer> : null;
 }
 
 /** Borra un archivo del almacenamiento (Blob o local). Tolerante a "no existe". */
@@ -62,7 +79,7 @@ export async function deleteStoredFile(pathname: string): Promise<void> {
     return;
   }
   const full = localFilePath(pathname);
-  if (full) await rm(full, { force: true });
+  if (full) await rm(/* turbopackIgnore: true */ full, { force: true });
 }
 
 /** Borra varios archivos sin que un fallo impida borrar el resto. Devuelve los fallidos. */

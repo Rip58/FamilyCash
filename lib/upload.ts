@@ -5,7 +5,7 @@
  *  - "local": POST multipart a /api/upload/local (desarrollo).
  */
 import { compressImage } from "./image-compress";
-import { UPLOAD_PREFIX, extensionFor, validateUpload } from "./upload-rules";
+import { LOCAL_FILES_BASE, UPLOAD_PREFIX, extensionFor, validateUpload } from "./upload-rules";
 
 export type StorageMode = "blob" | "local";
 
@@ -53,14 +53,15 @@ function uploadLocal(blob: Blob, opts: UploadOptions): Promise<{ url: string; pa
 async function uploadBlob(blob: Blob, opts: UploadOptions): Promise<{ url: string; pathname: string }> {
   const { upload } = await import("@vercel/blob/client");
   const name = `${UPLOAD_PREFIX}foto.${extensionFor(blob.type) ?? "webp"}`;
+  // Almacén privado: la foto solo se ve a través de /api/files (con sesión).
   const res = await upload(name, blob, {
-    access: "public",
+    access: "private",
     handleUploadUrl: "/api/upload",
     contentType: blob.type,
     abortSignal: opts.signal,
     onUploadProgress: (p) => opts.onProgress?.(p.percentage / 100),
   });
-  return { url: res.url, pathname: res.pathname };
+  return { url: `${LOCAL_FILES_BASE}${res.pathname}`, pathname: res.pathname };
 }
 
 /** Comprime (WebP 0,85, 1600 px, ≤ 300 KB) y sube una foto. Lanza Error con mensaje en español. */
