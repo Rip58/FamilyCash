@@ -1,8 +1,8 @@
-name: Copia de seguridad nocturna
+name: Copia de seguridad diaria
 
 on:
   schedule:
-    - cron: "17 5 * * *" # 05:17 UTC ≈ 07:17 en Andorra (después del turno)
+    - cron: "3 8 * * *" # 08:03 UTC = 09:03 en invierno / 10:03 en verano (Andorra): nunca antes de las 9, cuando nadie toca la app
   workflow_dispatch: {}
 
 permissions:

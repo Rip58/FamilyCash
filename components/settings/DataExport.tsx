@@ -21,7 +21,7 @@ export function DataExport({ today }: { today: string }) {
       <Card title="Copia de seguridad" className="mb-4">
         <p className="text-[14px] text-muted">
           Descarga toda la base de datos (empleados, cuadrante, notas, nómina…) en un archivo. Guárdalo en Archivos o en
-          Drive. Además se hace una copia automática cada noche.
+          Drive. Además se hace una copia automática cada mañana a las 9.
         </p>
         <a
           href="/api/backup"

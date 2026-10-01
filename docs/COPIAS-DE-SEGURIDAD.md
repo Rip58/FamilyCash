@@ -5,7 +5,7 @@
 |---|---|---|
 | Código de la app | GitHub (este repositorio, con todo el historial) | Siempre |
 | Versiones publicadas | Vercel → Deployments (se puede volver a una anterior con "Promote/Instant Rollback") | Siempre |
-| Base de datos (automática) | GitHub → Actions → "Copia de seguridad nocturna" → artefacto `familycash-db-AAAA-MM-DD` (cifrado) | 90 días, una por día |
+| Base de datos (automática) | GitHub → Actions → "Copia de seguridad diaria" → artefacto `familycash-db-AAAA-MM-DD` (cifrado) | 90 días, una por día |
 | Base de datos (manual) | App → Ajustes → Datos → **Descargar copia completa** (JSON) | Lo que la guardes |
 
 Las fotos de los avisos (Vercel Blob) no entran en las copias.
@@ -15,9 +15,9 @@ En GitHub → repositorio → **Settings → Secrets and variables → Actions �
 1. `BACKUP_DATABASE_URL`: la cadena **directa** de la base de datos (`postgres://…@db.prisma.io:5432/postgres?sslmode=require`; en Vercel → Storage → la base de datos → `.env`, la variable `…POSTGRES_URL`).
 2. `BACKUP_PASSPHRASE`: una contraseña larga para cifrar las copias. **Guárdala aparte** (gestor de contraseñas): sin ella las copias no se pueden abrir.
 
-Después: **Actions → Copia de seguridad nocturna → Run workflow** para probarla. Si una noche falla, GitHub envía un email.
+Después: **Actions → Copia de seguridad diaria → Run workflow** para probarla. Si un día falla, GitHub envía un email.
 
-## Restaurar desde la copia nocturna (pg_dump)
+## Restaurar desde la copia diaria (pg_dump)
 1. Descarga el artefacto del día (Actions → la ejecución → Artifacts) y descomprímelo.
 2. Descifra: `gpg --decrypt familycash-AAAA-MM-DD.dump.gpg > familycash.dump`
 3. Crea una base de datos **nueva** (p. ej. otra Prisma Postgres en Vercel → Storage) y copia su cadena directa.
