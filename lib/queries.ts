@@ -2,6 +2,7 @@
  * Acceso a datos: carga de Prisma y delega en las funciones puras de
  * lib/schedule.ts. Solo servidor.
  */
+import { unstable_cache } from "next/cache";
 import { db } from "./db";
 import { type DateStr, fromDbDate, toDbDate, weekDays } from "./dates";
 import {
@@ -25,30 +26,43 @@ export interface SettingsData {
   daysOffPerWeek: number;
 }
 
+/**
+ * Datos de referencia (ajustes, estados, departamentos, empleados, secciones): cambian poco,
+ * así que se cachean en el servidor y se invalidan con `updateTag(REF_TAG)` en app/actions/settings.ts.
+ * El `revalidate` es una red de seguridad por si algo los cambia por otro camino.
+ */
+export const REF_TAG = "ref";
+const refCache = <T>(fn: () => Promise<T>, key: string) =>
+  unstable_cache(fn, ["ref", key], { tags: [REF_TAG], revalidate: 300 });
+
 /** Ajustes (fila id=1; se crea con valores por defecto si no existe). */
-export async function getSettings(): Promise<SettingsData> {
+export const getSettings = refCache(async (): Promise<SettingsData> => {
   // Lectura primero: evita una escritura (upsert) en cada carga de página.
   const s = (await db.settings.findUnique({ where: { id: 1 } })) ?? (await db.settings.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } }));
   const { passwordHash: _omit, ...rest } = s;
   void _omit;
   return rest;
-}
+}, "settings");
 
-export async function getStatusTypes(): Promise<StatusTypeLite[]> {
-  return db.statusType.findMany({ orderBy: [{ sortOrder: "asc" }, { label: "asc" }] });
-}
+export const getStatusTypes = refCache(
+  (): Promise<StatusTypeLite[]> => db.statusType.findMany({ orderBy: [{ sortOrder: "asc" }, { label: "asc" }] }),
+  "statusTypes",
+);
 
-export async function getDepartments(): Promise<DepartmentLite[]> {
-  return db.department.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
-}
+export const getDepartments = refCache(
+  (): Promise<DepartmentLite[]> => db.department.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
+  "departments",
+);
 
-export async function getEmployees(): Promise<EmployeeLite[]> {
-  return db.employee.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
-}
+export const getEmployees = refCache(
+  (): Promise<EmployeeLite[]> => db.employee.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
+  "employees",
+);
 
-export async function getSections() {
-  return db.section.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
-}
+export const getSections = refCache(
+  () => db.section.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
+  "sections",
+);
 
 type EntryRow = Awaited<ReturnType<typeof db.dayEntry.findMany<{ include: { segments: true } }>>>[number];
 

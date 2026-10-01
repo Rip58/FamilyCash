@@ -1,9 +1,10 @@
 "use server";
 
 import bcrypt from "bcryptjs";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { REF_TAG } from "@/lib/queries";
 import { checkPassword } from "@/lib/password";
 import { isHexColor, isTime, isProtectedStatus, nextSortOrder, sortOrderUpdates, uniqueCode } from "@/lib/settings-logic";
 
@@ -12,6 +13,7 @@ export type ActionResult<T = object> = ({ ok: true } & T) | { ok: false; error: 
 const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
 
 function done<T extends object>(extra?: T): { ok: true } & T {
+  updateTag(REF_TAG);
   revalidatePath("/", "layout");
   return { ok: true, ...(extra ?? ({} as T)) };
 }
