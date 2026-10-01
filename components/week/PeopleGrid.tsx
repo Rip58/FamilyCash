@@ -349,71 +349,63 @@ export function PeopleGrid({ data }: { data: PeopleGridData }) {
         <span className="pb-1 text-center text-[11px] font-medium text-muted">Total</span>
       </div>
 
-      {groups.map((g) => (
-        <section key={g.id} aria-label={g.name}>
-          <h3 className="flex items-center gap-2 px-4 pb-1 pt-4 text-[13px] font-semibold uppercase tracking-wide text-muted">
-            {g.color && (
-              <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: g.color }} />
-            )}
-            {g.name}
-          </h3>
-          <div className="bg-surface">
-            {g.rows.map((r) => {
-              const values = days.map((d) => cells[keyOf(r.employeeId, d)]!);
-              const daysOff = values.filter((v) => isDayOffStatus(statusById.get(v.statusId)!)).length;
-              const warn = daysOff !== daysOffPerWeek;
-              const summary = weekSummary(
-                values.map((v) => ({ status: statusById.get(v.statusId)!, extraMinutes: v.extraMinutes })),
-                statuses,
-              );
-              return (
-                <div key={r.employeeId} className={cn("grid items-center border-b border-line last:border-b-0", GRID_COLS)}>
-                  <NameCell
-                    compact={shortById.get(r.employeeId)!}
-                    name={r.name}
-                    departmentName={r.departmentName}
-                    open={peekId === r.employeeId}
-                    onToggle={() => setPeekId((cur) => (cur === r.employeeId ? null : r.employeeId))}
-                  />
-                  {days.map((d, i) => {
-                    const v = values[i]!;
-                    const status = statusById.get(v.statusId)!;
-                    const target = { employeeId: r.employeeId, name: r.name, date: d };
-                    return (
-                      <CellButton
-                        key={d}
-                        status={status}
-                        hasReason={!!v.reason}
-                        hasExtra={(v.extraMinutes ?? 0) > 0}
-                        pending={!!pendingByKey[keyOf(r.employeeId, d)]}
-                        label={`${r.name}, ${formatDayLong(d)}: ${status.label}${v.reason ? ` (${v.reason})` : ""}${v.extraMinutes ? `, ${formatOvertime(v.extraMinutes)} extra` : ""}${pendingByKey[keyOf(r.employeeId, d)] ? ". Petición pendiente" : ""}`}
-                        onTap={() => setSheet({ target, open: true })}
-                      />
-                    );
-                  })}
-                  <span
-                    className="flex flex-wrap content-center justify-center gap-x-1 px-0.5 text-[11px] font-semibold leading-[13px] tabular-nums"
-                    aria-label={`Semana: ${summary.map((t) => t.text).join(" ")}${warn ? `. ${daysOff} días libres, se esperaban ${daysOffPerWeek}` : ""}`}
-                    data-warning={warn ? "true" : undefined}
-                  >
-                    {summary.map((t) => (
-                      <span
-                        key={t.key}
-                        className={cn(
-                          t.key === "extra" ? "text-accent" : "text-muted",
-                          warn && t.dayOff && "rounded bg-warning/25 px-0.5 text-warning",
-                        )}
-                      >
-                        {t.text}
-                      </span>
-                    ))}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      ))}
+      <section aria-label="Personas" className="mt-2">
+        <div className="bg-surface">
+          {groups.flatMap((g) => g.rows).map((r) => {
+            const values = days.map((d) => cells[keyOf(r.employeeId, d)]!);
+            const daysOff = values.filter((v) => isDayOffStatus(statusById.get(v.statusId)!)).length;
+            const warn = daysOff !== daysOffPerWeek;
+            const summary = weekSummary(
+              values.map((v) => ({ status: statusById.get(v.statusId)!, extraMinutes: v.extraMinutes })),
+              statuses,
+            );
+            return (
+              <div key={r.employeeId} className={cn("grid items-center border-b border-line last:border-b-0", GRID_COLS)}>
+                <NameCell
+                  compact={shortById.get(r.employeeId)!}
+                  name={r.name}
+                  departmentName={r.departmentName}
+                  open={peekId === r.employeeId}
+                  onToggle={() => setPeekId((cur) => (cur === r.employeeId ? null : r.employeeId))}
+                />
+                {days.map((d, i) => {
+                  const v = values[i]!;
+                  const status = statusById.get(v.statusId)!;
+                  const target = { employeeId: r.employeeId, name: r.name, date: d };
+                  return (
+                    <CellButton
+                      key={d}
+                      status={status}
+                      hasReason={!!v.reason}
+                      hasExtra={(v.extraMinutes ?? 0) > 0}
+                      pending={!!pendingByKey[keyOf(r.employeeId, d)]}
+                      label={`${r.name}, ${formatDayLong(d)}: ${status.label}${v.reason ? ` (${v.reason})` : ""}${v.extraMinutes ? `, ${formatOvertime(v.extraMinutes)} extra` : ""}${pendingByKey[keyOf(r.employeeId, d)] ? ". Petición pendiente" : ""}`}
+                      onTap={() => setSheet({ target, open: true })}
+                    />
+                  );
+                })}
+                <span
+                  className="flex flex-wrap content-center justify-center gap-x-1 px-0.5 text-[11px] font-semibold leading-[13px] tabular-nums"
+                  aria-label={`Semana: ${summary.map((t) => t.text).join(" ")}${warn ? `. ${daysOff} días libres, se esperaban ${daysOffPerWeek}` : ""}`}
+                  data-warning={warn ? "true" : undefined}
+                >
+                  {summary.map((t) => (
+                    <span
+                      key={t.key}
+                      className={cn(
+                        t.key === "extra" ? "text-accent" : "text-muted",
+                        warn && t.dayOff && "rounded bg-warning/25 px-0.5 text-warning",
+                      )}
+                    >
+                      {t.text}
+                    </span>
+                  ))}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
       <p className="px-4 pt-3 text-[12px] text-muted">
         Toca un nombre para verlo completo. Toca una celda para elegir estado, motivo y horas extra. Total: T trabaja · F
