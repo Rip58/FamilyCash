@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
-import { Segmented } from "@/components/ui/Segmented";
 import type { StatusTypeLite } from "@/lib/schedule";
 
 interface AbsentSheetProps {
@@ -15,49 +14,56 @@ interface AbsentSheetProps {
   onConfirm: (statusTypeId: string, reason: string | null) => void;
 }
 
-/** Aviso al marcar ✗: cambia el estado del día también en la Semana. */
+/** Primero Fiesta y Baja (lo más habitual), luego el resto en su orden. */
+const FIRST = ["OFF", "SICK"];
+
+/** Al marcar ✗: un toque en el motivo lo guarda; cambia también la Semana. */
 export function AbsentSheet({ open, onClose, name, planned, statusTypes, onConfirm }: AbsentSheetProps) {
-  const options = statusTypes.filter((s) => !s.isWorking && s.active !== false);
-  const initial = options.find((s) => s.code === "ABSENT") ?? options[0];
-  const [statusId, setStatusId] = useState(initial?.id ?? "");
   const [reason, setReason] = useState("");
-  const chosen = options.find((s) => s.id === statusId);
+  const options = statusTypes
+    .filter((s) => !s.isWorking && s.active !== false)
+    .sort((a, b) => {
+      const ia = FIRST.indexOf(a.code);
+      const ib = FIRST.indexOf(b.code);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.sortOrder - b.sortOrder;
+    });
 
   return (
-    <BottomSheet open={open} onClose={onClose} title={`${name} no ha venido`}>
-      <div className="flex flex-col gap-4 pb-2">
-        <p role="alert" className="rounded-control bg-warning/20 px-3 py-2 text-[14px] font-medium text-[#92600a] dark:text-warning">
-          Se cambiará también en la Semana: {planned.label} → {chosen?.label ?? "—"}.
+    <BottomSheet open={open} onClose={onClose} title={`${name} no está hoy`}>
+      <div className="flex flex-col gap-3 pb-2">
+        <p className="text-[14px] text-muted">
+          ¿Por qué? Se cambiará también en la Semana ({planned.label} → lo que elijas).
         </p>
-        <Segmented
-          wrap
-          aria-label="Motivo de la ausencia"
-          value={statusId}
-          onChange={setStatusId}
-          options={options.map((s) => ({ value: s.id, label: s.label, color: s.color }))}
-        />
+        <div className="grid grid-cols-2 gap-2">
+          {options.map((s, i) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => {
+                onConfirm(s.id, reason.trim() || null);
+                onClose();
+              }}
+              className={`flex min-h-14 items-center justify-center gap-2 rounded-card border-2 px-3 text-[16px] font-semibold active:opacity-70 ${
+                i < FIRST.length ? "" : "text-[15px] font-medium"
+              }`}
+              style={{ borderColor: s.color, backgroundColor: `${s.color}22` }}
+            >
+              <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: s.color }} aria-hidden />
+              {s.label}
+            </button>
+          ))}
+        </div>
         <label className="flex flex-col gap-1.5">
-          <span className="text-[13px] font-medium text-muted">Motivo (opcional)</span>
+          <span className="text-[13px] font-medium text-muted">Motivo (opcional, escríbelo antes de elegir)</span>
           <input
             type="text"
             value={reason}
             maxLength={200}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Ej.: no avisa, médico…"
+            placeholder="Ej.: médico, cambio de fiesta…"
             className="min-h-11 rounded-control bg-surface-2 px-3 text-[16px] outline-none focus:ring-2 focus:ring-accent"
           />
         </label>
-        <button
-          type="button"
-          disabled={!chosen}
-          onClick={() => {
-            onConfirm(statusId, reason.trim() || null);
-            onClose();
-          }}
-          className="min-h-11 rounded-control bg-danger text-[16px] font-semibold text-white disabled:opacity-40"
-        >
-          Marcar {chosen ? chosen.label.toLowerCase() : "ausencia"}
-        </button>
         <button type="button" onClick={onClose} className="min-h-11 text-[16px] font-medium text-accent">
           Cancelar
         </button>

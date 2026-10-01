@@ -16,6 +16,8 @@ interface EmployeeRowProps {
   showStatus?: boolean;
   /** El empleado tiene avisos con foto esa noche. */
   hasReports?: boolean;
+  /** Dentro de la burbuja de su departamento: no repetir el nombre del departamento. */
+  hideDepartment?: boolean;
   /** Pasar lista: botones ✓/✗ (solo para quien está previsto que trabaje). */
   attendance?: { onPresent: () => void; onAbsent: () => void; onUndo: () => void };
 }
@@ -23,12 +25,12 @@ interface EmployeeRowProps {
 const checkBtn =
   "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 text-[18px] font-bold active:opacity-70 [touch-action:manipulation]";
 
-export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, onMove, showStatus, hasReports, attendance }: EmployeeRowProps) {
+export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, onMove, showStatus, hasReports, attendance, hideDepartment }: EmployeeRowProps) {
   const { employee, day } = member;
   const press = useLongPress(onMove, onOpen);
   const habitual = employee.defaultDepartmentId ? departments.get(employee.defaultDepartmentId) : undefined;
   const moved = day.departmentId !== employee.defaultDepartmentId;
-  const today = day.departmentId ? departments.get(day.departmentId) : undefined;
+  const today = !hideDepartment && day.departmentId ? departments.get(day.departmentId) : undefined;
   const sections = day.segments.map((s) => segmentName(s, sectionNames));
 
   const name = employee.name;

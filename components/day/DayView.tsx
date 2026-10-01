@@ -68,7 +68,6 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
   const [sheet, setSheet] = useState<{ id: string; open: boolean } | null>(null);
   const [move, setMove] = useState<{ id: string; open: boolean; checkIn?: boolean } | null>(null);
   const [absentSheet, setAbsentSheet] = useState<{ id: string; open: boolean } | null>(null);
-  const [absentOpen, setAbsentOpen] = useState(false);
   const [closeSheet, setCloseSheet] = useState<{ open: boolean; n: number }>({ open: false, n: 0 });
   const madridHour = useSyncExternalStore(subscribeNever, currentMadridHour, () => null);
   const [composer, setComposer] = useState<{ open: boolean; employeeId: string | null }>({ open: false, employeeId: null });
@@ -175,6 +174,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
     <EmployeeRow
       key={m.employee.id}
       member={m}
+      hideDepartment
       sectionNames={sectionNames}
       departments={deptMap}
       shift={shift}
@@ -214,17 +214,32 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
     [closeGroups],
   );
   const closeHighlight = isToday && madridHour !== null && madridHour >= 5 && madridHour < 12;
-  const absentTotal = roster.absentByStatus.reduce((n, g) => n + g.members.length, 0);
   // Orden fijo (departamento habitual y orden de Ajustes) para que la fila no salte al asignar sitio.
   const deptOrder = new Map(departments.map((d) => [d.id, d.sortOrder]));
   const habitualOrder = (m: RosterMember) =>
     m.employee.defaultDepartmentId ? (deptOrder.get(m.employee.defaultDepartmentId) ?? 9999) : 9999;
-  const expected = [...roster.departments.flatMap((d) => d.present), ...roster.unassigned].sort(
-    (a, b) =>
-      habitualOrder(a) - habitualOrder(b) ||
-      a.employee.sortOrder - b.employee.sortOrder ||
-      a.employee.name.localeCompare(b.employee.name, "es"),
-  );
+  const byOrder = (a: RosterMember, b: RosterMember) =>
+    habitualOrder(a) - habitualOrder(b) ||
+    a.employee.sortOrder - b.employee.sortOrder ||
+    a.employee.name.localeCompare(b.employee.name, "es");
+  const expected = [...roster.departments.flatMap((d) => d.present), ...roster.unassigned];
+  // Una burbuja por departamento (donde trabaja hoy) + "Sin departamento".
+  const groups = [
+    ...roster.departments
+      .filter((d) => d.present.length > 0 || d.isEmpty)
+      .map((d) => ({
+        id: d.department.id,
+        name: d.department.name,
+        color: d.department.color as string | null,
+        members: [...d.present].sort(byOrder),
+        target: d.targetStaff,
+        isEmpty: d.isEmpty,
+        isUnder: d.isUnderStaffed,
+      })),
+    ...(roster.unassigned.length > 0
+      ? [{ id: "none", name: "Sin departamento", color: null, members: [...roster.unassigned].sort(byOrder), target: 0, isEmpty: false, isUnder: false }]
+      : []),
+  ];
   const confirmed = expected.filter((m) => m.day.present).length;
   const absentCode = roster.absentByStatus.find((g) => g.status.code === "ABSENT")?.members.length ?? 0;
 
@@ -286,51 +301,65 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
         </section>
       )}
 
-      {expected.length > 0 && (
-        <Card flush aria-label="Empleados">
-          <div className="divide-y divide-line py-1">{expected.map((m) => row(m))}</div>
-        </Card>
-      )}
+      {groups.map((g) => {
+        const came = g.members.filter((m) => m.day.present).length;
+        return (
+          <Card key={g.id} flush tone={g.isEmpty ? "danger" : "default"} aria-label={g.name}>
+            <div className="flex min-h-11 items-center justify-between gap-3 px-4 pt-1">
+              <h2 className="flex min-w-0 items-center gap-2 text-[16px] font-semibold">
+                {g.color && <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: g.color }} aria-hidden />}
+                <span className="truncate">{g.name}</span>
+              </h2>
+              <span className="flex shrink-0 items-center gap-2 text-[14px] tabular-nums">
+                {g.members.length > 0 && (
+                  <span className={came === g.members.length ? "font-semibold text-success" : "text-muted"}>
+                    ✓ {came}/{g.members.length}
+                  </span>
+                )}
+                {g.target > 0 && (
+                  <span className={cn("font-semibold", g.isEmpty ? "text-danger" : g.isUnder ? "text-warning" : "text-muted")}>
+                    · {g.members.length}/{g.target} plazas
+                  </span>
+                )}
+              </span>
+            </div>
+            {g.isEmpty ? (
+              <p className="px-4 pb-3 text-[15px] font-semibold text-danger">Sin personal</p>
+            ) : (
+              <div className="divide-y divide-line pb-1">{g.members.map((m) => row(m))}</div>
+            )}
+          </Card>
+        );
+      })}
 
-      {absentTotal > 0 && (
-        <section className="rounded-card bg-surface">
-          <button
-            type="button"
-            aria-expanded={absentOpen}
-            onClick={() => setAbsentOpen((v) => !v)}
-            className="flex min-h-12 w-full items-center justify-between px-4 text-left"
-          >
-            <span className="text-[16px] font-semibold">No vienen hoy · {absentTotal}</span>
-            <span className={cn("text-muted transition-transform", absentOpen && "rotate-90")} aria-hidden>
-              ›
-            </span>
-          </button>
-          {absentOpen &&
-            roster.absentByStatus.map((g) => (
-              <div key={g.status.id} className="border-t border-line pb-1">
-                <h3 className="flex items-center gap-2 px-4 pt-3 pb-1 text-[13px] font-semibold uppercase tracking-wide text-muted">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: g.status.color }} aria-hidden />
-                  {g.status.label} · {g.members.length}
-                </h3>
-                <div className="divide-y divide-line">
-                  {g.members.map((m) => (
-                    <EmployeeRow
-                      key={m.employee.id}
-                      member={m}
-                      sectionNames={sectionNames}
-                      departments={deptMap}
-                      shift={shift}
-                      onOpen={() => openSheet(m.employee.id)}
-                      onMove={() => openMove(m.employee.id)}
-                      hasReports={reportedIds.has(m.employee.id)}
-                      showStatus
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
-        </section>
-      )}
+      {roster.absentByStatus
+        .filter((g) => g.members.length > 0)
+        .map((g) => (
+          <Card key={g.status.id} flush aria-label={g.status.label}>
+            <div className="flex min-h-11 items-center justify-between gap-3 px-4 pt-1">
+              <h2 className="flex items-center gap-2 text-[16px] font-semibold">
+                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: g.status.color }} aria-hidden />
+                {g.status.label}
+              </h2>
+              <span className="text-[14px] font-semibold tabular-nums text-muted">{g.members.length}</span>
+            </div>
+            <div className="divide-y divide-line pb-1">
+              {g.members.map((m) => (
+                <EmployeeRow
+                  key={m.employee.id}
+                  member={m}
+                  sectionNames={sectionNames}
+                  departments={deptMap}
+                  shift={shift}
+                  onOpen={() => openSheet(m.employee.id)}
+                  onMove={() => openMove(m.employee.id)}
+                  hasReports={reportedIds.has(m.employee.id)}
+                  showStatus
+                />
+              ))}
+            </div>
+          </Card>
+        ))}
 
       {sheet && sheetMember && (
         <EmployeeSheet
