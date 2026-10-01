@@ -9,7 +9,8 @@ import { Segmented } from "@/components/ui/Segmented";
 import { cn } from "@/components/ui/cn";
 import { type MonthStr, formatMonth } from "@/lib/dates";
 import {
-  type MonthStats, type PayrollConfig, type ShiftKind, calculatePay, formatEuros, formatHours, parseEuros,
+  type MonthStats, type PayrollConfig, type PayrollPeriod, type ShiftKind, calculatePay, configForMonth, formatDateEs, formatEuros,
+  formatHours, parseEuros, periodForMonth, weeklyExtraToMonthlyMinutes,
 } from "@/lib/payroll";
 import type { PayrollMonth } from "@/lib/payroll-queries";
 
@@ -135,14 +136,24 @@ function MonthEditor({ m, onDone }: { m: PayrollMonth; onDone: () => void }) {
   );
 }
 
-function Registry({ months, config, onCalc }: { months: PayrollMonth[]; config: PayrollConfig; onCalc: (m: MonthStr) => void }) {
+function Registry({
+  months,
+  config,
+  periods,
+  onCalc,
+}: {
+  months: PayrollMonth[];
+  config: PayrollConfig;
+  periods: PayrollPeriod[];
+  onCalc: (m: MonthStr) => void;
+}) {
   const [editing, setEditing] = useState<{ month: MonthStr; open: boolean } | null>(null);
   const current = editing ? months.find((m) => m.month === editing.month) : undefined;
-  const canEstimate = config.baseMonthlyCents > 0;
   return (
     <div className="flex flex-col gap-2">
       {months.map((m) => {
-        const estimate = canEstimate ? calculatePay(config, m.stats, "NIGHT").netCents : null;
+        const cfg = configForMonth(config, periods, m.month);
+        const estimate = cfg.baseMonthlyCents > 0 ? calculatePay(cfg, m.stats, "NIGHT").netCents : null;
         return (
           <div key={m.month} className="flex items-stretch overflow-hidden rounded-card bg-surface">
             <button
@@ -208,17 +219,33 @@ function Counter({ label, value, onChange, max }: { label: string; value: number
   );
 }
 
-function Calculator({ months, config, month, setMonth }: { months: PayrollMonth[]; config: PayrollConfig; month: MonthStr; setMonth: (m: MonthStr) => void }) {
-  const data = months.find((m) => m.month === month) ?? months[0]!;
-  return <CalculatorBody key={data.month} data={data} months={months} config={config} setMonth={setMonth} />;
+interface CalcProps {
+  months: PayrollMonth[];
+  config: PayrollConfig;
+  periods: PayrollPeriod[];
+  setMonth: (m: MonthStr) => void;
 }
 
-function CalculatorBody({ data, months, config, setMonth }: { data: PayrollMonth; months: PayrollMonth[]; config: PayrollConfig; setMonth: (m: MonthStr) => void }) {
+function Calculator({ month, ...props }: CalcProps & { month: MonthStr }) {
+  const data = props.months.find((m) => m.month === month) ?? props.months[0]!;
+  return <CalculatorBody key={data.month} data={data} {...props} />;
+}
+
+const EXTRA_48 = weeklyExtraToMonthlyMinutes(8);
+
+function CalculatorBody({ data, months, config, periods, setMonth }: CalcProps & { data: PayrollMonth }) {
   const [shift, setShift] = useState<ShiftKind>("NIGHT");
+  const [week, setWeek] = useState<"40" | "48">("40");
   const [s, setS] = useState(data.stats);
   const others = s.daysOff + s.vacationDays + s.sickDays + s.absentDays;
-  const stats: MonthStats = { ...s, daysWorked: Math.max(s.daysInMonth - others, 0) };
-  const result = calculatePay(config, stats, shift);
+  const stats: MonthStats = {
+    ...s,
+    daysWorked: Math.max(s.daysInMonth - others, 0),
+    extraMinutes: s.extraMinutes + (week === "48" ? EXTRA_48 : 0),
+  };
+  const period = periodForMonth(periods, data.month);
+  const cfg = configForMonth(config, periods, data.month);
+  const result = calculatePay(cfg, stats, shift);
   const set = (k: keyof MonthStats) => (v: number) => setS((x) => ({ ...x, [k]: v }));
   const maxOf = (k: keyof MonthStats) => Math.max(s.daysInMonth - others + s[k], 0);
 
@@ -236,16 +263,33 @@ function CalculatorBody({ data, months, config, setMonth }: { data: PayrollMonth
           </option>
         ))}
       </select>
-      <Segmented
-        aria-label="Turno"
-        value={shift}
-        onChange={setShift}
-        options={[
-          { value: "NIGHT", label: "🌙 Noche" },
-          { value: "DAY", label: "☀️ Día" },
-        ]}
-      />
-      {config.baseMonthlyCents === 0 && (
+      <div className="grid grid-cols-2 gap-2">
+        <Segmented
+          aria-label="Turno"
+          value={shift}
+          onChange={setShift}
+          options={[
+            { value: "NIGHT", label: "🌙 Noche" },
+            { value: "DAY", label: "☀️ Día" },
+          ]}
+        />
+        <Segmented
+          aria-label="Jornada"
+          value={week}
+          onChange={setWeek}
+          options={[
+            { value: "40", label: "40 h" },
+            { value: "48", label: "48 h" },
+          ]}
+        />
+      </div>
+      <p className="px-1 text-[13px] text-muted">
+        {period
+          ? `Salario del periodo ${formatDateEs(period.from)} – ${period.to ? formatDateEs(period.to) : "indefinido"}`
+          : "Sin periodo de salario para este mes: se usa el salario base de Ajustes."}
+        {week === "48" && ` · 48 h = +${formatHours(EXTRA_48)} h extra al mes`}
+      </p>
+      {cfg.baseMonthlyCents === 0 && (
         <p className="rounded-control bg-warning/20 px-3 py-2 text-[14px] text-[#92600a] dark:text-warning">
           Configura tu salario y pluses en{" "}
           <Link href="/ajustes/nomina" className="font-semibold underline">
@@ -262,7 +306,7 @@ function CalculatorBody({ data, months, config, setMonth }: { data: PayrollMonth
           <Counter label="Faltas" value={s.absentDays} onChange={set("absentDays")} max={maxOf("absentDays")} />
           <Counter label="Festivos trabajados" value={s.holidaysWorked} onChange={set("holidaysWorked")} max={stats.daysWorked} />
           <div className="flex min-h-12 items-center justify-between gap-3">
-            <span className="text-[16px]">Horas extra</span>
+            <span className="text-[16px]">{week === "48" ? "Horas extra (además)" : "Horas extra"}</span>
             <div className="flex items-center gap-2" role="group" aria-label="Horas extra">
               <button
                 type="button"
@@ -330,17 +374,23 @@ function CalculatorBody({ data, months, config, setMonth }: { data: PayrollMonth
 
 export function PayrollView({
   months,
+  current,
+  periods,
   config,
   employeeName,
   initialView,
 }: {
+  /** Más reciente primero; incluye meses futuros para la calculadora. */
   months: PayrollMonth[];
+  current: MonthStr;
+  periods: PayrollPeriod[];
   config: PayrollConfig;
   employeeName: string | null;
   initialView: View;
 }) {
   const [view, setView] = useState<View>(initialView);
-  const [calcMonth, setCalcMonth] = useState<MonthStr>(months[0]!.month);
+  const [calcMonth, setCalcMonth] = useState<MonthStr>(current);
+  const past = months.filter((m) => m.month <= current);
   return (
     <div className="flex flex-col gap-3 pb-6 pt-4">
       <div className="flex items-baseline justify-between gap-3">
@@ -369,15 +419,16 @@ export function PayrollView({
       />
       {view === "registro" ? (
         <Registry
-          months={months}
+          months={past}
           config={config}
+          periods={periods}
           onCalc={(m) => {
             setCalcMonth(m);
             setView("calculadora");
           }}
         />
       ) : (
-        <Calculator months={months} config={config} month={calcMonth} setMonth={setCalcMonth} />
+        <Calculator months={months} config={config} periods={periods} month={calcMonth} setMonth={setCalcMonth} />
       )}
     </div>
   );

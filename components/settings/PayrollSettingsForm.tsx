@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { savePayrollSettings } from "@/app/actions/payroll";
+import { deletePayrollPeriod, savePayrollPeriod, savePayrollSettings } from "@/app/actions/payroll";
+import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Card } from "@/components/ui/Card";
 import { Segmented } from "@/components/ui/Segmented";
-import { type NightPlusMode, type PayrollConfig, parseEuros } from "@/lib/payroll";
-import { BackHeader, Field, inputClass, useRun } from "./kit";
+import { type NightPlusMode, type PayrollConfig, type PayrollPeriod, formatDateEs, formatEuros, parseEuros } from "@/lib/payroll";
+import { AddButton, BackHeader, ConfirmButton, Field, PrimaryButton, inputClass, useRun } from "./kit";
 
 const toText = (cents: number) => (cents ? (cents / 100).toFixed(2).replace(".", ",") : "");
 
@@ -53,7 +54,90 @@ function PercentInput({ label, value, onCommit }: { label: string; value: number
   );
 }
 
-export function PayrollSettingsForm({ initial, employees }: { initial: PayrollConfig; employees: { id: string; name: string }[] }) {
+type PeriodDraft = Omit<PayrollPeriod, "id"> & { id?: string };
+
+function PeriodEditor({ initial, onDone }: { initial: PeriodDraft; onDone: () => void }) {
+  const [p, setP] = useState(initial);
+  const { pending, run } = useRun();
+  return (
+    <div className="pb-2">
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Desde">
+          <input type="date" aria-label="Desde" value={p.from} onChange={(e) => setP({ ...p, from: e.target.value })} className={inputClass} />
+        </Field>
+        <Field label="Hasta" hint="Vacío = indefinido">
+          <input type="date" aria-label="Hasta" value={p.to ?? ""} onChange={(e) => setP({ ...p, to: e.target.value || null })} className={inputClass} />
+        </Field>
+      </div>
+      <Field label="Salario bruto mensual (jornada base)">
+        <EuroInput label="Salario bruto del periodo" cents={p.baseCents} onCommit={(v) => setP((x) => ({ ...x, baseCents: v }))} />
+      </Field>
+      <Field label="Plus de responsabilidad">
+        <EuroInput label="Plus de responsabilidad" cents={p.respPlusCents} onCommit={(v) => setP((x) => ({ ...x, respPlusCents: v }))} />
+      </Field>
+      <PrimaryButton
+        className="mt-2 w-full"
+        disabled={pending || !p.from}
+        onClick={() => run(() => savePayrollPeriod(p), { msg: "Periodo guardado", onDone })}
+      >
+        Guardar periodo
+      </PrimaryButton>
+      {p.id && (
+        <div className="mt-2">
+          <ConfirmButton label="Borrar periodo" onConfirm={() => run(() => deletePayrollPeriod(p.id!), { msg: "Periodo borrado", onDone })} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Periods({ periods }: { periods: PayrollPeriod[] }) {
+  const [editing, setEditing] = useState<{ draft: PeriodDraft; open: boolean; n: number } | null>(null);
+  const last = periods.at(-1);
+  return (
+    <Card title="Salario por periodos" action={<AddButton label="Periodo" onClick={() => setEditing((e) => ({ draft: { from: "", to: null, baseCents: last?.baseCents ?? 0, respPlusCents: 0 }, open: true, n: (e?.n ?? 0) + 1 }))} />} flush>
+      {periods.length === 0 ? (
+        <p className="px-4 pb-3 text-[14px] text-muted">Sin periodos: se usa el salario base de abajo.</p>
+      ) : (
+        <ul>
+          {periods.map((p) => (
+            <li key={p.id} className="border-t border-line first:border-t-0">
+              <button
+                type="button"
+                onClick={() => setEditing((e) => ({ draft: p, open: true, n: (e?.n ?? 0) + 1 }))}
+                className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left active:bg-surface-2"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[15px] font-medium">
+                    {formatDateEs(p.from)} – {p.to ? formatDateEs(p.to) : "Indefinido"}
+                  </span>
+                  <span className="block text-[13px] text-muted">
+                    {formatEuros(p.baseCents)}
+                    {p.respPlusCents > 0 && ` + resp. ${formatEuros(p.respPlusCents)}`}
+                  </span>
+                </span>
+                <span aria-hidden className="text-muted">›</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <BottomSheet open={!!editing?.open} onClose={() => setEditing((e) => (e ? { ...e, open: false } : e))} title={editing?.draft.id ? "Editar periodo" : "Nuevo periodo"}>
+        {editing && <PeriodEditor key={editing.n} initial={editing.draft} onDone={() => setEditing((e) => (e ? { ...e, open: false } : e))} />}
+      </BottomSheet>
+    </Card>
+  );
+}
+
+export function PayrollSettingsForm({
+  initial,
+  periods,
+  employees,
+}: {
+  initial: PayrollConfig;
+  periods: PayrollPeriod[];
+  employees: { id: string; name: string }[];
+}) {
   const [cfg, setCfg] = useState(initial);
   const { run } = useRun();
   const save = (patch: Partial<PayrollConfig>) => {
@@ -83,8 +167,9 @@ export function PayrollSettingsForm({ initial, employees }: { initial: PayrollCo
             </select>
           </Field>
         </Card>
+        <Periods periods={periods} />
         <Card title="Salario">
-          <Field label="Salario base mensual (bruto)">
+          <Field label="Salario base mensual (bruto)" hint="Solo para meses sin periodo de salario.">
             <EuroInput label="Salario base mensual" cents={cfg.baseMonthlyCents} onCommit={(v) => save({ baseMonthlyCents: v })} />
           </Field>
           <Field label="Prorrata de pagas extra (al mes)" hint="Déjalo vacío si cobras las pagas aparte.">
@@ -112,7 +197,7 @@ export function PayrollSettingsForm({ initial, employees }: { initial: PayrollCo
           )}
         </Card>
         <Card title="Extras">
-          <Field label="Precio de la hora extra">
+          <Field label="Precio de la hora extra" hint="Jornada 48 h = 8 h extra a la semana (≈ 34,67 h al mes).">
             <EuroInput label="Precio hora extra" cents={cfg.overtimeHourCents} onCommit={(v) => save({ overtimeHourCents: v })} />
           </Field>
           <Field label="Plus por festivo trabajado (por día)">

@@ -11,7 +11,9 @@ export type ShiftKind = "NIGHT" | "DAY";
 
 export interface PayrollConfig {
   employeeId: string | null;
+  /** Salario base si ningún periodo cubre el mes. */
   baseMonthlyCents: number;
+  respPlusCents: number;
   proratedExtraCents: number;
   nightPlusMode: NightPlusMode;
   /** € por noche trabajada (céntimos) si PER_NIGHT. */
@@ -27,6 +29,7 @@ export interface PayrollConfig {
 export const DEFAULT_PAYROLL: PayrollConfig = {
   employeeId: null,
   baseMonthlyCents: 0,
+  respPlusCents: 0,
   proratedExtraCents: 0,
   nightPlusMode: "PERCENT",
   nightPlusPerNightCents: 0,
@@ -36,6 +39,37 @@ export const DEFAULT_PAYROLL: PayrollConfig = {
   ssPercent: 6.48,
   irpfPercent: 12,
 };
+
+/** Tramo de salario (fechas incluidas; to null = indefinido). */
+export interface PayrollPeriod {
+  id: string;
+  from: DateStr;
+  to: DateStr | null;
+  baseCents: number;
+  respPlusCents: number;
+}
+
+/** Periodo que aplica a un mes: el último que ha empezado antes de fin de mes y no ha terminado antes de que empiece. */
+export function periodForMonth(periods: PayrollPeriod[], month: MonthStr): PayrollPeriod | null {
+  const days = monthDays(month);
+  const first = days[0]!;
+  const last = days.at(-1)!;
+  const active = periods
+    .filter((p) => p.from <= last && (p.to === null || p.to >= first))
+    .sort((a, b) => b.from.localeCompare(a.from));
+  return active[0] ?? null;
+}
+
+/** Config con el salario del periodo del mes (si lo hay). */
+export function configForMonth(cfg: PayrollConfig, periods: PayrollPeriod[], month: MonthStr): PayrollConfig {
+  const p = periodForMonth(periods, month);
+  return p ? { ...cfg, baseMonthlyCents: p.baseCents, respPlusCents: p.respPlusCents } : cfg;
+}
+
+/** Minutos extra al mes por hacer N horas más a la semana (52 semanas / 12 meses). */
+export function weeklyExtraToMonthlyMinutes(hoursPerWeek: number): number {
+  return Math.round((hoursPerWeek * 52 * 60) / 12);
+}
 
 /** Datos del mes (días por tipo y horas extra). */
 export interface MonthStats {
@@ -130,6 +164,7 @@ export function calculatePay(cfg: PayrollConfig, stats: MonthStats, shift: Shift
   if (stats.absentDays > 0) {
     add("absent", "Descuento por faltas", -(cfg.baseMonthlyCents / 30) * stats.absentDays, `${stats.absentDays} días`);
   }
+  add("resp", "Plus responsabilidad", cfg.respPlusCents);
   add("prorated", "Prorrata pagas extra", cfg.proratedExtraCents);
   if (shift === "NIGHT") {
     if (cfg.nightPlusMode === "PER_NIGHT") {
@@ -176,4 +211,9 @@ export function parseEuros(text: string): number | null {
   const normalized = t.includes(",") || thousands ? t.replace(/\./g, "").replace(",", ".") : t;
   if (!/^-?\d+(\.\d{1,2})?$/.test(normalized)) return null;
   return Math.round(Number(normalized) * 100);
+}
+
+/** "2026-09-21" → "21/09/2026". */
+export function formatDateEs(date: DateStr): string {
+  return `${date.slice(8, 10)}/${date.slice(5, 7)}/${date.slice(0, 4)}`;
 }

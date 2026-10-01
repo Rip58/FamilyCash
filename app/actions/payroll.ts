@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { isMonthStr } from "@/lib/dates";
+import { isDateStr, isMonthStr, toDbDate } from "@/lib/dates";
 import { db } from "@/lib/db";
 
 export type PayrollActionResult = { ok: true } | { ok: false; error: string };
@@ -13,6 +13,7 @@ const percent = z.number().min(0).max(100);
 const settingsSchema = z.object({
   employeeId: z.string().max(64).nullable(),
   baseMonthlyCents: cents,
+  respPlusCents: cents,
   proratedExtraCents: cents,
   nightPlusMode: z.enum(["PER_NIGHT", "PERCENT"]),
   nightPlusPerNightCents: cents,
@@ -37,6 +38,17 @@ const payslipSchema = z.object({
   netCents: cents.nullable(),
   note: z.string().trim().max(500).nullable().transform((v) => v || null),
 });
+
+const dateStr = z.string().refine(isDateStr, "Fecha no válida.");
+const periodSchema = z
+  .object({
+    id: z.string().max(64).optional(),
+    from: dateStr,
+    to: dateStr.nullable(),
+    baseCents: cents,
+    respPlusCents: cents,
+  })
+  .refine((p) => p.to === null || p.to >= p.from, "La fecha final es anterior a la inicial.");
 
 function revalidate() {
   revalidatePath("/nomina", "layout");
@@ -64,6 +76,25 @@ export async function savePayslip(input: z.input<typeof payslipSchema>): Promise
   } else {
     await db.payslip.upsert({ where: { month }, create: { month, ...data }, update: data });
   }
+  revalidate();
+  return { ok: true };
+}
+
+export async function savePayrollPeriod(input: z.input<typeof periodSchema>): Promise<PayrollActionResult> {
+  const p = periodSchema.safeParse(input);
+  if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Datos no válidos." };
+  const { id, from, to, ...money } = p.data;
+  const data = { from: toDbDate(from), to: to ? toDbDate(to) : null, ...money };
+  if (id) await db.payrollPeriod.update({ where: { id }, data });
+  else await db.payrollPeriod.create({ data });
+  revalidate();
+  return { ok: true };
+}
+
+export async function deletePayrollPeriod(id: string): Promise<PayrollActionResult> {
+  const p = z.string().min(1).max(64).safeParse(id);
+  if (!p.success) return { ok: false, error: "Datos no válidos." };
+  await db.payrollPeriod.deleteMany({ where: { id: p.data } });
   revalidate();
   return { ok: true };
 }

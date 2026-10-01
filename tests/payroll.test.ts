@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { addMonths, isMonthStr, monthDays, monthOf } from "@/lib/dates";
 import {
-  DEFAULT_PAYROLL, type MonthStats, calculatePay, mergeStats, monthStatsFromSchedule, parseEuros,
+  DEFAULT_PAYROLL, type MonthStats, calculatePay, configForMonth, mergeStats, monthStatsFromSchedule, parseEuros,
+  periodForMonth, weeklyExtraToMonthlyMinutes,
 } from "@/lib/payroll";
 import type { DayEntryLite, EmployeeLite, StatusTypeLite } from "@/lib/schedule";
 
@@ -84,5 +85,37 @@ describe("parseEuros", () => {
     expect(parseEuros("12,5 €")).toBe(1250);
     expect(parseEuros("")).toBe(0);
     expect(parseEuros("abc")).toBeNull();
+  });
+});
+
+describe("periodos y propuesta salarial", () => {
+  const periods = [
+    { id: "a", from: "2026-09-21", to: "2026-11-30", baseCents: 186007, respPlusCents: 0 },
+    { id: "b", from: "2026-12-01", to: "2027-03-31", baseCents: 186007, respPlusCents: 50000 },
+    { id: "c", from: "2027-04-01", to: "2027-09-30", baseCents: 186007, respPlusCents: 95000 },
+    { id: "d", from: "2027-10-01", to: null, baseCents: 186007, respPlusCents: 129361 },
+  ];
+  const cfg = { ...DEFAULT_PAYROLL, nightPlusPercent: 0, overtimeHourCents: 1374, ssPercent: 6.5, irpfPercent: 0 };
+  const stats: MonthStats = { daysInMonth: 31, daysWorked: 23, daysOff: 8, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 0, extraMinutes: 0 };
+  const net = (month: string, extraMinutes = 0) =>
+    calculatePay(configForMonth(cfg, periods, month), { ...stats, extraMinutes }, "NIGHT");
+
+  it("elige el periodo del mes", () => {
+    expect(periodForMonth(periods, "2026-08")).toBeNull();
+    expect(periodForMonth(periods, "2026-09")!.id).toBe("a");
+    expect(periodForMonth(periods, "2027-01")!.id).toBe("b");
+    expect(periodForMonth(periods, "2030-01")!.id).toBe("d");
+  });
+  it("cuadra con la propuesta (40 h)", () => {
+    expect(net("2026-10").netCents).toBe(173917);
+    expect(net("2027-01").netCents).toBe(220667);
+    expect(net("2027-05").netCents).toBe(262742);
+    expect(net("2027-11").netCents).toBe(294869);
+  });
+  it("jornada 48 h ≈ propuesta (±0,10 €)", () => {
+    const m48 = weeklyExtraToMonthlyMinutes(8);
+    expect(m48).toBe(2080);
+    expect(Math.abs(net("2026-10", m48).grossCents - 233647)).toBeLessThanOrEqual(10);
+    expect(Math.abs(net("2027-11", m48).netCents - 339412)).toBeLessThanOrEqual(10);
   });
 });

@@ -1,8 +1,8 @@
 import "server-only";
-import { type MonthStr, addMonths, monthDays } from "./dates";
+import { type MonthStr, addMonths, fromDbDate, monthDays } from "./dates";
 import { db } from "./db";
 import {
-  DEFAULT_PAYROLL, type MonthOverrides, type MonthStats, type NightPlusMode, type PayrollConfig,
+  DEFAULT_PAYROLL, type MonthOverrides, type MonthStats, type NightPlusMode, type PayrollConfig, type PayrollPeriod,
   mergeStats, monthStatsFromSchedule,
 } from "./payroll";
 import { getEmployees, getEntriesBetween, getStatusTypes } from "./queries";
@@ -13,6 +13,17 @@ export async function getPayrollConfig(): Promise<PayrollConfig> {
   const { id: _id, ...rest } = row;
   void _id;
   return { ...rest, nightPlusMode: rest.nightPlusMode as NightPlusMode };
+}
+
+export async function getPayrollPeriods(): Promise<PayrollPeriod[]> {
+  const rows = await db.payrollPeriod.findMany({ orderBy: { from: "asc" } });
+  return rows.map((r) => ({
+    id: r.id,
+    from: fromDbDate(r.from),
+    to: r.to ? fromDbDate(r.to) : null,
+    baseCents: r.baseCents,
+    respPlusCents: r.respPlusCents,
+  }));
 }
 
 export interface PayrollMonth {
