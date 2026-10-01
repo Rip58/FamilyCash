@@ -42,5 +42,6 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 ## Notas técnicas (rendimiento)
 - Datos de referencia (`getSettings`, `getStatusTypes`, `getDepartments`, `getEmployees`, `getSections`) cacheados con `unstable_cache` (tag `REF_TAG`); `done()` de `app/actions/settings.ts` hace `updateTag(REF_TAG)`. Si añades otra escritura a esas tablas fuera de ahí, invalida el tag.
 - `experimental.staleTimes.dynamic = 30` en `next.config.ts`: volver a una pestaña reciente no pide nada al servidor.
+- Funciones de Vercel en `cdg1` (París, `vercel.json`), junto a la BD (eu-west-3). No cambiar una sin la otra.
 - Cada sección tiene su `loading.tsx` (no uno global en `(app)`, que rompería los 404 de fechas inválidas).
 
