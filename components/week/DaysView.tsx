@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { type DateStr, formatDayShort } from "@/lib/dates";
+import { type DateStr, formatDayLong, formatDayShort } from "@/lib/dates";
 import type { DayRoster } from "@/lib/schedule";
-import { compactNames } from "@/lib/week";
+import { daySummary } from "@/lib/week";
 import { cn } from "@/components/ui/cn";
 
 function NoteIcon() {
@@ -23,7 +23,16 @@ function NoteIcon() {
   );
 }
 
-/** Vista Días: 7 tarjetas verticales, una por noche. Componente de servidor. */
+const LEVEL = {
+  ok: { stripe: "var(--success)", pill: "bg-success/15 text-success" },
+  warn: { stripe: "var(--warning)", pill: "bg-warning/20 text-warning" },
+  bad: { stripe: "var(--danger)", pill: "bg-danger/15 text-danger" },
+} as const;
+
+/**
+ * Vista Días: 7 tarjetas, una por noche. De un vistazo: cuántos vienen, si algún departamento
+ * se queda corto (semáforo) y quién falta por qué motivo. Componente de servidor.
+ */
 export function DaysView({
   rosters,
   notes,
@@ -34,89 +43,82 @@ export function DaysView({
   today: DateStr;
 }) {
   return (
-    <ul className="flex flex-col gap-2">
+    <ul className="flex flex-col gap-2.5">
       {rosters.map((r) => {
         const isToday = r.date === today;
         const hasNote = notes.includes(r.date);
-        const depts = r.departments.filter((d) => d.present.length + d.absent.length > 0);
+        const s = daySummary(r);
+        const total = s.present + s.off.length + s.away.reduce((n, g) => n + g.names.length, 0);
+        const level = LEVEL[s.level];
+        const verdict = s.level === "ok" ? "✓ Completo" : s.missing > 0 ? `⚠ Faltan ${s.missing}` : "⚠ Revisar";
         return (
           <li key={r.date}>
             <Link
               href={`/hoy/${r.date}`}
+              aria-label={`${formatDayLong(r.date)}: ${s.present} vienen, ${verdict.replace(/^[✓⚠] /, "")}`}
               className={cn(
-                "block min-h-11 rounded-card bg-surface px-4 py-3 active:opacity-70",
+                "relative block overflow-hidden rounded-card bg-surface py-3 pl-5 pr-4 active:opacity-70",
                 isToday && "ring-2 ring-accent",
               )}
             >
+              <span aria-hidden className="absolute inset-y-0 left-0 w-1.5" style={{ backgroundColor: level.stripe }} />
+
               <div className="flex items-center justify-between gap-3">
                 <span className="flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "text-[17px] font-semibold",
-                      isToday && "rounded-full bg-accent px-2.5 py-0.5 text-accent-fg",
-                    )}
-                  >
-                    {formatDayShort(r.date)}
-                  </span>
-                  {isToday && <span className="text-[12px] font-medium text-accent">Hoy</span>}
+                  <span className="text-[17px] font-semibold">{formatDayShort(r.date)}</span>
+                  {isToday && (
+                    <span className="rounded-full bg-accent px-2 py-0.5 text-[12px] font-semibold text-accent-fg">Hoy</span>
+                  )}
                   {hasNote && (
                     <span className="text-muted">
                       <NoteIcon />
                     </span>
                   )}
                 </span>
-                <span className="text-[15px] font-medium">{r.presentCount} trabajan</span>
+                <span className={cn("rounded-full px-2.5 py-1 text-[13px] font-semibold", level.pill)}>{verdict}</span>
               </div>
 
-              {depts.length > 0 && (
-                <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1" aria-label="Departamentos">
-                  {depts.map((d) => {
-                    const state = d.isEmpty ? "vacío" : d.isUnderStaffed ? "por debajo de plazas" : "completo";
-                    const color = d.isEmpty
-                      ? "var(--danger)"
-                      : d.isUnderStaffed
-                        ? "var(--warning)"
-                        : d.department.color;
-                    return (
-                      <li
-                        key={d.department.id}
-                        className="flex items-center gap-1 text-[12px] text-muted"
-                        title={`${d.department.name}: ${state}`}
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="inline-block h-3 w-3 rounded-full"
-                          style={{ backgroundColor: color }}
-                        />
-                        <span className={cn(d.isEmpty && "font-semibold text-danger")}>
-                          {d.present.length}
-                          {d.targetStaff > 0 ? `/${d.targetStaff}` : ""}
-                        </span>
-                        <span className="sr-only">
-                          {d.department.name}, {state}
-                        </span>
-                      </li>
-                    );
-                  })}
+              <p className="mt-1 flex items-baseline gap-1.5">
+                <span className="text-[28px] font-bold leading-none tabular-nums">{s.present}</span>
+                <span className="text-[15px] font-medium">vienen</span>
+                <span className="text-[14px] text-muted">de {total}</span>
+              </p>
+
+              {s.issues.length > 0 && (
+                <ul className="mt-2 flex flex-col gap-0.5" aria-label="Departamentos cortos">
+                  {s.issues.map((i) => (
+                    <li
+                      key={i.name}
+                      className={cn("text-[14px] font-medium", i.present === 0 ? "text-danger" : "text-warning")}
+                    >
+                      {i.name}: {i.present === 0 ? "nadie" : `${i.present} de ${i.target}`}
+                    </li>
+                  ))}
                 </ul>
               )}
 
-              <p className="mt-2 text-[13px] leading-snug text-muted">
-                {r.absentByStatus.length === 0
-                  ? "Todos trabajan"
-                  : r.absentByStatus.map((g, i) => {
-                      const names = compactNames(g.members.map((m) => m.employee));
-                      return (
-                        <span key={g.status.id}>
-                          {i > 0 && " · "}
-                          <span className="font-semibold" style={{ color: "var(--fg)" }}>
-                            {g.status.label}:
-                          </span>{" "}
-                          {names.join(", ")}
-                        </span>
-                      );
-                    })}
-              </p>
+              {s.away.length > 0 && (
+                <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="No vienen">
+                  {s.away.map((g) => (
+                    <li
+                      key={g.id}
+                      className="rounded-[8px] border px-2 py-1 text-[13px] leading-tight"
+                      style={{ borderColor: `${g.color}66`, backgroundColor: `${g.color}14` }}
+                    >
+                      <span className="font-semibold">
+                        {g.label} {g.names.length}
+                      </span>
+                      <span className="text-muted"> · {g.names.join(", ")}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {s.off.length > 0 && (
+                <p className="mt-2 text-[13px] leading-snug text-muted">
+                  <span className="font-medium">Libran {s.off.length}:</span> {s.off.join(", ")}
+                </p>
+              )}
             </Link>
           </li>
         );

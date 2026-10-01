@@ -6,6 +6,7 @@
 import { type DateStr, addDays, weekDays } from "./dates";
 import {
   type DayEntryLite,
+  type DayRoster,
   type EmployeeLite,
   type StatusTypeLite,
   getEffectiveDay,
@@ -209,4 +210,50 @@ export function weekSummary(
     }));
   if (extra > 0) tokens.push({ key: "extra", text: `${formatHoursShort(extra)}X`, dayOff: false });
   return tokens;
+}
+
+// ---- Resumen de un día (Semana → Días) -------------------------------------
+
+export interface DayIssue {
+  name: string;
+  present: number;
+  target: number;
+}
+
+export interface DaySummary {
+  /** ok = todos los departamentos cubiertos; warn = faltan plazas; bad = algún departamento sin nadie. */
+  level: "ok" | "warn" | "bad";
+  present: number;
+  /** Plazas sin cubrir (suma de plazas − presentes en los departamentos cortos). */
+  missing: number;
+  issues: DayIssue[];
+  /** Los que libran (Fiesta): lo normal, se muestra discreto. */
+  off: string[];
+  /** Resto de ausencias (vacaciones, baja, falta…), lo que hay que ver. */
+  away: { id: string; label: string; color: string; names: string[] }[];
+}
+
+/** Resumen visual de una noche: quién viene, quién no y si algún departamento se queda corto. */
+export function daySummary(r: DayRoster): DaySummary {
+  const issues: DayIssue[] = r.departments
+    .filter((d) => d.present.length + d.absent.length > 0 && (d.isEmpty || d.isUnderStaffed))
+    .map((d) => ({ name: d.department.name, present: d.present.length, target: d.targetStaff }));
+  const missing = issues.reduce((n, i) => n + Math.max(0, i.target - i.present), 0);
+  const level = issues.some((i) => i.present === 0) ? "bad" : issues.length > 0 ? "warn" : "ok";
+  const offGroup = r.absentByStatus.find((g) => g.status.code === "OFF");
+  return {
+    level,
+    present: r.presentCount,
+    missing,
+    issues,
+    off: offGroup ? compactNames(offGroup.members.map((m) => m.employee)) : [],
+    away: r.absentByStatus
+      .filter((g) => g.status.code !== "OFF")
+      .map((g) => ({
+        id: g.status.id,
+        label: g.status.label,
+        color: g.status.color,
+        names: compactNames(g.members.map((m) => m.employee)),
+      })),
+  };
 }
