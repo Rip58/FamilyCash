@@ -1,20 +1,19 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
-import { BLOB_MISSING, saveLocalFile, storageMode } from "@/lib/storage";
+import { BLOB_MISSING, blobMissing, saveStoredFile } from "@/lib/storage";
 import { sniffImageType, validateUpload } from "@/lib/upload-rules";
 
 export const dynamic = "force-dynamic";
 
 const err = (error: string, status: number) => NextResponse.json({ error }, { status });
 
-/** Modo desarrollo (sin BLOB_READ_WRITE_TOKEN): guarda la foto en `.uploads/`. */
+/** Recibe una foto ya comprimida (≤ 300 KB) y la guarda en Vercel Blob (privado) o, en desarrollo, en `.uploads/`. */
 export async function POST(req: Request) {
   const jar = await cookies();
   if (!(await verifySessionToken(jar.get(SESSION_COOKIE)?.value))) return err("No autorizado", 401);
-  if (storageMode() !== "local") return err("La subida local está desactivada.", 404);
   // En Vercel el disco es de solo lectura: sin Vercel Blob no hay dónde guardar fotos.
-  if (process.env.VERCEL) return err(BLOB_MISSING, 503);
+  if (blobMissing()) return err(BLOB_MISSING, 503);
 
   let file: FormDataEntryValue | null;
   try {
@@ -32,9 +31,10 @@ export async function POST(req: Request) {
   if (!real) return err("El archivo no es una imagen válida.", 400);
 
   try {
-    return NextResponse.json(await saveLocalFile(bytes, real));
+    return NextResponse.json(await saveStoredFile(bytes, real));
   } catch (e) {
     console.error(e);
-    return err("No se pudo guardar la foto en el servidor.", 500);
+    const detail = e instanceof Error ? e.message : String(e);
+    return err(`No se pudo guardar la foto en el servidor (${detail.slice(0, 160)}).`, 500);
   }
 }

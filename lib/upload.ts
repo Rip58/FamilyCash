@@ -1,11 +1,9 @@
 /**
- * Subida de fotos desde el cliente. Una única función `uploadPhoto` que elige
- * el modo según el flag que expone el servidor (hay BLOB_READ_WRITE_TOKEN o no):
- *  - "blob":  subida directa a Vercel Blob (`@vercel/blob/client`).
- *  - "local": POST multipart a /api/upload/local (desarrollo).
+ * Subida de fotos desde el cliente: `uploadPhoto` comprime la foto (WebP ≤ 300 KB) y la envía a
+ * /api/upload/photo, que la guarda en Vercel Blob (privado) o, en desarrollo, en `.uploads/`.
  */
 import { compressImage } from "./image-compress";
-import { LOCAL_FILES_BASE, UPLOAD_PREFIX, extensionFor, validateUpload } from "./upload-rules";
+import { extensionFor, validateUpload } from "./upload-rules";
 
 export type StorageMode = "blob" | "local";
 
@@ -18,15 +16,16 @@ export interface UploadedPhoto {
 }
 
 export interface UploadOptions {
-  mode: StorageMode;
+  /** Informativo: el servidor decide dónde guardar. */
+  mode?: StorageMode;
   onProgress?: (fraction: number) => void;
   signal?: AbortSignal;
 }
 
-function uploadLocal(blob: Blob, opts: UploadOptions): Promise<{ url: string; pathname: string }> {
+function send(blob: Blob, opts: UploadOptions): Promise<{ url: string; pathname: string }> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/upload/local");
+    xhr.open("POST", "/api/upload/photo");
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) opts.onProgress?.(e.loaded / e.total);
     };
@@ -50,20 +49,6 @@ function uploadLocal(blob: Blob, opts: UploadOptions): Promise<{ url: string; pa
   });
 }
 
-async function uploadBlob(blob: Blob, opts: UploadOptions): Promise<{ url: string; pathname: string }> {
-  const { upload } = await import("@vercel/blob/client");
-  const name = `${UPLOAD_PREFIX}foto.${extensionFor(blob.type) ?? "webp"}`;
-  // Almacén privado: la foto solo se ve a través de /api/files (con sesión).
-  const res = await upload(name, blob, {
-    access: "private",
-    handleUploadUrl: "/api/upload",
-    contentType: blob.type,
-    abortSignal: opts.signal,
-    onUploadProgress: (p) => opts.onProgress?.(p.percentage / 100),
-  });
-  return { url: `${LOCAL_FILES_BASE}${res.pathname}`, pathname: res.pathname };
-}
-
 /** Comprime (WebP 0,85, 1600 px, ≤ 300 KB) y sube una foto. Lanza Error con mensaje en español. */
 export async function uploadPhoto(file: File, opts: UploadOptions): Promise<UploadedPhoto> {
   if (file.size === 0) throw new Error("El archivo está vacío.");
@@ -71,7 +56,7 @@ export async function uploadPhoto(file: File, opts: UploadOptions): Promise<Uplo
   const check = validateUpload(blob.type, blob.size);
   if (!check.ok) throw new Error(check.error);
   opts.onProgress?.(0);
-  const stored = opts.mode === "blob" ? await uploadBlob(blob, opts) : await uploadLocal(blob, opts);
+  const stored = await send(blob, opts);
   opts.onProgress?.(1);
   return { ...stored, width, height, size: blob.size };
 }

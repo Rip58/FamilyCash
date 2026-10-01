@@ -1,25 +1,27 @@
 /**
- * Almacenamiento de fotos (solo servidor).
- *  - Con BLOB_READ_WRITE_TOKEN: Vercel Blob.
- *  - Sin token (desarrollo): carpeta local `.uploads/`, servida por /api/files.
+ * Almacenamiento de fotos (solo servidor). Las fotos siempre se suben y se sirven a través de la app
+ * (/api/upload/photo y /api/files, con sesión):
+ *  - Con Vercel Blob conectado (`blobAuth`): almacén privado.
+ *  - Sin Blob (desarrollo): carpeta local `.uploads/`.
  */
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { del, get } from "@vercel/blob";
+import { del, get, put } from "@vercel/blob";
+import { blobAuth } from "./blob-auth";
 import { LOCAL_FILES_BASE, UPLOAD_PREFIX, extensionFor, isSafePathname } from "./upload-rules";
 
 export type StorageMode = "blob" | "local";
 
 export function storageMode(): StorageMode {
-  return process.env.BLOB_READ_WRITE_TOKEN ? "blob" : "local";
+  return blobAuth() ? "blob" : "local";
 }
 
 export const BLOB_MISSING =
   "Falta conectar el almacenamiento de fotos: en Vercel → Storage, crea un Blob y conéctalo al proyecto.";
 
-/** En Vercel sin token de Blob no se pueden guardar fotos (el disco es de solo lectura). */
+/** En Vercel sin Blob no se pueden guardar fotos (el disco es de solo lectura). */
 export function blobMissing(): boolean {
   return storageMode() === "local" && !!process.env.VERCEL;
 }
@@ -32,6 +34,20 @@ export function localFilePath(pathname: string): string | null {
   if (!isSafePathname(pathname)) return null;
   const full = path.resolve(ROOT, pathname);
   return full.startsWith(ROOT + path.sep) ? full : null;
+}
+
+/** Guarda una foto ya validada y devuelve su URL (servida por /api/files) y su pathname. */
+export async function saveStoredFile(bytes: Uint8Array, contentType: string): Promise<{ url: string; pathname: string }> {
+  const auth = blobAuth();
+  if (!auth) return saveLocalFile(bytes, contentType);
+  const ext = extensionFor(contentType);
+  if (!ext) throw new Error("Formato no admitido.");
+  const res = await put(`${UPLOAD_PREFIX}${randomUUID()}.${ext}`, Buffer.from(bytes), {
+    access: "private",
+    contentType,
+    ...auth,
+  });
+  return { url: `${LOCAL_FILES_BASE}${res.pathname}`, pathname: res.pathname };
 }
 
 export async function saveLocalFile(bytes: Uint8Array, contentType: string): Promise<{ url: string; pathname: string }> {
@@ -60,7 +76,7 @@ export async function readStoredFile(pathname: string): Promise<BodyInit | null>
   if (!isSafePathname(pathname)) return null;
   if (storageMode() === "blob") {
     try {
-      const r = await get(pathname, { access: "private" });
+      const r = await get(pathname, { access: "private", ...blobAuth() });
       return r?.statusCode === 200 ? r.stream : null;
     } catch (e) {
       console.error("No se pudo leer", pathname, e);
@@ -75,7 +91,7 @@ export async function readStoredFile(pathname: string): Promise<BodyInit | null>
 export async function deleteStoredFile(pathname: string): Promise<void> {
   if (storageMode() === "blob") {
     // `del` acepta URL o pathname; con pathname busca en el store del token.
-    await del(pathname);
+    await del(pathname, { ...blobAuth() });
     return;
   }
   const full = localFilePath(pathname);

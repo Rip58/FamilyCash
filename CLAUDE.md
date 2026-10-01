@@ -22,9 +22,9 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 - Dev local: Postgres en `postgresql://app:app@localhost:5432/plantilla`, contraseña de la app `noche`.
 
 ## Notas técnicas (Fase 6c: avisos con foto)
-- Almacenamiento en `lib/storage.ts` (solo servidor): con `BLOB_READ_WRITE_TOKEN` usa Vercel Blob (subida directa desde el cliente vía `app/api/upload`), sin token guarda en `.uploads/` (gitignored) y sirve con `app/api/files/[...path]` (comprueba sesión; las rutas `.jpg/.png/.webp` no pasan por `proxy.ts`). El cliente usa `uploadPhoto` (`lib/upload.ts`) con el modo expuesto por `StorageModeProvider` en `app/(app)/layout.tsx`.
-- El almacén Blob es PRIVADO: se sube con `access: "private"` y la URL guardada es `/api/files/<pathname>` (la ruta lee con `get` + sesión, `readStoredFile`). No enlazar URLs de blob directamente.
-- En Vercel sin `BLOB_READ_WRITE_TOKEN` no se pueden guardar fotos (disco de solo lectura): `/api/upload/local` responde `BLOB_MISSING` y Ajustes → Almacenamiento lo avisa (`blobMissing()`).
+- Almacenamiento en `lib/storage.ts` (solo servidor). El cliente (`uploadPhoto`, `lib/upload.ts`) comprime y envía SIEMPRE a `app/api/upload/photo`; el servidor guarda en Vercel Blob si hay credenciales (`lib/blob-auth.ts`: `BLOB_READ_WRITE_TOKEN` o `BLOB_STORE_ID` + OIDC, también con prefijo) y si no en `.uploads/` (gitignored). Se sirven con `app/api/files/[...path]` (comprueba sesión; las rutas `.jpg/.png/.webp` no pasan por `proxy.ts`).
+- El almacén Blob es PRIVADO: `put` con `access: "private"` (`saveStoredFile`) y la URL guardada es `/api/files/<pathname>` (`readStoredFile` con `get`). No enlazar URLs de blob directamente.
+- En Vercel sin Blob no se pueden guardar fotos (disco de solo lectura): `/api/upload/photo` responde `BLOB_MISSING` y Ajustes → Almacenamiento lo avisa (`blobMissing()`).
 - Reglas de subida/validación puras en `lib/upload-rules.ts`; compresión en `lib/image-compress.ts`; esquemas zod y utilidades en `lib/reports.ts`; consultas en `lib/report-queries.ts`; acciones en `app/actions/reports.ts`.
 
 ## Notas técnicas (Fase 7: pulido)
