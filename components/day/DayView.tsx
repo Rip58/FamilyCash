@@ -274,50 +274,9 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
         </section>
       )}
 
-      {departments.length === 0 && (
-        <Card>
-          <p className="text-[15px] text-muted">
-            Aún no hay departamentos. Créalos en Ajustes para organizar la plantilla.
-          </p>
-        </Card>
-      )}
-
-      {roster.departments.map(({ department, present, absent, targetStaff, isEmpty, isUnderStaffed }) => (
-        <Card key={department.id} flush tone={isEmpty ? "danger" : "default"} aria-label={department.name}>
-          <div className="flex min-h-11 items-center justify-between gap-3 px-4 pt-1">
-            <h2 className="flex items-center gap-2 text-[16px] font-semibold">
-              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: department.color }} aria-hidden />
-              {department.name}
-            </h2>
-            <span
-              className={cn(
-                "text-[15px] font-semibold tabular-nums",
-                isEmpty ? "text-danger" : isUnderStaffed ? "text-warning" : "text-muted",
-              )}
-              aria-label={`${present.length} de ${targetStaff} plazas`}
-            >
-              {targetStaff > 0 ? `${present.length}/${targetStaff}` : present.length}
-            </span>
-          </div>
-          {isEmpty && (
-            <div className="px-4 pb-2">
-              <p className="text-[15px] font-semibold text-danger">Sin personal</p>
-            </div>
-          )}
-          {present.length > 0 && <div className="divide-y divide-line pb-1">{present.map((m) => row(m))}</div>}
-          {isEmpty && absent.length > 0 && (
-            <div className="divide-y divide-line pb-1">{absent.map((m) => row(m, true))}</div>
-          )}
-        </Card>
-      ))}
-
-      {roster.unassigned.length > 0 && (
-        <Card flush>
-          <div className="flex min-h-11 items-center justify-between px-4 pt-1">
-            <h2 className="text-[16px] font-semibold">Sin departamento</h2>
-            <span className="text-[15px] font-semibold tabular-nums text-muted">{roster.unassigned.length}</span>
-          </div>
-          <div className="divide-y divide-line pb-1">{roster.unassigned.map((m) => row(m))}</div>
+      {expected.length > 0 && (
+        <Card flush aria-label="Empleados">
+          <div className="divide-y divide-line py-1">{expected.map((m) => row(m))}</div>
         </Card>
       )}
 
