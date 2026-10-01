@@ -244,7 +244,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
   const mismatches = [...expected, ...roster.absentByStatus.flatMap((g) => g.members)]
     .filter((m) => m.day.planned)
     .sort(byOrder);
-  const absentCode = roster.absentByStatus.find((g) => g.status.code === "ABSENT")?.members.length ?? 0;
+  const absentGroups = roster.absentByStatus.filter((g) => g.members.length > 0);
 
   return (
     <div className="flex flex-col gap-3 pb-6">
@@ -274,19 +274,31 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
         {nightExtra > 0 && <span className="text-[14px] font-medium tabular-nums">{formatOvertime(nightExtra, true)}</span>}
       </button>
 
-      {expected.length > 0 && (
-        <p
+      {(expected.length > 0 || absentGroups.length > 0) && (
+        <div
           className={cn(
-            "flex min-h-11 items-center justify-between gap-3 rounded-card px-4 text-[15px] font-medium",
-            confirmed === expected.length ? "bg-success/15 text-fg" : "bg-surface",
+            "flex flex-col gap-1.5 rounded-card px-4 py-2.5 text-[15px] font-medium",
+            expected.length > 0 && confirmed === expected.length ? "bg-success/15 text-fg" : "bg-surface",
           )}
           aria-label="Pasar lista"
         >
           <span>
             Pasar lista · <span className="tabular-nums font-semibold">{confirmed}/{expected.length}</span> han venido
           </span>
-          {absentCode > 0 && <span className="text-[14px] text-danger">{absentCode} falta{absentCode === 1 ? "" : "n"}</span>}
-        </p>
+          {absentGroups.length > 0 && (
+            <span className="flex flex-wrap gap-1.5">
+              {absentGroups.map((g) => (
+                <span
+                  key={g.status.id}
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[13px] font-semibold text-white"
+                  style={{ backgroundColor: g.status.color }}
+                >
+                  {g.status.label} <span className="tabular-nums">{g.members.length}</span>
+                </span>
+              ))}
+            </span>
+          )}
+        </div>
       )}
 
       {mismatches.length > 0 && (

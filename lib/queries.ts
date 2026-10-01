@@ -32,8 +32,10 @@ export interface SettingsData {
  * El `revalidate` es una red de seguridad por si algo los cambia por otro camino.
  */
 export const REF_TAG = "ref";
+/** Súbelo si una migración cambia estos datos, para no servir la caché anterior tras el despliegue. */
+const REF_CACHE_VERSION = "ref-v2";
 const refCache = <T>(fn: () => Promise<T>, key: string) =>
-  unstable_cache(fn, ["ref", key], { tags: [REF_TAG], revalidate: 300 });
+  unstable_cache(fn, [REF_CACHE_VERSION, key], { tags: [REF_TAG], revalidate: 300 });
 
 /** Ajustes (fila id=1; se crea con valores por defecto si no existe). */
 export const getSettings = refCache(async (): Promise<SettingsData> => {

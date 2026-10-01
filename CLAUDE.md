@@ -32,7 +32,7 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 - Zona segura: `.app-main` y `BackHeader` gestionan `safe-area-inset-top`; el layout `(app)` pone una tapa fija bajo la barra de estado.
 
 ## Notas técnicas (pasar lista)
-- Semana = plan; Hoy = control. `DayEntry.present` (true = ha venido, null = sin confirmar), patch `attendance` en `lib/segments.ts`, acción `setAttendance`. Marcar ✗ cambia el estado del día (por defecto `ABSENT` "Falta", creado en la migración `attendance`), y por tanto también la Semana.
+- Semana = plan; Hoy = control. `DayEntry.present` (true = ha venido, null = sin confirmar), patch `attendance` en `lib/segments.ts`, acción `setAttendance`. Marcar ✗ cambia el estado del día (`ABSENT`, creado en la migración `attendance` y unificado con el "Faltante" manual en `merge_faltante`), y por tanto también la Semana.
 - Avisos de planning: cuando Hoy cambia el estado (patch `status` en `lib/segments.ts`) se guarda el anterior en `DayEntry.plannedStatusTypeId`; `getEffectiveDay` lo expone como `day.planned` (null si cuadra). Semana (`setCellStatus`, copiar semana) y aprobar peticiones lo limpian porque definen el planning.
 
 ## Notas técnicas (Nómina personal)
@@ -42,7 +42,7 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 - Sueldo del mes completo FIJO (no depende de 28/31 días). Horas extra = fiestas trabajadas (`offDaysWorked`, noches > 5 por semana lunes–domingo, la semana cuenta en el mes de su domingo, solo semanas ya cerradas) × 8 h + horas del cierre. El plus de noche solo baja por vacaciones/baja/faltas. Los días trabajados se deducen en `mergeStats`.
 
 ## Notas técnicas (rendimiento)
-- Datos de referencia (`getSettings`, `getStatusTypes`, `getDepartments`, `getEmployees`, `getSections`) cacheados con `unstable_cache` (tag `REF_TAG`); `done()` de `app/actions/settings.ts` hace `updateTag(REF_TAG)`. Si añades otra escritura a esas tablas fuera de ahí, invalida el tag.
+- Datos de referencia (`getSettings`, `getStatusTypes`, `getDepartments`, `getEmployees`, `getSections`) cacheados con `unstable_cache` (tag `REF_TAG`); `done()` de `app/actions/settings.ts` hace `updateTag(REF_TAG)`. Si añades otra escritura a esas tablas fuera de ahí, invalida el tag. Si una migración cambia esos datos, sube `REF_CACHE_VERSION` (la caché de Vercel sobrevive a los despliegues).
 - `experimental.staleTimes.dynamic = 30` en `next.config.ts`: volver a una pestaña reciente no pide nada al servidor.
 - Funciones de Vercel en `cdg1` (París, `vercel.json`), junto a la BD (eu-west-3). No cambiar una sin la otra.
 - BD en Prisma Postgres: la app conecta por `pooled.db.prisma.io` (PgBouncer, 50 conexiones) y las migraciones por `db.prisma.io` (directa, 10); lo hace `lib/db-url.ts` reescribiendo el host. Pool de `pg` limitado a 4 conexiones por instancia (`lib/db.ts`). Error típico si se rompe: "too many connections for role".
