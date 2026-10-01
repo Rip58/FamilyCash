@@ -9,7 +9,7 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 - El "día efectivo" de un empleado se calcula SOLO con `lib/schedule.ts` (`getEffectiveDay`). No duplicar esa lógica en componentes.
 - Mutaciones con Server Actions validadas con zod.
 - Móvil primero (390×844), objetivos táctiles ≥ 44px, textos de UI en español.
-- Sin horas de nómina: la app registra si viene, dónde, qué tareas hace, por qué falta y las horas extra apuntadas al cierre del turno (única suma de horas permitida).
+- La plantilla no calcula nóminas de empleados: registra si viene, dónde, qué tareas hace, por qué falta y las horas extra del cierre del turno. La única nómina es la personal del usuario (pestaña Nómina).
 
 ## Comprobaciones antes de commit
 `npm run lint && npm run typecheck && npm test && npm run build`
@@ -33,3 +33,7 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 
 ## Notas técnicas (pasar lista)
 - Semana = plan; Hoy = control. `DayEntry.present` (true = ha venido, null = sin confirmar), patch `attendance` en `lib/segments.ts`, acción `setAttendance`. Marcar ✗ cambia el estado del día (por defecto `ABSENT` "Falta", creado en la migración `attendance`), y por tanto también la Semana.
+
+## Notas técnicas (Nómina personal)
+- Pestaña `/nomina` (Registro + Calculadora) y `/ajustes/nomina` (importes y "quién eres"). Lógica pura en `lib/payroll.ts` (céntimos, % ), consultas en `lib/payroll-queries.ts`, acciones en `app/actions/payroll.ts`.
+- `Payslip` por mes "YYYY-MM": los campos null se calculan del cuadrante del empleado elegido en `PayrollSettings.employeeId` (vía `getEffectiveDay`).

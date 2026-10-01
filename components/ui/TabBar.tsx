@@ -48,6 +48,16 @@ const TABS: { href: string; label: string; icon: ReactNode }[] = [
     ),
   },
   {
+    href: "/nomina",
+    label: "Nómina",
+    icon: (
+      <svg {...iconProps}>
+        <rect x="3" y="6" width="18" height="12" rx="2.5" />
+        <path d="M15 9.5a3 3 0 1 0 0 5M9.5 11h4M9.5 13h4" />
+      </svg>
+    ),
+  },
+  {
     href: "/protocolos",
     label: "Protocolos",
     icon: (

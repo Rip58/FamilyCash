@@ -210,3 +210,37 @@ export function formatMonthYear(date: DateStr): string {
 export function diffDays(a: DateStr, b: DateStr): number {
   return Math.round((parse(b).getTime() - parse(a).getTime()) / 86400000);
 }
+
+// ---- Meses ("YYYY-MM") -----------------------------------------------------
+
+export type MonthStr = string;
+
+export function isMonthStr(value: string): value is MonthStr {
+  const m = /^(\d{4})-(\d{2})$/.exec(value);
+  return !!m && Number(m[2]) >= 1 && Number(m[2]) <= 12;
+}
+
+/** Mes de una fecha civil. */
+export function monthOf(date: DateStr): MonthStr {
+  return date.slice(0, 7);
+}
+
+/** Desplaza un mes n meses (n puede ser negativo). */
+export function addMonths(month: MonthStr, n: number): MonthStr {
+  const [y, m] = month.split("-").map(Number) as [number, number];
+  const idx = y * 12 + (m - 1) + n;
+  return `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, "0")}`;
+}
+
+/** Todos los días del mes. */
+export function monthDays(month: MonthStr): DateStr[] {
+  const first = `${month}-01`;
+  const next = `${addMonths(month, 1)}-01`;
+  const n = diffDays(first, next);
+  return Array.from({ length: n }, (_, i) => addDays(first, i));
+}
+
+/** "Septiembre 2026". */
+export function formatMonth(month: MonthStr): string {
+  return formatMonthYear(`${month}-01`);
+}

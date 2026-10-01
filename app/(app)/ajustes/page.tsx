@@ -26,7 +26,12 @@ export default async function Page() {
         { href: "/ajustes/estados", label: "Estados", detail: String(sts), icon: "🎨", color: "#8b5cf6" },
       ],
     },
-    { items: [{ href: "/ajustes/turno", label: "Turno", detail: shift, icon: "🌙", color: "#6366f1" }] },
+    {
+      items: [
+        { href: "/ajustes/turno", label: "Turno", detail: shift, icon: "🌙", color: "#6366f1" },
+        { href: "/ajustes/nomina", label: "Nómina", detail: "Importes", icon: "💶", color: "#16a34a" },
+      ],
+    },
     {
       items: [
         { href: "/ajustes/seguridad", label: "Seguridad", icon: "🔒", color: "#64748b" },

@@ -183,3 +183,32 @@ model LeaveRequest {        // petición de cambio de fiesta / vacaciones / perm
   @@index([status])
   @@index([employeeId])
 }
+
+model PayrollSettings {     // fila única id=1: importes para la calculadora de nómina
+  id                     Int     @id @default(1)
+  employeeId             String?                 // "yo": empleado del que salen los datos del mes
+  baseMonthlyCents       Int     @default(0)
+  proratedExtraCents     Int     @default(0)
+  nightPlusMode          String  @default("PERCENT") // PER_NIGHT | PERCENT
+  nightPlusPerNightCents Int     @default(0)
+  nightPlusPercent       Float   @default(25)
+  overtimeHourCents      Int     @default(0)
+  holidayWorkedCents     Int     @default(0)
+  ssPercent              Float   @default(6.48)
+  irpfPercent            Float   @default(12)
+}
+
+model Payslip {             // registro mensual; los campos null se calculan del cuadrante
+  month          String   @id                  // "YYYY-MM"
+  daysWorked     Int?
+  daysOff        Int?
+  vacationDays   Int?
+  sickDays       Int?
+  absentDays     Int?
+  holidaysWorked Int?
+  extraMinutes   Int?
+  grossCents     Int?                          // importes reales de la nómina
+  netCents       Int?
+  note           String?
+  updatedAt      DateTime @updatedAt
+}
