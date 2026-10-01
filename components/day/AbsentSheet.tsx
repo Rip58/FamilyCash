@@ -32,7 +32,7 @@ export function AbsentSheet({ open, onClose, name, planned, statusTypes, onConfi
     <BottomSheet open={open} onClose={onClose} title={`${name} no está hoy`}>
       <div className="flex flex-col gap-3 pb-2">
         <p className="text-[14px] text-muted">
-          ¿Por qué? Se cambiará también en la Semana ({planned.label} → lo que elijas).
+          ¿Por qué? El planning ponía <b>{planned.label}</b>: se cambiará en la Semana y quedará marcado como aviso.
         </p>
         <div className="grid grid-cols-2 gap-2">
           {options.map((s, i) => (

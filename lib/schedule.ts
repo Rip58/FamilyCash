@@ -67,6 +67,8 @@ export interface DayEntryLite {
   extraNote?: string | null;
   /** Pasar lista: true = ha venido (null/ausente = sin confirmar). */
   present?: boolean | null;
+  /** Estado que ponía el planning (Semana) cuando Hoy lo cambió; null = cuadra con el planning. */
+  plannedStatusTypeId?: string | null;
   segments: SegmentLite[];
 }
 
@@ -89,6 +91,8 @@ export interface EffectiveDay {
   extraNote: string | null;
   /** Confirmado que ha venido (solo si trabaja). */
   present: boolean;
+  /** Estado del planning si Hoy no cuadra con él (null = cuadra). */
+  planned: StatusTypeLite | null;
   segments: SegmentLite[];
   hasEntry: boolean;
   source: EffectiveSource;
@@ -140,6 +144,10 @@ export function getEffectiveDay(
     extraMinutes: entry?.extraMinutes ?? null,
     extraNote: entry?.extraNote ?? null,
     present: status.isWorking && entry?.present === true,
+    planned:
+      entry?.plannedStatusTypeId && entry.plannedStatusTypeId !== status.id
+        ? (statusTypes.find((s) => s.id === entry.plannedStatusTypeId) ?? null)
+        : null,
     segments: entry ? [...entry.segments].sort((a, b) => a.sortOrder - b.sortOrder) : [],
     hasEntry: !!entry,
     source,

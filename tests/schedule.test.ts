@@ -191,3 +191,17 @@ describe("asistencia en el día efectivo", () => {
     expect(getEffectiveDay(employee, "2026-09-28", null, sts).present).toBe(false);
   });
 });
+
+describe("planning en el día efectivo", () => {
+  it("planned solo si difiere del estado actual", async () => {
+    const { getEffectiveDay } = await import("@/lib/schedule");
+    const sts = [
+      { id: "w", code: "WORK", label: "Trabaja", color: "#000", isWorking: true, sortOrder: 0 },
+      { id: "s", code: "SICK", label: "Baja", color: "#000", isWorking: false, sortOrder: 1 },
+    ];
+    const employee = { id: "e", name: "E", defaultDepartmentId: null, sortOrder: 0, fixedDaysOff: [], active: true };
+    const base = { employeeId: "e", date: "2026-09-28", departmentId: null, reason: null, note: null, arrivedAt: null, leftAt: null, timeReason: null, segments: [] };
+    expect(getEffectiveDay(employee, "2026-09-28", { ...base, statusTypeId: "s", plannedStatusTypeId: "w" }, sts).planned?.label).toBe("Trabaja");
+    expect(getEffectiveDay(employee, "2026-09-28", { ...base, statusTypeId: "w", plannedStatusTypeId: "w" }, sts).planned).toBeNull();
+  });
+});

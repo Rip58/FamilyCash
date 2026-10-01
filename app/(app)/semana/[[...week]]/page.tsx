@@ -49,6 +49,7 @@ export default async function Page({
           reason: c.reason,
           extraMinutes: c.extraMinutes,
           extraNote: c.extraNote,
+          planned: c.planned?.label ?? null,
           pending: data.pending[`${r.employee.id}|${c.date}`] ?? null,
         })),
       })),

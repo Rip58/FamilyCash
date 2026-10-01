@@ -102,6 +102,7 @@ function toLite(
     extraMinutes: number | null;
     extraNote: string | null;
     present: boolean | null;
+    plannedStatusTypeId: string | null;
     segments: {
       id: string;
       sectionId: string | null;
@@ -127,6 +128,7 @@ function toLite(
     extraMinutes: row.extraMinutes,
     extraNote: row.extraNote,
     present: row.present,
+    plannedStatusTypeId: row.plannedStatusTypeId,
     segments: row.segments.map((s) => ({ ...s })),
   };
 }
@@ -212,6 +214,7 @@ async function mutateScalar(employeeId: string, date: DateStr, patch: EntryPatch
         extraMinutes: next.extraMinutes ?? null,
         extraNote: next.extraNote ?? null,
         present: next.present ?? null,
+        plannedStatusTypeId: next.plannedStatusTypeId ?? null,
       };
       await tx.dayEntry.upsert({
         where: { employeeId_date: { employeeId, date: toDbDate(date) } },

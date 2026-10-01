@@ -143,3 +143,25 @@ describe("pasar lista", () => {
     expect(off.present).toBeNull();
   });
 });
+
+describe("avisos de planning", () => {
+  const apply = (patch: Parameters<typeof applyEntryPatch>[4], cur: DayEntryLite | null = null) =>
+    applyEntryPatch(cur, emp, MON, statusTypes, patch, shift.shiftStart);
+
+  it("Hoy cambia Trabaja → Baja: recuerda el planning y no es redundante", () => {
+    const e = apply({ kind: "status", statusTypeId: "st-SICK", reason: null });
+    expect(e.plannedStatusTypeId).toBe("st-WORK");
+    expect(isEntryRedundant(e, emp, MON, statusTypes)).toBe(false);
+  });
+  it("volver al estado del planning quita el aviso", () => {
+    const sick = apply({ kind: "status", statusTypeId: "st-SICK", reason: null });
+    const back = apply({ kind: "status", statusTypeId: "st-WORK", reason: null }, sick);
+    expect(back.plannedStatusTypeId).toBeNull();
+    expect(isEntryRedundant(back, emp, MON, statusTypes)).toBe(true);
+  });
+  it("cambios encadenados conservan el planning original", () => {
+    const off = apply({ kind: "status", statusTypeId: "st-OFF", reason: null });
+    const sick = apply({ kind: "status", statusTypeId: "st-SICK", reason: null }, off);
+    expect(sick.plannedStatusTypeId).toBe("st-WORK");
+  });
+});

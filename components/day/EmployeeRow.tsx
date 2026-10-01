@@ -81,6 +81,11 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
           )}
           {day.note && <span aria-label="Tiene nota">💬</span>}
           {hasReports && <span aria-label="Tiene avisos con foto">📷</span>}
+        {day.planned && (
+          <span title={`Planning: ${day.planned.label}`} aria-label={`No cuadra con el planning (${day.planned.label})`}>
+            ⚠️
+          </span>
+        )}
         </span>
       </button>
       {attendance && (

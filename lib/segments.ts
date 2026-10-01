@@ -124,6 +124,7 @@ export function baseEntry(employee: EmployeeLite, date: DateStr, statusTypes: St
     extraMinutes: null,
     extraNote: null,
     present: null,
+    plannedStatusTypeId: null,
     segments: [],
   };
 }
@@ -142,6 +143,9 @@ export function applyEntryPatch(
     : baseEntry(employee, date, statusTypes);
   switch (patch.kind) {
     case "status": {
+      // Cambio hecho desde Hoy: recordar lo que ponía el planning para avisar si no cuadra.
+      if (e.plannedStatusTypeId == null && e.statusTypeId !== patch.statusTypeId) e.plannedStatusTypeId = e.statusTypeId;
+      if (e.plannedStatusTypeId === patch.statusTypeId) e.plannedStatusTypeId = null;
       e.statusTypeId = patch.statusTypeId;
       const st = statusTypes.find((s) => s.id === patch.statusTypeId);
       e.reason = st?.isWorking ? null : clean(patch.reason ?? e.reason);
@@ -213,6 +217,7 @@ export function isEntryRedundant(
     !(entry.extraMinutes && entry.extraMinutes > 0) &&
     !clean(entry.extraNote) &&
     entry.present !== true &&
+    !entry.plannedStatusTypeId &&
     entry.segments.length === 0
   );
 }

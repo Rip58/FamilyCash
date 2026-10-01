@@ -69,6 +69,7 @@ export async function setCellStatus(
         update: {
           statusTypeId: plan.statusTypeId,
           reason: plan.reason,
+          plannedStatusTypeId: null,
           ...(statusTypes.find((s) => s.id === plan.statusTypeId)?.isWorking ? {} : { present: null }),
         },
         create: {
@@ -107,7 +108,7 @@ export async function copyPreviousWeek(weekStart: string): Promise<WeekActionRes
           ? db.dayEntry.deleteMany({ where: { employeeId: op.employeeId, date: toDbDate(op.date) } })
           : db.dayEntry.upsert({
               where: { employeeId_date: { employeeId: op.employeeId, date: toDbDate(op.date) } },
-              update: { statusTypeId: op.statusTypeId, departmentId: op.departmentId, reason: op.reason },
+              update: { statusTypeId: op.statusTypeId, departmentId: op.departmentId, reason: op.reason, plannedStatusTypeId: null },
               create: {
                 employeeId: op.employeeId,
                 date: toDbDate(op.date),

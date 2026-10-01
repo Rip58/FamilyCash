@@ -80,6 +80,7 @@ export function toEntryLite(r: EntryRow): DayEntryLite {
     timeReason: r.timeReason,
     extraMinutes: r.extraMinutes,
     present: r.present,
+    plannedStatusTypeId: r.plannedStatusTypeId,
     extraNote: r.extraNote,
     segments: [...r.segments]
       .sort((a, b) => a.sortOrder - b.sortOrder)

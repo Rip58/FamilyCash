@@ -17,6 +17,8 @@ export interface GridCell {
   reason: string | null;
   extraMinutes: number | null;
   extraNote: string | null;
+  /** Lo que ponía el planning si Hoy lo cambió (null = cuadra). */
+  planned: string | null;
   /** Resumen de la petición PENDIENTE que cubre esta celda (null = ninguna). */
   pending: string | null;
 }

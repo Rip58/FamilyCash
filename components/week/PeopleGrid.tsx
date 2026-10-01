@@ -36,12 +36,15 @@ function CellButton({
   hasReason,
   hasExtra,
   pending,
+  planned,
   onTap,
 }: {
   status: GridStatus;
   label: string;
   hasReason: boolean;
   hasExtra: boolean;
+  /** Hoy lo cambió respecto al planning. */
+  planned: boolean;
   /** Hay una petición pendiente que cubre esta celda. */
   pending: boolean;
   onTap: () => void;
@@ -75,6 +78,15 @@ function CellButton({
           className="absolute left-0 top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-accent px-0.5 text-[9px] font-bold leading-none text-accent-fg"
         >
           X
+        </span>
+      )}
+      {planned && (
+        <span
+          aria-hidden="true"
+          data-planned-dot
+          className="absolute bottom-0.5 left-0 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-warning px-0.5 text-[9px] font-bold leading-none text-black"
+        >
+          !
         </span>
       )}
       {pending && (
@@ -140,11 +152,13 @@ function CellSheetBody({
   statuses,
   initial,
   pending,
+  planned,
   onSave,
 }: {
   statuses: GridStatus[];
   initial: CellValue;
   pending: string | null;
+  planned: string | null;
   onSave: (v: CellValue) => void;
 }) {
   const [statusId, setStatusId] = useState(initial.statusId);
@@ -160,6 +174,11 @@ function CellSheetBody({
           className="rounded-control bg-warning/20 px-3 py-2 text-[14px] font-medium text-[#92600a] dark:text-warning"
         >
           Petición pendiente: {pending}
+        </p>
+      )}
+      {planned && (
+        <p className="rounded-control bg-warning/20 px-3 py-2 text-[14px] font-medium text-[#92600a] dark:text-warning">
+          ⚠️ En Hoy se cambió: el planning ponía {planned}. Si guardas aquí, queda como nuevo planning.
         </p>
       )}
       <Segmented
@@ -314,6 +333,15 @@ export function PeopleGrid({ data }: { data: PeopleGridData }) {
         });
     return m;
   }, [groups, days]);
+  const plannedByKey = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const g of groups)
+      for (const r of g.rows)
+        r.cells.forEach((c, i) => {
+          if (c.planned) m[keyOf(r.employeeId, days[i]!)] = c.planned;
+        });
+    return m;
+  }, [groups, days]);
   const sheetStatuses = sheetValue
     ? statuses.filter((s) => s.active || s.id === sheetValue.statusId)
     : [];
@@ -379,7 +407,8 @@ export function PeopleGrid({ data }: { data: PeopleGridData }) {
                       hasReason={!!v.reason}
                       hasExtra={(v.extraMinutes ?? 0) > 0}
                       pending={!!pendingByKey[keyOf(r.employeeId, d)]}
-                      label={`${r.name}, ${formatDayLong(d)}: ${status.label}${v.reason ? ` (${v.reason})` : ""}${v.extraMinutes ? `, ${formatOvertime(v.extraMinutes)} extra` : ""}${pendingByKey[keyOf(r.employeeId, d)] ? ". Petición pendiente" : ""}`}
+                      planned={!!plannedByKey[keyOf(r.employeeId, d)]}
+                      label={`${r.name}, ${formatDayLong(d)}: ${status.label}${v.reason ? ` (${v.reason})` : ""}${v.extraMinutes ? `, ${formatOvertime(v.extraMinutes)} extra` : ""}${plannedByKey[keyOf(r.employeeId, d)] ? `. Planning: ${plannedByKey[keyOf(r.employeeId, d)]}` : ""}${pendingByKey[keyOf(r.employeeId, d)] ? ". Petición pendiente" : ""}`}
                       onTap={() => setSheet({ target, open: true })}
                     />
                   );
@@ -409,7 +438,7 @@ export function PeopleGrid({ data }: { data: PeopleGridData }) {
 
       <p className="px-4 pt-3 text-[12px] text-muted">
         Toca un nombre para verlo completo. Toca una celda para elegir estado, motivo y horas extra. Total: T trabaja · F
-        fiesta · R retribuida · B baja · V vacaciones · X horas extra.
+        fiesta · R retribuida · B baja · V vacaciones · X horas extra. <b className="text-warning">!</b> = Hoy no cuadró con el planning.
       </p>
 
       <BottomSheet
@@ -423,6 +452,7 @@ export function PeopleGrid({ data }: { data: PeopleGridData }) {
             statuses={sheetStatuses}
             initial={sheetValue}
             pending={pendingByKey[sheetKey] ?? null}
+            planned={plannedByKey[sheetKey] ?? null}
             onSave={(v) => {
               change(sheet.target, sheetValue, v);
               setSheet({ ...sheet, open: false });

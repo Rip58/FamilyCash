@@ -241,6 +241,9 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
       : []),
   ];
   const confirmed = expected.filter((m) => m.day.present).length;
+  const mismatches = [...expected, ...roster.absentByStatus.flatMap((g) => g.members)]
+    .filter((m) => m.day.planned)
+    .sort(byOrder);
   const absentCode = roster.absentByStatus.find((g) => g.status.code === "ABSENT")?.members.length ?? 0;
 
   return (
@@ -284,6 +287,37 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
           </span>
           {absentCode > 0 && <span className="text-[14px] text-danger">{absentCode} falta{absentCode === 1 ? "" : "n"}</span>}
         </p>
+      )}
+
+      {mismatches.length > 0 && (
+        <section
+          aria-label="No cuadra con el planning"
+          className="rounded-card border-2 border-warning bg-warning/10 px-4 py-2"
+        >
+          <h2 className="flex min-h-9 items-center gap-2 text-[15px] font-semibold">
+            <span aria-hidden>⚠️</span> No cuadra con el planning · {mismatches.length}
+          </h2>
+          <ul className="divide-y divide-warning/30">
+            {mismatches.map((m) => (
+              <li key={m.employee.id}>
+                <button
+                  type="button"
+                  onClick={() => openSheet(m.employee.id)}
+                  className="flex min-h-11 w-full items-center justify-between gap-3 text-left text-[15px]"
+                >
+                  <span className="min-w-0 truncate font-medium">{m.employee.name}</span>
+                  <span className="flex shrink-0 items-center gap-1.5 text-[13px]">
+                    <span className="text-muted">Planning: {m.day.planned!.label}</span>
+                    <span aria-hidden>→</span>
+                    <span className="font-semibold" style={{ color: m.day.status.color }}>
+                      {m.day.status.code === "WORK" ? "Viene" : m.day.status.label}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <div className={cn(!optNote && "-mt-1")}>

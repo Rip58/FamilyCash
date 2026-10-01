@@ -33,6 +33,7 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 
 ## Notas técnicas (pasar lista)
 - Semana = plan; Hoy = control. `DayEntry.present` (true = ha venido, null = sin confirmar), patch `attendance` en `lib/segments.ts`, acción `setAttendance`. Marcar ✗ cambia el estado del día (por defecto `ABSENT` "Falta", creado en la migración `attendance`), y por tanto también la Semana.
+- Avisos de planning: cuando Hoy cambia el estado (patch `status` en `lib/segments.ts`) se guarda el anterior en `DayEntry.plannedStatusTypeId`; `getEffectiveDay` lo expone como `day.planned` (null si cuadra). Semana (`setCellStatus`, copiar semana) y aprobar peticiones lo limpian porque definen el planning.
 
 ## Notas técnicas (Nómina personal)
 - Pestaña `/nomina` (Registro + Calculadora) y `/ajustes/nomina` (importes y "quién eres"). Lógica pura en `lib/payroll.ts` (céntimos, % ), consultas en `lib/payroll-queries.ts`, acciones en `app/actions/payroll.ts`.
