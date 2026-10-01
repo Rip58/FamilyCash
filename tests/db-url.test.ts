@@ -17,6 +17,15 @@ describe("db-url", () => {
     expect(pooledDatabaseUrl({ STORAGE_DATABASE_URL: "sp" })).toBe("sp");
     expect(directDatabaseUrl({ STORAGE_DATABASE_URL: "sp", STORAGE_DATABASE_URL_UNPOOLED: "sd" })).toBe("sd");
   });
+  it("Prisma Postgres: la app va por el host agrupado y las migraciones por el directo", () => {
+    const direct = "postgres://u:p@db.prisma.io:5432/postgres?sslmode=require";
+    const pooled = "postgres://u:p@pooled.db.prisma.io:5432/postgres?sslmode=require";
+    expect(pooledDatabaseUrl({ x_PRISMA_DATABASE_URL: direct, x_POSTGRES_URL: direct })).toBe(pooled);
+    expect(directDatabaseUrl({ x_POSTGRES_URL: direct })).toBe(direct);
+    expect(directDatabaseUrl({ DATABASE_URL: pooled })).toBe(direct);
+    // otros proveedores no se tocan
+    expect(pooledDatabaseUrl({ DATABASE_URL: "postgres://u:p@ep-x.neon.tech/db" })).toBe("postgres://u:p@ep-x.neon.tech/db");
+  });
   it("sin nada", () => {
     expect(pooledDatabaseUrl({})).toBeUndefined();
     expect(directDatabaseUrl({})).toBeUndefined();

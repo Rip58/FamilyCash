@@ -45,6 +45,7 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 - Datos de referencia (`getSettings`, `getStatusTypes`, `getDepartments`, `getEmployees`, `getSections`) cacheados con `unstable_cache` (tag `REF_TAG`); `done()` de `app/actions/settings.ts` hace `updateTag(REF_TAG)`. Si añades otra escritura a esas tablas fuera de ahí, invalida el tag.
 - `experimental.staleTimes.dynamic = 30` en `next.config.ts`: volver a una pestaña reciente no pide nada al servidor.
 - Funciones de Vercel en `cdg1` (París, `vercel.json`), junto a la BD (eu-west-3). No cambiar una sin la otra.
+- BD en Prisma Postgres: la app conecta por `pooled.db.prisma.io` (PgBouncer, 50 conexiones) y las migraciones por `db.prisma.io` (directa, 10); lo hace `lib/db-url.ts` reescribiendo el host. Pool de `pg` limitado a 4 conexiones por instancia (`lib/db.ts`). Error típico si se rompe: "too many connections for role".
 - Cada sección tiene su `loading.tsx` (no uno global en `(app)`, que rompería los 404 de fechas inválidas).
 
 ## Notas técnicas (notas de la noche)

@@ -21,14 +21,19 @@ function find(env: Env, names: string[]): string | undefined {
   return undefined;
 }
 
-/** Conexión de la app (pooled si existe). */
+// Prisma Postgres: db.prisma.io es la conexión directa (pocas conexiones: 10 en el plan gratis);
+// pooled.db.prisma.io pasa por PgBouncer (50). La app debe ir por la agrupada y las migraciones por la directa.
+const PRISMA_DIRECT_HOST = "@db.prisma.io";
+const PRISMA_POOLED_HOST = "@pooled.db.prisma.io";
+
+/** Conexión de la app (pooled si existe; en Prisma Postgres fuerza el host agrupado). */
 export function pooledDatabaseUrl(env: Env = process.env): string | undefined {
-  return find(env, POOLED) ?? find(env, DIRECT);
+  return (find(env, POOLED) ?? find(env, DIRECT))?.replace(PRISMA_DIRECT_HOST, PRISMA_POOLED_HOST);
 }
 
-/** Conexión directa para migraciones y seed (si no hay, la pooled). */
+/** Conexión directa para migraciones y seed (si no hay, la pooled; en Prisma Postgres, host directo). */
 export function directDatabaseUrl(env: Env = process.env): string | undefined {
-  return find(env, DIRECT) ?? find(env, POOLED);
+  return (find(env, DIRECT) ?? find(env, POOLED))?.replace(PRISMA_POOLED_HOST, PRISMA_DIRECT_HOST);
 }
 
 export const MISSING_DB_MESSAGE =
