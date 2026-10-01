@@ -4,13 +4,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import { createProtocol, deleteProtocol, updateProtocol } from "@/app/actions/protocols";
+import { discardUploadedFiles } from "@/app/actions/reports";
 import { cn } from "@/components/ui";
+import type { ProtocolStepView } from "@/lib/planograms";
 import { indentLine, makeBullet, outdentLine, type EditResult } from "@/lib/protocol-edit";
 import { ProtocolBody } from "./ProtocolBody";
+import { type EditorStep, StepsEditor, newStepKey } from "./StepsEditor";
 
 interface Props {
   id: string | null; // null = protocolo nuevo
-  initial: { title: string; category: string; body: string };
+  initial: { title: string; category: string; body: string; steps: ProtocolStepView[] };
   categories: string[];
 }
 
@@ -22,6 +25,16 @@ export function ProtocolEditor({ id, initial, categories }: Props) {
   const [title, setTitle] = useState(initial.title);
   const [category, setCategory] = useState(initial.category);
   const [body, setBody] = useState(initial.body);
+  const [steps, setSteps] = useState<EditorStep[]>(() =>
+    initial.steps.map((st) => ({ key: newStepKey(), text: st.text, photo: st.photo, uploading: null, error: null })),
+  );
+  // Fotos subidas en esta edición y aún sin guardar: si no se guarda, se descartan.
+  const fresh = useRef(new Set<string>());
+  const discard = (paths: string[]) => {
+    paths.forEach((p) => fresh.current.delete(p));
+    if (paths.length) void discardUploadedFiles({ pathnames: paths });
+  };
+  const uploading = steps.some((st) => st.uploading !== null);
   const [preview, setPreview] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,12 +68,18 @@ export function ProtocolEditor({ id, initial, categories }: Props) {
   function save() {
     setError(null);
     startTransition(async () => {
-      const data = { title, category, body };
+      const data = {
+        title,
+        category,
+        body,
+        steps: steps.filter((st) => st.text.trim() || st.photo).map((st) => ({ text: st.text, photo: st.photo })),
+      };
       const res = id ? await updateProtocol(id, data) : await createProtocol(data);
       if (!res.ok) {
         setError(res.error ?? "No se pudo guardar.");
         return;
       }
+      fresh.current.clear();
       router.push("/protocolos");
       router.refresh();
     });
@@ -86,16 +105,20 @@ export function ProtocolEditor({ id, initial, categories }: Props) {
   return (
     <div className="pb-8">
       <div className="flex items-center justify-between pt-2">
-        <Link href="/protocolos" className="inline-flex min-h-11 items-center pr-3 text-[16px] text-accent">
+        <Link
+          href="/protocolos"
+          onClick={() => discard([...fresh.current])}
+          className="inline-flex min-h-11 items-center pr-3 text-[16px] text-accent"
+        >
           ‹ Protocolos
         </Link>
         <button
           type="button"
           onClick={save}
-          disabled={pending}
+          disabled={pending || uploading}
           className="min-h-11 rounded-control bg-accent px-5 text-[16px] font-semibold text-accent-fg disabled:opacity-50"
         >
-          {pending ? "Guardando…" : "Guardar"}
+          {pending ? "Guardando…" : uploading ? "Subiendo…" : "Guardar"}
         </button>
       </div>
       <h1 className="mt-1 text-[28px] font-bold tracking-tight">{id ? "Editar protocolo" : "Nuevo protocolo"}</h1>
@@ -130,7 +153,7 @@ export function ProtocolEditor({ id, initial, categories }: Props) {
 
         <div>
           <div className="mb-1 flex items-center justify-between px-1">
-            <span className="text-[13px] font-medium text-muted">Contenido</span>
+            <span className="text-[13px] font-medium text-muted">Texto</span>
             <button
               type="button"
               aria-pressed={preview}
@@ -184,10 +207,10 @@ export function ProtocolEditor({ id, initial, categories }: Props) {
               value={body}
               onChange={(e) => setBody(e.target.value)}
               spellCheck
-              rows={12}
+              rows={8}
               aria-label="Contenido del protocolo"
               placeholder={"- Primer paso\n  - Detalle del paso\n- **Importante**: usa negrita\n- Enlace: [texto](https://…)"}
-              className="min-h-[300px] w-full resize-y rounded-control bg-surface p-4 font-mono text-[15px] leading-relaxed outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
+              className="min-h-[200px] w-full resize-y rounded-control bg-surface p-4 font-mono text-[15px] leading-relaxed outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
             />
           )}
           <p className="mt-1 px-1 text-[13px] text-muted">
@@ -195,6 +218,16 @@ export function ProtocolEditor({ id, initial, categories }: Props) {
           </p>
         </div>
       </div>
+
+      <StepsEditor
+        steps={steps}
+        setSteps={setSteps}
+        onUploaded={(p) => fresh.current.add(p)}
+        onRemovedPhoto={(p) => {
+          // Las ya guardadas se borran al guardar; las nuevas, ya.
+          if (fresh.current.has(p)) discard([p]);
+        }}
+      />
 
       {error && (
         <p role="alert" className="mt-3 text-[14px] text-danger">

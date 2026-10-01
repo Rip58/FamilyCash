@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { removedPathnames, stepsSchema } from "@/lib/planograms";
+import { deleteStoredFiles } from "@/lib/storage";
 
 export interface ActionResult {
   ok: boolean;
@@ -19,7 +21,23 @@ const fieldsSchema = z.object({
     .optional()
     .transform((v) => (v ? v : null)),
   body: z.string().max(20000, "El texto es demasiado largo."),
+  steps: stepsSchema,
 });
+
+type Steps = z.output<typeof stepsSchema>;
+
+function stepRows(protocolId: string, steps: Steps) {
+  return steps.map((st, i) => ({
+    protocolId,
+    sortOrder: i,
+    text: st.text,
+    photoUrl: st.photo?.url ?? null,
+    photoPathname: st.photo?.pathname ?? null,
+    photoWidth: st.photo?.width ?? null,
+    photoHeight: st.photo?.height ?? null,
+    photoSize: st.photo?.size ?? 0,
+  }));
+}
 
 const idSchema = z.string().min(1).max(64);
 
@@ -30,10 +48,12 @@ function fail(e: z.ZodError): ActionResult {
 export async function createProtocol(input: unknown): Promise<ActionResult> {
   const parsed = fieldsSchema.safeParse(input);
   if (!parsed.success) return fail(parsed.error);
+  const { steps, ...fields } = parsed.data;
   const last = await db.protocol.aggregate({ _max: { sortOrder: true } });
   const created = await db.protocol.create({
-    data: { ...parsed.data, sortOrder: (last._max.sortOrder ?? -1) + 1 },
+    data: { ...fields, sortOrder: (last._max.sortOrder ?? -1) + 1 },
   });
+  if (steps.length) await db.protocolStep.createMany({ data: stepRows(created.id, steps) });
   revalidatePath("/protocolos");
   return { ok: true, id: created.id };
 }
@@ -43,11 +63,23 @@ export async function updateProtocol(id: unknown, input: unknown): Promise<Actio
   const parsed = fieldsSchema.safeParse(input);
   if (!pid.success) return { ok: false, error: "Protocolo no válido." };
   if (!parsed.success) return fail(parsed.error);
+  const { steps, ...fields } = parsed.data;
+  const before = await db.protocolStep.findMany({ where: { protocolId: pid.data }, select: { photoPathname: true } });
   try {
-    await db.protocol.update({ where: { id: pid.data }, data: parsed.data });
+    // Los pasos se reescriben enteros: así el orden y los borrados quedan como en el editor.
+    await db.$transaction([
+      db.protocol.update({ where: { id: pid.data }, data: fields }),
+      db.protocolStep.deleteMany({ where: { protocolId: pid.data } }),
+      db.protocolStep.createMany({ data: stepRows(pid.data, steps) }),
+    ]);
   } catch {
     return { ok: false, error: "El protocolo ya no existe." };
   }
+  const gone = removedPathnames(
+    before.map((b) => b.photoPathname),
+    steps.map((st) => st.photo?.pathname ?? null),
+  );
+  if (gone.length) await deleteStoredFiles(gone);
   revalidatePath("/protocolos");
   return { ok: true, id: pid.data };
 }
@@ -55,7 +87,10 @@ export async function updateProtocol(id: unknown, input: unknown): Promise<Actio
 export async function deleteProtocol(id: unknown): Promise<ActionResult> {
   const pid = idSchema.safeParse(id);
   if (!pid.success) return { ok: false, error: "Protocolo no válido." };
+  const steps = await db.protocolStep.findMany({ where: { protocolId: pid.data }, select: { photoPathname: true } });
   await db.protocol.deleteMany({ where: { id: pid.data } });
+  const photos = steps.flatMap((st) => (st.photoPathname ? [st.photoPathname] : []));
+  if (photos.length) await deleteStoredFiles(photos);
   revalidatePath("/protocolos");
   return { ok: true };
 }

@@ -76,20 +76,28 @@ export async function listReportsForEmployee(employeeId: string): Promise<Report
 
 /** Avisos y fotos de avisos + notas de ficha y sus fotos (para Ajustes → Almacenamiento). */
 export async function storageStats() {
-  const [reports, photos, notes, notePhotos] = await Promise.all([
+  const [reports, photos, notes, notePhotos, planogramPhotos, stepPhotos] = await Promise.all([
     db.report.count(),
     db.reportPhoto.aggregate({ _count: { _all: true }, _sum: { size: true } }),
     db.employeeNote.count(),
     db.employeeNotePhoto.aggregate({ _count: { _all: true }, _sum: { size: true } }),
+    db.planogramPhoto.aggregate({ _count: { _all: true }, _sum: { size: true } }),
+    db.protocolStep.aggregate({ where: { photoPathname: { not: null } }, _count: { _all: true }, _sum: { photoSize: true } }),
   ]);
   const reportPhotos = photos._count._all;
   const filePhotos = notePhotos._count._all;
+  const protocolPhotos = planogramPhotos._count._all + stepPhotos._count._all;
   return {
     reports,
     notes,
-    photos: reportPhotos + filePhotos,
+    photos: reportPhotos + filePhotos + protocolPhotos,
     reportPhotos,
     notePhotos: filePhotos,
-    bytes: (photos._sum.size ?? 0) + (notePhotos._sum.size ?? 0),
+    protocolPhotos,
+    bytes:
+      (photos._sum.size ?? 0) +
+      (notePhotos._sum.size ?? 0) +
+      (planogramPhotos._sum.size ?? 0) +
+      (stepPhotos._sum.photoSize ?? 0),
   };
 }

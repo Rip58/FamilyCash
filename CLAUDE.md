@@ -55,3 +55,9 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 - `lib/backup.ts` (export/restore JSON de todas las tablas, en orden de claves ajenas), `app/api/backup` (descarga con sesión), `scripts/restore-backup.ts`, workflow `.github/workflows/backup.yml` (pg_dump diario cifrado a las 9:03 de Andorra, 90 días). Guía en `docs/COPIAS-DE-SEGURIDAD.md`.
 - Si añades un modelo a Prisma, añádelo a `BACKUP_TABLES` (el test `tests/backup.test.ts` falla si no).
 
+
+## Notas técnicas (lineales y pasos de protocolo)
+- Fotos: `compressImage` (`lib/image-compress.ts`) genera WebP calidad 0,85, lado ≤ 1600 px y ≤ 300 KB (baja calidad hasta 0,6 y luego tamaño, `compressionAttempts`); si el navegador no codifica WebP, JPEG con el mismo límite.
+- Protocolos → pestañas (`ProtocolTabs`): protocolos y `/protocolos/lineales`. `ProtocolStep` (texto + foto opcional) se reescribe entero al guardar (`app/actions/protocols.ts`), borrando del almacenamiento las fotos que dejan de usarse (`removedPathnames`). El editor descarta las fotos subidas y no guardadas.
+- Lineales: `Planogram` + `PlanogramPhoto`, ubicación `ShelfLocation` (Ajustes → Ubicaciones). Lógica pura en `lib/planograms.ts` (zod, `untilState`), lecturas en `lib/planogram-queries.ts`, acciones en `app/actions/planograms.ts`. Caducados (fecha "hasta" pasada) se agrupan aparte.
+- `discardUploadedFiles` y `storageStats` cuentan también fotos de lineales y pasos: si añades otra tabla con fotos, añádela ahí.

@@ -15,11 +15,13 @@ interface Props {
   photos: number;
   reportPhotos: number;
   notePhotos: number;
+  /** Fotos de lineales y de pasos de protocolo. */
+  protocolPhotos: number;
   bytes: number;
   mode: "blob" | "local";
 }
 
-export function StorageSettings({ reports, notes, photos, reportPhotos, notePhotos, bytes, mode }: Props) {
+export function StorageSettings({ reports, notes, photos, reportPhotos, notePhotos, protocolPhotos, bytes, mode }: Props) {
   const [months, setMonths] = useState(6);
   const { pending, run } = useRun();
 
@@ -51,7 +53,7 @@ export function StorageSettings({ reports, notes, photos, reportPhotos, notePhot
           </div>
         </dl>
         <p className="mt-2 text-[13px] text-muted">
-          Las fotos se comprimen (máx. 1600 px) antes de subirlas: unos 300 KB cada una.
+          Las fotos se guardan en WebP (calidad 85, máx. 1600 px): como mucho 300 KB cada una.
         </p>
       </Card>
 
@@ -79,7 +81,8 @@ export function StorageSettings({ reports, notes, photos, reportPhotos, notePhot
       </Card>
       <p className="mt-3 px-1 text-[12px] text-muted">
         {photoCountLabel(reportPhotos)} en {reports} {reports === 1 ? "aviso" : "avisos"} y {photoCountLabel(notePhotos)} en{" "}
-        {notes} {notes === 1 ? "nota de ficha" : "notas de ficha"}.
+        {notes} {notes === 1 ? "nota de ficha" : "notas de ficha"}
+        {protocolPhotos > 0 && `, y ${photoCountLabel(protocolPhotos)} en lineales y protocolos (no se borran desde aquí)`}.
       </p>
     </div>
   );

@@ -117,6 +117,52 @@ model Protocol {            // hoja de protocolos
   body      String                      // lista de viñetas en Markdown ("- " y "  - " anidadas)
   sortOrder Int      @default(0)
   updatedAt DateTime @updatedAt
+  steps     ProtocolStep[]
+}
+
+model ProtocolStep {        // manual paso a paso: texto + foto opcional
+  id            String   @id @default(cuid())
+  protocolId    String
+  protocol      Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  sortOrder     Int      @default(0)
+  text          String
+  photoUrl      String?
+  photoPathname String?
+  photoWidth    Int?
+  photoHeight   Int?
+  photoSize     Int      @default(0)
+  @@index([protocolId, sortOrder])
+}
+
+model ShelfLocation {       // ubicaciones de los lineales: "Lineal PA", "Box"... (Ajustes)
+  id        String   @id @default(cuid())
+  name      String
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  planograms Planogram[]
+}
+
+model Planogram {           // lineal: cómo tiene que quedar (foto + nota), opcionalmente hasta una fecha
+  id         String   @id @default(cuid())
+  locationId String?
+  location   ShelfLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  text       String
+  until      DateTime? @db.Date
+  photos     PlanogramPhoto[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model PlanogramPhoto {      // mismos campos que ReportPhoto
+  id          String    @id @default(cuid())
+  planogramId String
+  planogram   Planogram @relation(fields: [planogramId], references: [id], onDelete: Cascade)
+  url         String
+  pathname    String
+  width       Int
+  height      Int
+  size        Int       @default(0)
+  sortOrder   Int       @default(0)
 }
 
 model Report {              // aviso con fotos + nota escrita

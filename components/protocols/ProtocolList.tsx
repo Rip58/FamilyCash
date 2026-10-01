@@ -22,14 +22,18 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { reorderProtocols } from "@/app/actions/protocols";
 import { cn } from "@/components/ui";
+import type { ProtocolStepView } from "@/lib/planograms";
 import { normalize, protocolPlainText } from "@/lib/protocol-markdown";
 import { Highlight, ProtocolBody } from "./ProtocolBody";
+import { ProtocolSteps } from "./ProtocolSteps";
+import { ProtocolTabs } from "./ProtocolTabs";
 
 export interface ProtocolItem {
   id: string;
   title: string;
   category: string | null;
   body: string;
+  steps: ProtocolStepView[];
 }
 
 const GENERAL = "General";
@@ -82,8 +86,16 @@ function Accordion({ item, open, onToggle, query }: { item: ProtocolItem; open: 
           onClick={onToggle}
           className="flex min-h-[52px] w-full items-center justify-between gap-3 px-4 py-2 text-left text-[17px] font-medium"
         >
-          <span>
-            <Highlight text={item.title} query={query} />
+          <span className="flex min-w-0 flex-col">
+            <span>
+              <Highlight text={item.title} query={query} />
+            </span>
+            {item.steps.length > 0 && (
+              <span className="text-[13px] font-normal text-muted">
+                {item.steps.length === 1 ? "1 paso" : `${item.steps.length} pasos`}
+                {item.steps.some((st) => st.photo) && " con fotos 📷"}
+              </span>
+            )}
           </span>
           <Chevron open={open} />
         </button>
@@ -99,7 +111,8 @@ function Accordion({ item, open, onToggle, query }: { item: ProtocolItem; open: 
       >
         <div className="overflow-hidden">
           <div className="px-4 pb-4 pt-1">
-            <ProtocolBody body={item.body} query={query} />
+            {item.body.trim() && <ProtocolBody body={item.body} query={query} />}
+            {open && <ProtocolSteps steps={item.steps} title={item.title} query={query} />}
             <Link
               href={`/protocolos/${item.id}`}
               className="mt-3 inline-flex min-h-11 items-center rounded-control bg-surface-2 px-4 text-[15px] font-medium text-accent"
@@ -195,6 +208,7 @@ export function ProtocolList({ initial }: { initial: ProtocolItem[] }) {
       (it) =>
         normalize(it.title).includes(nq) ||
         normalize(protocolPlainText(it.body)).includes(nq) ||
+        it.steps.some((st) => normalize(st.text).includes(nq)) ||
         normalize(it.category ?? "").includes(nq),
     );
   }, [items, nq]);
@@ -241,6 +255,7 @@ export function ProtocolList({ initial }: { initial: ProtocolItem[] }) {
           + Protocolo
         </Link>
       </div>
+      <ProtocolTabs active="protocolos" />
 
       {!showEmptyAll && (
         <div className="mt-3 flex items-center gap-2">

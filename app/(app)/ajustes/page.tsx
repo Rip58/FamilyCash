@@ -7,11 +7,12 @@ export const metadata = { title: "Ajustes" };
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  const [emps, deps, secs, sts, settings, pending] = await Promise.all([
+  const [emps, deps, secs, sts, locs, settings, pending] = await Promise.all([
     db.employee.count({ where: { active: true } }),
     db.department.count({ where: { active: true } }),
     db.section.count({ where: { active: true } }),
     db.statusType.count({ where: { active: true } }),
+    db.shelfLocation.count({ where: { active: true } }),
     db.settings.findUnique({ where: { id: 1 } }),
     countPendingRequests(),
   ]);
@@ -24,6 +25,7 @@ export default async function Page() {
         { href: "/ajustes/departamentos", label: "Departamentos", detail: String(deps), icon: "🏷️", color: "#f97316" },
         { href: "/ajustes/secciones", label: "Secciones", detail: String(secs), icon: "🧭", color: "#14b8a6" },
         { href: "/ajustes/estados", label: "Estados", detail: String(sts), icon: "🎨", color: "#8b5cf6" },
+        { href: "/ajustes/ubicaciones", label: "Ubicaciones", detail: String(locs), icon: "🧃", color: "#ec4899" },
       ],
     },
     {

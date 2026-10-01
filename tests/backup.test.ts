@@ -11,7 +11,12 @@ describe("copia de seguridad", () => {
   it("valida el formato", () => {
     const tables = Object.fromEntries(BACKUP_TABLES.map((t) => [t, []]));
     expect(() => parseBackup({ format: "otra-cosa", tables })).toThrow();
-    expect(() => parseBackup({ format: "familycash-backup", version: 1, tables: { ...tables, employee: undefined } })).toThrow(/employee/);
+    expect(() => parseBackup({ format: "familycash-backup", version: 1, tables: { ...tables, employee: "x" } })).toThrow(/employee/);
     expect(parseBackup({ format: "familycash-backup", version: 1, createdAt: "x", tables }).version).toBe(1);
+  });
+  it("acepta copias anteriores a una tabla nueva (la deja vacía)", () => {
+    const tables: Record<string, unknown[]> = Object.fromEntries(BACKUP_TABLES.map((t) => [t, []]));
+    delete tables.planogram;
+    expect(parseBackup({ format: "familycash-backup", version: 1, tables }).tables.planogram).toEqual([]);
   });
 });

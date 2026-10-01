@@ -144,17 +144,22 @@ export async function purgeOldReports(
 }
 
 /**
- * Descarta fotos subidas que no llegaron a formar parte de un aviso ni de una nota de ficha (el usuario
- * las quitó o cerró el formulario). Nunca toca archivos que ya pertenecen a un aviso.
+ * Descarta fotos subidas que no llegaron a guardarse (aviso, nota de ficha, lineal o paso de protocolo):
+ * el usuario las quitó o cerró el formulario. Nunca toca archivos que ya pertenecen a un registro.
  */
 export async function discardUploadedFiles(input: { pathnames: string[] }): Promise<ReportActionResult> {
   const names = Array.isArray(input?.pathnames) ? input.pathnames.filter((n) => typeof n === "string" && isSafePathname(n)) : [];
   if (names.length === 0) return { ok: true };
-  const [used, usedByNotes] = await Promise.all([
+  const [used, usedByNotes, usedByPlanograms, usedBySteps] = await Promise.all([
     db.reportPhoto.findMany({ where: { pathname: { in: names } }, select: { pathname: true } }),
     db.employeeNotePhoto.findMany({ where: { pathname: { in: names } }, select: { pathname: true } }),
+    db.planogramPhoto.findMany({ where: { pathname: { in: names } }, select: { pathname: true } }),
+    db.protocolStep.findMany({ where: { photoPathname: { in: names } }, select: { photoPathname: true } }),
   ]);
-  const usedSet = new Set([...used, ...usedByNotes].map((u) => u.pathname));
+  const usedSet = new Set([
+    ...[...used, ...usedByNotes, ...usedByPlanograms].map((u) => u.pathname),
+    ...usedBySteps.map((u) => u.photoPathname),
+  ]);
   await deleteStoredFiles(names.filter((n) => !usedSet.has(n)));
   return { ok: true };
 }

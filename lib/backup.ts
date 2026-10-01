@@ -19,6 +19,10 @@ export const BACKUP_TABLES = [
   "workSegment",
   "dayNote",
   "protocol",
+  "protocolStep",
+  "shelfLocation",
+  "planogram",
+  "planogramPhoto",
   "report",
   "reportPhoto",
   "employeeNote",
@@ -53,6 +57,10 @@ export async function exportBackup(db: PrismaClient): Promise<BackupFile> {
     workSegment: () => db.workSegment.findMany(),
     dayNote: () => db.dayNote.findMany(),
     protocol: () => db.protocol.findMany(),
+    protocolStep: () => db.protocolStep.findMany(),
+    shelfLocation: () => db.shelfLocation.findMany(),
+    planogram: () => db.planogram.findMany(),
+    planogramPhoto: () => db.planogramPhoto.findMany(),
     report: () => db.report.findMany(),
     reportPhoto: () => db.reportPhoto.findMany(),
     employeeNote: () => db.employeeNote.findMany(),
@@ -75,8 +83,11 @@ export function parseBackup(data: unknown): BackupFile {
     throw new Error("No es un archivo de copia de FamilyCash.");
   }
   if ((b.version ?? 0) > BACKUP_VERSION) throw new Error(`Copia de una versión más nueva (${b.version}).`);
+  const tables = b.tables as Partial<Record<BackupTable, unknown>>;
   for (const t of BACKUP_TABLES) {
-    if (!Array.isArray(b.tables[t])) throw new Error(`Falta la tabla ${t} en la copia.`);
+    // Copias anteriores a una tabla nueva: esa tabla se restaura vacía.
+    if (tables[t] === undefined) tables[t] = [];
+    else if (!Array.isArray(tables[t])) throw new Error(`La tabla ${t} de la copia no es válida.`);
   }
   return b as BackupFile;
 }
@@ -100,6 +111,10 @@ export async function restoreBackup(db: PrismaClient, backup: BackupFile): Promi
     workSegment: (tx) => tx.workSegment.createMany({ data: t.workSegment as any }),
     dayNote: (tx) => tx.dayNote.createMany({ data: t.dayNote as any }),
     protocol: (tx) => tx.protocol.createMany({ data: t.protocol as any }),
+    protocolStep: (tx) => tx.protocolStep.createMany({ data: t.protocolStep as any }),
+    shelfLocation: (tx) => tx.shelfLocation.createMany({ data: t.shelfLocation as any }),
+    planogram: (tx) => tx.planogram.createMany({ data: t.planogram as any }),
+    planogramPhoto: (tx) => tx.planogramPhoto.createMany({ data: t.planogramPhoto as any }),
     report: (tx) => tx.report.createMany({ data: t.report as any }),
     reportPhoto: (tx) => tx.reportPhoto.createMany({ data: t.reportPhoto as any }),
     employeeNote: (tx) => tx.employeeNote.createMany({ data: t.employeeNote as any }),
@@ -121,6 +136,10 @@ export async function restoreBackup(db: PrismaClient, backup: BackupFile): Promi
     workSegment: (tx) => tx.workSegment.deleteMany(),
     dayNote: (tx) => tx.dayNote.deleteMany(),
     protocol: (tx) => tx.protocol.deleteMany(),
+    protocolStep: (tx) => tx.protocolStep.deleteMany(),
+    shelfLocation: (tx) => tx.shelfLocation.deleteMany(),
+    planogram: (tx) => tx.planogram.deleteMany(),
+    planogramPhoto: (tx) => tx.planogramPhoto.deleteMany(),
     report: (tx) => tx.report.deleteMany(),
     reportPhoto: (tx) => tx.reportPhoto.deleteMany(),
     employeeNote: (tx) => tx.employeeNote.deleteMany(),
