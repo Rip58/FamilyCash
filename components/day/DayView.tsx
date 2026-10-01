@@ -339,26 +339,39 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
         const came = g.members.filter((m) => m.day.present).length;
         return (
           <Card key={g.id} flush tone={g.isEmpty ? "danger" : "default"} aria-label={g.name}>
-            <div className="flex min-h-11 items-center justify-between gap-3 px-4 pt-1">
-              <h2 className="flex min-w-0 items-center gap-2 text-[16px] font-semibold">
-                {g.color && <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: g.color }} aria-hidden />}
-                <span className="truncate">{g.name}</span>
-              </h2>
-              <span className="flex shrink-0 items-center gap-2 text-[14px] tabular-nums">
+            <div
+              className={cn(
+                "flex min-h-12 items-center justify-between gap-3 px-4",
+                "text-white",
+              )}
+              style={{ backgroundColor: g.color ?? "#64748b" }}
+            >
+              <h2 className="min-w-0 truncate text-[17px] font-bold [text-shadow:0_1px_1px_rgb(0_0_0/0.15)]">{g.name}</h2>
+              <span className="flex shrink-0 items-center gap-1.5 text-[13px] font-semibold tabular-nums">
                 {g.members.length > 0 && (
-                  <span className={came === g.members.length ? "font-semibold text-success" : "text-muted"}>
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5",
+                      came === g.members.length ? "bg-white text-success" : "bg-white/25",
+                    )}
+                  >
                     ✓ {came}/{g.members.length}
                   </span>
                 )}
                 {g.target > 0 && (
-                  <span className={cn("font-semibold", g.isEmpty ? "text-danger" : g.isUnder ? "text-warning" : "text-muted")}>
-                    · {g.members.length}/{g.target} plazas
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5",
+                      g.isEmpty ? "bg-white text-danger" : g.isUnder ? "bg-white text-warning" : "bg-white/25",
+                    )}
+                  >
+                    {g.members.length}/{g.target} plazas
                   </span>
                 )}
               </span>
             </div>
             {g.isEmpty ? (
-              <p className="px-4 pb-3 text-[15px] font-semibold text-danger">Sin personal</p>
+              <p className="px-4 py-3 text-[15px] font-semibold text-danger">Sin personal</p>
             ) : (
               <div className="divide-y divide-line pb-1">{g.members.map((m) => row(m))}</div>
             )}
@@ -370,12 +383,12 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
         .filter((g) => g.members.length > 0)
         .map((g) => (
           <Card key={g.status.id} flush aria-label={g.status.label}>
-            <div className="flex min-h-11 items-center justify-between gap-3 px-4 pt-1">
-              <h2 className="flex items-center gap-2 text-[16px] font-semibold">
-                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: g.status.color }} aria-hidden />
-                {g.status.label}
-              </h2>
-              <span className="text-[14px] font-semibold tabular-nums text-muted">{g.members.length}</span>
+            <div
+              className="flex min-h-12 items-center justify-between gap-3 px-4 text-white"
+              style={{ backgroundColor: g.status.color }}
+            >
+              <h2 className="text-[17px] font-bold [text-shadow:0_1px_1px_rgb(0_0_0/0.15)]">{g.status.label}</h2>
+              <span className="rounded-full bg-white/25 px-2 py-0.5 text-[13px] font-semibold tabular-nums">{g.members.length}</span>
             </div>
             <div className="divide-y divide-line pb-1">
               {g.members.map((m) => (

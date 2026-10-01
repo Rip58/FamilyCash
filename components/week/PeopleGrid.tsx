@@ -380,16 +380,24 @@ export function PeopleGrid({ data }: { data: PeopleGridData }) {
       <div className="mt-2 flex flex-col gap-3">
         {groups.map((g) => (
           <section key={g.id} aria-label={g.name} className="mx-1.5 overflow-hidden rounded-card bg-surface">
-            <h3 className="flex min-h-9 items-center justify-between gap-2 px-2.5 pt-1 text-[14px] font-semibold">
-              <span className="flex min-w-0 items-center gap-1.5">
-                {g.color && (
-                  <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: g.color }} />
+            <h3
+              className={cn(
+                "flex min-h-11 items-center justify-between gap-2 px-3 text-[16px] font-bold",
+                "text-white",
+              )}
+              style={{ backgroundColor: g.color ?? "#64748b" }}
+            >
+              <span className="min-w-0 truncate [text-shadow:0_1px_1px_rgb(0_0_0/0.15)]">{g.name}</span>
+              <span
+                className={cn(
+                  "shrink-0 rounded-full px-2 py-0.5 text-[12px] font-semibold",
+                  "bg-white/25",
                 )}
-                <span className="truncate">{g.name}</span>
+              >
+                {g.rows.length} personas
               </span>
-              <span className="shrink-0 text-[12px] font-medium text-muted">{g.rows.length} personas</span>
             </h3>
-            <div className={cn("grid items-center border-b border-line pb-1", GRID_COLS)}>
+            <div className={cn("grid items-center border-b border-line py-1", GRID_COLS)}>
               <span className="pl-2.5 text-[11px] font-medium text-muted">Trabajan</span>
               {days.map((d) => {
                 const working = g.rows.filter(
