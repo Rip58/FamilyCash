@@ -51,3 +51,7 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 ## Notas técnicas (notas de la noche)
 - `NightNote` (varias por noche, `employeeId`/`departmentId` opcionales; `kind` INFO | TASK, `doneAt` = tarea hecha; las tareas pendientes de semanas anteriores salen en la Semana del Informe vía `getPendingTasksBefore`), acciones en `app/actions/notes.ts`, lectura `getNightNotes` en `lib/queries.ts`. El Informe las junta con la nota del día (`DayNote`) y las notas de empleado del día (`DayEntry.note`) en "Notas de la noche"; el resumen semanal las agrupa por noche.
 
+## Notas técnicas (copias de seguridad)
+- `lib/backup.ts` (export/restore JSON de todas las tablas, en orden de claves ajenas), `app/api/backup` (descarga con sesión), `scripts/restore-backup.ts`, workflow `.github/workflows/backup.yml` (pg_dump nocturno cifrado, 90 días). Guía en `docs/COPIAS-DE-SEGURIDAD.md`.
+- Si añades un modelo a Prisma, añádelo a `BACKUP_TABLES` (el test `tests/backup.test.ts` falla si no).
+

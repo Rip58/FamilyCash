@@ -18,6 +18,19 @@ export function DataExport({ today }: { today: string }) {
   return (
     <div>
       <BackHeader title="Datos" />
+      <Card title="Copia de seguridad" className="mb-4">
+        <p className="text-[14px] text-muted">
+          Descarga toda la base de datos (empleados, cuadrante, notas, nómina…) en un archivo. Guárdalo en Archivos o en
+          Drive. Además se hace una copia automática cada noche.
+        </p>
+        <a
+          href="/api/backup"
+          download
+          className="mt-3 flex min-h-12 items-center justify-center rounded-control bg-accent text-[16px] font-semibold text-accent-fg active:opacity-80"
+        >
+          Descargar copia completa
+        </a>
+      </Card>
       <Card title="Exportar CSV">
         <p className="text-[14px] text-muted">
           Una fila por empleado y noche (incluye los días por defecto y los de fiesta fija). Separado por “;” para Excel.
