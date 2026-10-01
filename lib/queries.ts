@@ -65,6 +65,7 @@ export function toEntryLite(r: EntryRow): DayEntryLite {
     leftAt: r.leftAt,
     timeReason: r.timeReason,
     extraMinutes: r.extraMinutes,
+    present: r.present,
     extraNote: r.extraNote,
     segments: [...r.segments]
       .sort((a, b) => a.sortOrder - b.sortOrder)

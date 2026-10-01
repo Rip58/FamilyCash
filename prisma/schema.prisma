@@ -82,6 +82,7 @@ model DayEntry {            // solo existe si el día difiere del patrón o tien
   timeReason    String?
   extraMinutes  Int?                        // horas extra de esa noche, en minutos (p.ej. 60 = 1 h)
   extraNote     String?                     // motivo de las horas extra
+  present       Boolean?                    // pasar lista en Hoy: true = ha venido; null = sin confirmar
   segments      WorkSegment[]
   updatedAt     DateTime @updatedAt
   @@unique([employeeId, date])

@@ -14,6 +14,7 @@ const STATUSES = [
   { code: "PAID_OFF", label: "Fiesta retribuida", color: "#eab308", isWorking: false },
   { code: "SICK", label: "Baja laboral", color: "#ef4444", isWorking: false },
   { code: "VACATION", label: "Vacaciones", color: "#3b82f6", isWorking: false },
+  { code: "ABSENT", label: "Falta", color: "#f97316", isWorking: false },
 ];
 
 const DEPARTMENTS = [

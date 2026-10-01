@@ -12,6 +12,7 @@ import {
   setDepartment as setDepartmentAction,
   setNote as setNoteAction,
   setOvertime as setOvertimeAction,
+  setAttendance as setAttendanceAction,
   setOvertimeBulk as setOvertimeBulkAction,
   setReason as setReasonAction,
   setStatus as setStatusAction,
@@ -31,6 +32,7 @@ import {
   getDayRoster,
 } from "@/lib/schedule";
 import { type EntryPatch, type ShiftTimes, applyEntryPatch } from "@/lib/segments";
+import { AbsentSheet } from "./AbsentSheet";
 import { DayNoteCard } from "./DayNoteCard";
 import { EmployeeRow } from "./EmployeeRow";
 import { EmployeeSheet } from "./EmployeeSheet";
@@ -65,6 +67,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
   const [error, setError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ id: string; open: boolean } | null>(null);
   const [move, setMove] = useState<{ id: string; open: boolean } | null>(null);
+  const [absentSheet, setAbsentSheet] = useState<{ id: string; open: boolean } | null>(null);
   const [absentOpen, setAbsentOpen] = useState(false);
   const [closeSheet, setCloseSheet] = useState<{ open: boolean; n: number }>({ open: false, n: 0 });
   const madridHour = useSyncExternalStore(subscribeNever, currentMadridHour, () => null);
@@ -165,6 +168,8 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
     setSheet({ id, open: true });
   };
   const openMove = (id: string) => setMove({ id, open: true });
+  const setPresent = (employeeId: string, present: boolean) =>
+    commit(employeeId, { kind: "attendance", present }, () => setAttendanceAction({ employeeId, date, present }));
 
   const row = (m: RosterMember, showStatus = false) => (
     <EmployeeRow
@@ -177,11 +182,21 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
       hasReports={reportedIds.has(m.employee.id)}
       onOpen={() => openSheet(m.employee.id)}
       onMove={() => openMove(m.employee.id)}
+      attendance={
+        m.day.isWorking
+          ? {
+              onPresent: () => setPresent(m.employee.id, true),
+              onUndo: () => setPresent(m.employee.id, false),
+              onAbsent: () => setAbsentSheet({ id: m.employee.id, open: true }),
+            }
+          : undefined
+      }
     />
   );
 
   const sheetMember = sheet ? allMembers.get(sheet.id) : undefined;
   const moveMember = move ? allMembers.get(move.id) : undefined;
+  const absentMember = absentSheet ? allMembers.get(absentSheet.id) : undefined;
   const closeGroups = useMemo<OvertimeGroup[]>(() => {
     const groups: OvertimeGroup[] = roster.departments
       .filter((d) => d.present.length > 0)
@@ -197,6 +212,9 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
   );
   const closeHighlight = isToday && madridHour !== null && madridHour >= 5 && madridHour < 12;
   const absentTotal = roster.absentByStatus.reduce((n, g) => n + g.members.length, 0);
+  const expected = [...roster.departments.flatMap((d) => d.present), ...roster.unassigned];
+  const confirmed = expected.filter((m) => m.day.present).length;
+  const absentCode = roster.absentByStatus.find((g) => g.status.code === "ABSENT")?.members.length ?? 0;
 
   return (
     <div className="flex flex-col gap-3 pb-6">
@@ -225,6 +243,21 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
         <span>Cierre de turno · Horas extra</span>
         {nightExtra > 0 && <span className="text-[14px] font-medium tabular-nums">{formatOvertime(nightExtra, true)}</span>}
       </button>
+
+      {expected.length > 0 && (
+        <p
+          className={cn(
+            "flex min-h-11 items-center justify-between gap-3 rounded-card px-4 text-[15px] font-medium",
+            confirmed === expected.length ? "bg-success/15 text-fg" : "bg-surface",
+          )}
+          aria-label="Pasar lista"
+        >
+          <span>
+            Pasar lista · <span className="tabular-nums font-semibold">{confirmed}/{expected.length}</span> han venido
+          </span>
+          {absentCode > 0 && <span className="text-[14px] text-danger">{absentCode} falta{absentCode === 1 ? "" : "n"}</span>}
+        </p>
+      )}
 
       <div className={cn(!optNote && "-mt-1")}>
         <DayNoteCard note={optNote} onSave={saveDayNote} />
@@ -361,6 +394,18 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
             if (!r.ok) setError(r.error);
             return r;
           }}
+        />
+      )}
+
+      {absentSheet && absentMember && (
+        <AbsentSheet
+          key={absentSheet.id}
+          open={absentSheet.open}
+          onClose={() => setAbsentSheet((s) => (s ? { ...s, open: false } : s))}
+          name={absentMember.employee.name}
+          planned={absentMember.day.status}
+          statusTypes={statusTypes}
+          onConfirm={(statusTypeId, reason) => opsFor(absentSheet.id).setStatus(statusTypeId, reason)}
         />
       )}
 

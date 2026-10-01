@@ -70,6 +70,7 @@ const setOvertimeBulkSchema = z.object({
     .min(1)
     .max(200),
 });
+const setAttendanceSchema = z.object({ ...base, present: z.boolean() });
 const setNoteSchema = z.object({ ...base, note: optText(500) });
 const segmentFields = {
   sectionId: idSchema.nullable(),
@@ -100,6 +101,7 @@ function toLite(
     timeReason: string | null;
     extraMinutes: number | null;
     extraNote: string | null;
+    present: boolean | null;
     segments: {
       id: string;
       sectionId: string | null;
@@ -124,6 +126,7 @@ function toLite(
     timeReason: row.timeReason,
     extraMinutes: row.extraMinutes,
     extraNote: row.extraNote,
+    present: row.present,
     segments: row.segments.map((s) => ({ ...s })),
   };
 }
@@ -208,6 +211,7 @@ async function mutateScalar(employeeId: string, date: DateStr, patch: EntryPatch
         timeReason: next.timeReason,
         extraMinutes: next.extraMinutes ?? null,
         extraNote: next.extraNote ?? null,
+        present: next.present ?? null,
       };
       await tx.dayEntry.upsert({
         where: { employeeId_date: { employeeId, date: toDbDate(date) } },
@@ -249,6 +253,13 @@ export async function setTimes(input: z.input<typeof setTimesSchema>): Promise<A
   if (!p.success) return invalid();
   const { employeeId, date, arrivedAt, leftAt, timeReason } = p.data;
   return mutateScalar(employeeId, date, { kind: "times", arrivedAt, leftAt, timeReason });
+}
+
+/** Pasar lista: present=true "ha venido"; false lo deja sin confirmar. */
+export async function setAttendance(input: z.input<typeof setAttendanceSchema>): Promise<ActionResult> {
+  const p = setAttendanceSchema.safeParse(input);
+  if (!p.success) return invalid();
+  return mutateScalar(p.data.employeeId, p.data.date, { kind: "attendance", present: p.data.present });
 }
 
 export async function setNote(input: z.input<typeof setNoteSchema>): Promise<ActionResult> {

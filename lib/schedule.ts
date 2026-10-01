@@ -65,6 +65,8 @@ export interface DayEntryLite {
   /** Horas extra de la noche en minutos (null/ausente = sin horas extra). */
   extraMinutes?: number | null;
   extraNote?: string | null;
+  /** Pasar lista: true = ha venido (null/ausente = sin confirmar). */
+  present?: boolean | null;
   segments: SegmentLite[];
 }
 
@@ -85,6 +87,8 @@ export interface EffectiveDay {
   timeReason: string | null;
   extraMinutes: number | null;
   extraNote: string | null;
+  /** Confirmado que ha venido (solo si trabaja). */
+  present: boolean;
   segments: SegmentLite[];
   hasEntry: boolean;
   source: EffectiveSource;
@@ -135,6 +139,7 @@ export function getEffectiveDay(
     timeReason: entry?.timeReason ?? null,
     extraMinutes: entry?.extraMinutes ?? null,
     extraNote: entry?.extraNote ?? null,
+    present: status.isWorking && entry?.present === true,
     segments: entry ? [...entry.segments].sort((a, b) => a.sortOrder - b.sortOrder) : [],
     hasEntry: !!entry,
     source,

@@ -30,3 +30,6 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 - Arrastre (dnd-kit): `MouseSensor` (distance 4) + `TouchSensor` (delay 200, tolerance 5); las asas usan `touch-manipulation` para que un swipe rápido siga haciendo scroll.
 - PWA: `public/sw.js` (registrado por `components/pwa/RegisterSW.tsx` solo en producción) y `public/offline.html`. No cachea HTML ni `/api`. Si añades rutas públicas estáticas, exclúyelas en el `matcher` de `proxy.ts`.
 - Zona segura: `.app-main` y `BackHeader` gestionan `safe-area-inset-top`; el layout `(app)` pone una tapa fija bajo la barra de estado.
+
+## Notas técnicas (pasar lista)
+- Semana = plan; Hoy = control. `DayEntry.present` (true = ha venido, null = sin confirmar), patch `attendance` en `lib/segments.ts`, acción `setAttendance`. Marcar ✗ cambia el estado del día (por defecto `ABSENT` "Falta", creado en la migración `attendance`), y por tanto también la Semana.

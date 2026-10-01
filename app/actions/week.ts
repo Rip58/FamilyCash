@@ -66,7 +66,11 @@ export async function setCellStatus(
     } else {
       await db.dayEntry.upsert({
         where,
-        update: { statusTypeId: plan.statusTypeId, reason: plan.reason },
+        update: {
+          statusTypeId: plan.statusTypeId,
+          reason: plan.reason,
+          ...(statusTypes.find((s) => s.id === plan.statusTypeId)?.isWorking ? {} : { present: null }),
+        },
         create: {
           employeeId: employee.id,
           date: toDbDate(input.date),
@@ -136,6 +140,7 @@ export async function resetWeek(weekStart: string): Promise<WeekActionResult> {
         timeReason: null,
         extraMinutes: null,
         extraNote: null,
+        present: null,
         segments: { none: {} },
       },
     });

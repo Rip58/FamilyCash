@@ -118,3 +118,28 @@ describe("applyEntryPatch / isEntryRedundant", () => {
     expect(isEntryRedundant(e, emp, MON, statusTypes)).toBe(false);
   });
 });
+
+describe("pasar lista", () => {
+  const work = (patch: Parameters<typeof applyEntryPatch>[4], cur: DayEntryLite | null = null) =>
+    applyEntryPatch(cur, emp, MON, statusTypes, patch, shift.shiftStart);
+
+  it("marcar 'ha venido' guarda la entrada aunque coincida con el patrón", () => {
+    const e = work({ kind: "attendance", present: true });
+    expect(e.present).toBe(true);
+    expect(isEntryRedundant(e, emp, MON, statusTypes)).toBe(false);
+  });
+  it("deshacer vuelve a dejarla redundante", () => {
+    const e = work({ kind: "attendance", present: false }, work({ kind: "attendance", present: true }));
+    expect(e.present).toBeNull();
+    expect(isEntryRedundant(e, emp, MON, statusTypes)).toBe(true);
+  });
+  it("pasar a un estado de ausencia quita la confirmación", () => {
+    const e = work({ kind: "status", statusTypeId: "st-SICK", reason: "fiebre" }, work({ kind: "attendance", present: true }));
+    expect(e.present).toBeNull();
+    expect(e.reason).toBe("fiebre");
+  });
+  it("no se puede confirmar a quien no trabaja", () => {
+    const off = applyEntryPatch(null, emp, SAT, statusTypes, { kind: "attendance", present: true }, shift.shiftStart);
+    expect(off.present).toBeNull();
+  });
+});

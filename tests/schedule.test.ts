@@ -176,3 +176,18 @@ describe("getWeekGrid", () => {
     expect(g.rows).toHaveLength(3);
   });
 });
+
+describe("asistencia en el día efectivo", () => {
+  it("present solo cuenta si trabaja", async () => {
+    const { getEffectiveDay } = await import("@/lib/schedule");
+    const sts = [
+      { id: "w", code: "WORK", label: "Trabaja", color: "#000", isWorking: true, sortOrder: 0 },
+      { id: "o", code: "OFF", label: "Fiesta", color: "#000", isWorking: false, sortOrder: 1 },
+    ];
+    const employee = { id: "e", name: "E", defaultDepartmentId: null, sortOrder: 0, fixedDaysOff: [], active: true };
+    const base = { employeeId: "e", date: "2026-09-28", departmentId: null, reason: null, note: null, arrivedAt: null, leftAt: null, timeReason: null, segments: [] };
+    expect(getEffectiveDay(employee, "2026-09-28", { ...base, statusTypeId: "w", present: true }, sts).present).toBe(true);
+    expect(getEffectiveDay(employee, "2026-09-28", { ...base, statusTypeId: "o", present: true }, sts).present).toBe(false);
+    expect(getEffectiveDay(employee, "2026-09-28", null, sts).present).toBe(false);
+  });
+});
