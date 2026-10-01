@@ -1,5 +1,5 @@
 /**
- * Lógica pura de la pantalla Semana (sin Prisma): ciclo de estado en celda,
+ * Lógica pura de la pantalla Semana (sin Prisma): resumen semanal por persona,
  * plan de escritura de una celda y plan de "copiar semana anterior".
  * El "día efectivo" siempre sale de lib/schedule.ts.
  */
@@ -10,16 +10,6 @@ import {
   type StatusTypeLite,
   getEffectiveDay,
 } from "./schedule";
-
-/** Orden del ciclo con un tap: Trabaja -> Fiesta -> Fiesta retribuida -> Trabaja. */
-export const CYCLE_CODES = ["WORK", "OFF", "PAID_OFF"] as const;
-
-/** Código siguiente del ciclo, o null si el estado actual no forma parte (abrir hoja). */
-export function nextCycleCode(code: string): string | null {
-  const i = (CYCLE_CODES as readonly string[]).indexOf(code);
-  if (i < 0) return null;
-  return CYCLE_CODES[(i + 1) % CYCLE_CODES.length]!;
-}
 
 const ABBR_BY_CODE: Record<string, string> = {
   WORK: "T",
@@ -180,4 +170,42 @@ export function planCopyWeek(input: {
 export function weekHref(date: DateStr | null, view: "dias" | "personas"): string {
   const base = date ? `/semana/${date}` : "/semana";
   return view === "personas" ? `${base}?v=personas` : base;
+}
+
+export interface WeekSummaryToken {
+  key: string;
+  text: string;
+  /** Pertenece a los días libres (para avisar si no cuadran con los esperados). */
+  dayOff: boolean;
+}
+
+/** Horas en formato corto con coma decimal: 120 → "2", 90 → "1,5", 45 → "0,75". */
+export function formatHoursShort(minutes: number): string {
+  return String(Math.round((minutes / 60) * 100) / 100).replace(".", ",");
+}
+
+/**
+ * Resumen de la fila de una persona: solo lo que hay, en el orden de los estados.
+ * Ej.: 6 trabaja + 1 fiesta + 2 h extra → "6T 1F 2X".
+ */
+export function weekSummary(
+  cells: { status: StatusTypeLite; extraMinutes: number | null }[],
+  statuses: StatusTypeLite[],
+): WeekSummaryToken[] {
+  const counts = new Map<string, number>();
+  let extra = 0;
+  for (const c of cells) {
+    counts.set(c.status.id, (counts.get(c.status.id) ?? 0) + 1);
+    extra += c.extraMinutes ?? 0;
+  }
+  const tokens: WeekSummaryToken[] = [...statuses]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .filter((s) => counts.has(s.id))
+    .map((s) => ({
+      key: s.id,
+      text: `${counts.get(s.id)}${statusAbbr(s)}`,
+      dayOff: !s.isWorking && (s.code === "OFF" || s.code === "PAID_OFF"),
+    }));
+  if (extra > 0) tokens.push({ key: "extra", text: `${formatHoursShort(extra)}X`, dayOff: false });
+  return tokens;
 }

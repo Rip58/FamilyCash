@@ -47,6 +47,8 @@ export default async function Page({
         cells: r.cells.map((c) => ({
           statusId: c.status.id,
           reason: c.reason,
+          extraMinutes: c.extraMinutes,
+          extraNote: c.extraNote,
           pending: data.pending[`${r.employee.id}|${c.date}`] ?? null,
         })),
       })),

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DayEntryLite, EmployeeLite, StatusTypeLite } from "@/lib/schedule";
 import {
-  compactNames, nextCycleCode, planCopyWeek, planSetCell, shortNames, statusAbbr, weekHref,
+  compactNames, formatHoursShort, planCopyWeek, planSetCell, shortNames, statusAbbr, weekHref, weekSummary,
 } from "@/lib/week";
 
 const st = (code: string, isWorking: boolean, sortOrder: number): StatusTypeLite => ({
@@ -21,15 +21,31 @@ const entry = (employeeId: string, date: string, s: StatusTypeLite, o: Partial<D
   arrivedAt: null, leftAt: null, timeReason: null, segments: [], ...o,
 });
 
-describe("ciclo de estado", () => {
-  it("Trabaja -> Fiesta -> Fiesta retribuida -> Trabaja", () => {
-    expect(nextCycleCode("WORK")).toBe("OFF");
-    expect(nextCycleCode("OFF")).toBe("PAID_OFF");
-    expect(nextCycleCode("PAID_OFF")).toBe("WORK");
+describe("resumen semanal", () => {
+  const VAC = st("VACATION", false, 4);
+  const all = [...statusTypes, VAC];
+  const cell = (status: StatusTypeLite, extraMinutes: number | null = null) => ({ status, extraMinutes });
+  const texts = (cells: ReturnType<typeof cell>[]) => weekSummary(cells, all).map((t) => t.text);
+
+  it("solo muestra lo que hay: 6 trabaja y 1 fiesta", () => {
+    expect(texts([...Array(6)].map(() => cell(WORK)).concat(cell(OFF)))).toEqual(["6T", "1F"]);
   });
-  it("otros estados no ciclan (abren la hoja)", () => {
-    expect(nextCycleCode("SICK")).toBeNull();
-    expect(nextCycleCode("VACATION")).toBeNull();
+  it("suma las horas extra al final", () => {
+    const cells = [cell(WORK, 60), cell(WORK, 60), cell(WORK), cell(WORK), cell(WORK), cell(OFF), cell(OFF)];
+    expect(texts(cells)).toEqual(["5T", "2F", "2X"]);
+  });
+  it("vacaciones, baja y fiesta retribuida en el orden de los estados", () => {
+    const cells = [cell(VAC), cell(VAC), cell(SICK), cell(PAID), cell(WORK, 90), cell(WORK), cell(OFF)];
+    expect(texts(cells)).toEqual(["2T", "1F", "1R", "1B", "2V", "1,5X"]);
+  });
+  it("marca los tokens de días libres", () => {
+    const t = weekSummary([cell(WORK), cell(OFF), cell(PAID), cell(SICK)], all);
+    expect(t.filter((x) => x.dayOff).map((x) => x.text)).toEqual(["1F", "1R"]);
+  });
+  it("formatea horas cortas", () => {
+    expect(formatHoursShort(120)).toBe("2");
+    expect(formatHoursShort(45)).toBe("0,75");
+    expect(formatHoursShort(15)).toBe("0,25");
   });
 });
 
