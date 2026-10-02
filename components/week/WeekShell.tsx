@@ -9,8 +9,12 @@ import { Segmented } from "@/components/ui/Segmented";
 import { cn } from "@/components/ui/cn";
 import { type DateStr, addDays, formatDayMonth, formatWeekRange, isoWeekNumber, weekStart as weekStartOf } from "@/lib/dates";
 import { remainingMonthWeeks, weekHref } from "@/lib/week";
+import dynamic from "next/dynamic";
 import { PeopleGrid } from "./PeopleGrid";
 import type { PeopleGridData, WeekViewMode } from "./types";
+
+// Solo se descarga al abrir "Ordenar" (lleva la librería de arrastrar).
+const RotaOrderSheet = dynamic(() => import("./RotaOrderSheet"), { ssr: false });
 
 const STORAGE_KEY = "semana:vista";
 const FLAT_KEY = "semana:sinDepartamentos";
@@ -46,6 +50,7 @@ export function WeekShell({
   const [pending, startTransition] = useTransition();
   // Vista Personas sin departamentos (orden del Excel): se recuerda en este móvil.
   const [flat, setFlat] = useState(false);
+  const [sorting, setSorting] = useState<{ open: boolean; n: number }>({ open: false, n: 0 });
   useEffect(() => {
     try {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -182,7 +187,27 @@ export function WeekShell({
       </div>
 
       <div className={cn(view === "dias" ? "block" : "hidden")}>{daysView}</div>
+      {view === "personas" && flat && (
+        <div className="mb-2 flex items-center justify-between gap-2 px-1">
+          <span className="text-[13px] text-muted">Sin departamentos · orden del Excel</span>
+          <button
+            type="button"
+            onClick={() => setSorting((s) => ({ open: true, n: s.n + 1 }))}
+            className="min-h-11 rounded-control bg-surface px-4 text-[15px] font-medium text-accent"
+          >
+            ↕ Ordenar
+          </button>
+        </div>
+      )}
       {view === "personas" && <PeopleGrid data={people} flat={flat} />}
+      {sorting.n > 0 && (
+        <RotaOrderSheet
+          key={sorting.n}
+          open={sorting.open}
+          onClose={() => setSorting((s) => ({ ...s, open: false }))}
+          people={people.flatGroups.flatMap((g) => g.rows).map((r) => ({ id: r.employeeId, name: r.name, departmentName: r.departmentName }))}
+        />
+      )}
 
       <BottomSheet
         open={menu.open}

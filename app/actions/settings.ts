@@ -99,6 +99,20 @@ export async function reorderEmployees(ids: string[]): Promise<ActionResult> {
 }
 
 /** Mueve un empleado a otro departamento (al final de la lista). */
+/** Orden de la plantilla "como en el Excel" (Semana sin departamentos). Quien no esté en la lista queda al final. */
+export async function saveRotaOrder(ids: string[]): Promise<ActionResult> {
+  const p = idList.safeParse(ids);
+  if (!p.success || new Set(p.data).size !== p.data.length) return fail("Orden no válido.");
+  const order = new Map(p.data.map((empId, i) => [empId, i]));
+  const all = await db.employee.findMany({ select: { id: true, rotaOrder: true } });
+  await db.$transaction(
+    all
+      .filter((e) => (e.rotaOrder ?? null) !== (order.get(e.id) ?? null))
+      .map((e) => db.employee.update({ where: { id: e.id }, data: { rotaOrder: order.get(e.id) ?? null } })),
+  );
+  return done();
+}
+
 export async function moveEmployee(input: { id: string; departmentId: string | null }): Promise<ActionResult> {
   const p = z.object({ id, departmentId: optionalId }).safeParse(input);
   if (!p.success) return fail("Datos no válidos.");
