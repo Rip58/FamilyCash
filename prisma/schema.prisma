@@ -74,7 +74,7 @@ model DayEntry {            // solo existe si el día difiere del patrón o tien
   date          DateTime @db.Date           // día de INICIO del turno
   employeeId    String
   employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  statusTypeId  String
+  statusTypeId  String                      // PLANNING (solo lo cambia Semana / peticiones aprobadas)
   statusType    StatusType @relation(fields: [statusTypeId], references: [id])
   departmentId  String?                     // ubicación ese día (null = la habitual)
   reason        String?                     // motivo ausencia / cambio
@@ -84,8 +84,8 @@ model DayEntry {            // solo existe si el día difiere del patrón o tien
   timeReason    String?
   extraMinutes  Int?                        // horas extra de esa noche, en minutos (p.ej. 60 = 1 h)
   extraNote     String?                     // motivo de las horas extra
-  present       Boolean?                    // pasar lista en Hoy: true = ha venido; null = sin confirmar
-  plannedStatusTypeId String?               // estado del planning (Semana) cuando Hoy lo cambia; null = cuadra
+  present       Boolean?                    // Hoy: true = validado (ha venido / ausencia confirmada); null = sin validar
+  actualStatusTypeId String?                // Hoy: lo que pasó de verdad si NO cuadra con el planning; null = como el planning
   segments      WorkSegment[]
   updatedAt     DateTime @updatedAt
   @@unique([employeeId, date])

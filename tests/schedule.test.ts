@@ -178,7 +178,7 @@ describe("getWeekGrid", () => {
 });
 
 describe("asistencia en el día efectivo", () => {
-  it("present solo cuenta si trabaja", async () => {
+  it("present = validado en Hoy, trabaje o no", async () => {
     const { getEffectiveDay } = await import("@/lib/schedule");
     const sts = [
       { id: "w", code: "WORK", label: "Trabaja", color: "#000", isWorking: true, sortOrder: 0 },
@@ -187,13 +187,13 @@ describe("asistencia en el día efectivo", () => {
     const employee = { id: "e", name: "E", defaultDepartmentId: null, sortOrder: 0, fixedDaysOff: [], active: true };
     const base = { employeeId: "e", date: "2026-09-28", departmentId: null, reason: null, note: null, arrivedAt: null, leftAt: null, timeReason: null, segments: [] };
     expect(getEffectiveDay(employee, "2026-09-28", { ...base, statusTypeId: "w", present: true }, sts).present).toBe(true);
-    expect(getEffectiveDay(employee, "2026-09-28", { ...base, statusTypeId: "o", present: true }, sts).present).toBe(false);
+    expect(getEffectiveDay(employee, "2026-09-28", { ...base, statusTypeId: "o", present: true }, sts).present).toBe(true);
     expect(getEffectiveDay(employee, "2026-09-28", null, sts).present).toBe(false);
   });
 });
 
 describe("planning en el día efectivo", () => {
-  it("planned solo si difiere del estado actual", async () => {
+  it("lo validado en Hoy es el estado real; planned es el planning si no cuadra", async () => {
     const { getEffectiveDay } = await import("@/lib/schedule");
     const sts = [
       { id: "w", code: "WORK", label: "Trabaja", color: "#000", isWorking: true, sortOrder: 0 },
@@ -201,7 +201,23 @@ describe("planning en el día efectivo", () => {
     ];
     const employee = { id: "e", name: "E", defaultDepartmentId: null, sortOrder: 0, fixedDaysOff: [], active: true };
     const base = { employeeId: "e", date: "2026-09-28", departmentId: null, reason: null, note: null, arrivedAt: null, leftAt: null, timeReason: null, segments: [] };
-    expect(getEffectiveDay(employee, "2026-09-28", { ...base, statusTypeId: "s", plannedStatusTypeId: "w" }, sts).planned?.label).toBe("Trabaja");
-    expect(getEffectiveDay(employee, "2026-09-28", { ...base, statusTypeId: "w", plannedStatusTypeId: "w" }, sts).planned).toBeNull();
+    const d = getEffectiveDay(employee, "2026-09-28", { ...base, statusTypeId: "w", actualStatusTypeId: "s" }, sts);
+    expect(d.status.label).toBe("Baja");
+    expect(d.planned?.label).toBe("Trabaja");
+    expect(getEffectiveDay(employee, "2026-09-28", { ...base, statusTypeId: "w", actualStatusTypeId: "w" }, sts).planned).toBeNull();
+    expect(getEffectiveDay(employee, "2026-09-28", { ...base, statusTypeId: "s" }, sts).planned).toBeNull();
+  });
+  it("validar a alguien de baja no lo convierte en trabajador", async () => {
+    const { getEffectiveDay } = await import("@/lib/schedule");
+    const sts = [
+      { id: "w", code: "WORK", label: "Trabaja", color: "#000", isWorking: true, sortOrder: 0 },
+      { id: "s", code: "SICK", label: "Baja", color: "#000", isWorking: false, sortOrder: 1 },
+    ];
+    const employee = { id: "e", name: "E", defaultDepartmentId: null, sortOrder: 0, fixedDaysOff: [], active: true };
+    const base = { employeeId: "e", date: "2026-09-28", departmentId: null, reason: null, note: null, arrivedAt: null, leftAt: null, timeReason: null, segments: [] };
+    const d = getEffectiveDay(employee, "2026-09-28", { ...base, statusTypeId: "s", present: true }, sts);
+    expect(d.isWorking).toBe(false);
+    expect(d.present).toBe(true);
+    expect(d.planned).toBeNull();
   });
 });

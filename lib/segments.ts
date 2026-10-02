@@ -124,7 +124,7 @@ export function baseEntry(employee: EmployeeLite, date: DateStr, statusTypes: St
     extraMinutes: null,
     extraNote: null,
     present: null,
-    plannedStatusTypeId: null,
+    actualStatusTypeId: null,
     segments: [],
   };
 }
@@ -143,21 +143,19 @@ export function applyEntryPatch(
     : baseEntry(employee, date, statusTypes);
   switch (patch.kind) {
     case "status": {
-      // Cambio hecho desde Hoy: recordar lo que ponía el planning para avisar si no cuadra.
-      if (e.plannedStatusTypeId == null && e.statusTypeId !== patch.statusTypeId) e.plannedStatusTypeId = e.statusTypeId;
-      if (e.plannedStatusTypeId === patch.statusTypeId) e.plannedStatusTypeId = null;
-      e.statusTypeId = patch.statusTypeId;
-      const st = statusTypes.find((s) => s.id === patch.statusTypeId);
-      e.reason = st?.isWorking ? null : clean(patch.reason ?? e.reason);
-      if (!st?.isWorking) e.present = null;
-      else if (patch.present) e.present = true;
+      // Desde Hoy: el planning (statusTypeId) NO cambia; se guarda lo que pasó de verdad si no cuadra
+      // y queda validado. Elegir el mismo estado que el planning vuelve a "como el planning".
+      e.actualStatusTypeId = patch.statusTypeId === e.statusTypeId ? null : patch.statusTypeId;
+      if (patch.reason !== undefined) e.reason = clean(patch.reason);
+      // Vuelve a trabajar como estaba previsto: el motivo de la ausencia ya no aplica.
+      const working = (id: string) => statusTypes.find((s) => s.id === id)?.isWorking;
+      if (working(patch.statusTypeId) && working(e.statusTypeId)) e.reason = null;
+      e.present = true;
       break;
     }
-    case "attendance": {
-      const st = statusTypes.find((s) => s.id === e.statusTypeId);
-      e.present = patch.present && st?.isWorking ? true : null;
+    case "attendance":
+      e.present = patch.present ? true : null;
       break;
-    }
     case "reason":
       e.reason = clean(patch.reason);
       break;
@@ -218,7 +216,7 @@ export function isEntryRedundant(
     !(entry.extraMinutes && entry.extraMinutes > 0) &&
     !clean(entry.extraNote) &&
     entry.present !== true &&
-    !entry.plannedStatusTypeId &&
+    !entry.actualStatusTypeId &&
     entry.segments.length === 0
   );
 }

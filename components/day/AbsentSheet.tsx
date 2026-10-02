@@ -15,13 +15,15 @@ interface AbsentSheetProps {
   current?: string | null;
   statusTypes: StatusTypeLite[];
   onConfirm: (statusTypeId: string, reason: string | null) => void;
+  /** Si se indica, muestra arriba "Ha venido a trabajar" (para quien el planning daba ausente). */
+  onCame?: () => void;
 }
 
 /** Primero Fiesta y Baja (lo más habitual), luego el resto en su orden. */
 const FIRST = ["OFF", "SICK"];
 
 /** Elegir el motivo de una ausencia: un toque lo guarda (cambia también la Semana). */
-export function AbsentSheet({ open, onClose, title, note, current, statusTypes, onConfirm }: AbsentSheetProps) {
+export function AbsentSheet({ open, onClose, title, note, current, statusTypes, onConfirm, onCame }: AbsentSheetProps) {
   const [reason, setReason] = useState("");
   const options = statusTypes
     .filter((s) => !s.isWorking && (s.active !== false || s.id === current))
@@ -35,6 +37,18 @@ export function AbsentSheet({ open, onClose, title, note, current, statusTypes, 
     <BottomSheet open={open} onClose={onClose} title={title}>
       <div className="flex flex-col gap-3 pb-2">
         {note && <p className="text-[14px] text-muted">{note}</p>}
+        {onCame && (
+          <button
+            type="button"
+            onClick={() => {
+              onCame();
+              onClose();
+            }}
+            className="flex min-h-12 items-center justify-center gap-2 rounded-control border-2 border-success bg-success/10 text-[16px] font-semibold text-success"
+          >
+            ✓ Ha venido a trabajar
+          </button>
+        )}
         <StatusButtons
           statuses={options}
           value={current}

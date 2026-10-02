@@ -34,8 +34,10 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 - Zona segura: `.app-main` y `BackHeader` gestionan `safe-area-inset-top`; el layout `(app)` pone una tapa fija bajo la barra de estado.
 
 ## Notas técnicas (pasar lista)
-- Semana = plan; Hoy = control. `DayEntry.present` (true = ha venido, null = sin confirmar), patch `attendance` en `lib/segments.ts`, acción `setAttendance`. Marcar ✗ cambia el estado del día (`ABSENT`, creado en la migración `attendance` y unificado con el "Faltante" manual en `merge_faltante`), y por tanto también la Semana.
-- Avisos de planning: cuando Hoy cambia el estado (patch `status` en `lib/segments.ts`) se guarda el anterior en `DayEntry.plannedStatusTypeId`; `getEffectiveDay` lo expone como `day.planned` (null si cuadra). Semana (`setCellStatus`, copiar semana) y aprobar peticiones lo limpian porque definen el planning.
+- EL PLANNING MANDA: `DayEntry.statusTypeId` es SIEMPRE el planning y solo lo cambian Semana (`setCellStatus`, copiar/repetir semana) y las peticiones aprobadas. Hoy NUNCA lo toca.
+- Hoy = validar. `DayEntry.present` (true = validado: ha venido o ausencia confirmada; null = sin validar), patch `attendance`, acción `setAttendance`. Si lo real no cuadra (✗ no ha venido, ⇄ en ausentes, estado en la ficha) se guarda en `DayEntry.actualStatusTypeId` (patch `status` en `lib/segments.ts`; elegir el estado del planning lo vuelve a null). Migración `actual_status` (antes era al revés con `plannedStatusTypeId`).
+- `getEffectiveDay`: `status` = lo real (actual ?? planning), `planned` = el planning si no cuadra. Hoy, Informe y Nómina usan `status`; Semana (Personas) muestra `planned ?? status` y marca "!" si no cuadra.
+- Semana → ⋯ → "Repetir esta semana hasta fin de mes": `remainingMonthWeeks` (semana del mes de su jueves) + `planRepeatWeek` (copia trabaja/fiesta + departamento; no repite ausencias puntuales; respeta las ausencias ya puestas en destino).
 
 ## Notas técnicas (Nómina personal)
 - Pestaña `/nomina` (Registro + Calculadora) y `/ajustes/nomina` (importes y "quién eres"). Lógica pura en `lib/payroll.ts` (céntimos, % ), consultas en `lib/payroll-queries.ts`, acciones en `app/actions/payroll.ts`.

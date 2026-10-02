@@ -241,6 +241,8 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
       : []),
   ];
   const confirmed = expected.filter((m) => m.day.present).length;
+  const everyone = [...expected, ...roster.absentByStatus.flatMap((g) => g.members)];
+  const validated = everyone.filter((m) => m.day.present).length;
   const mismatches = [...expected, ...roster.absentByStatus.flatMap((g) => g.members)]
     .filter((m) => m.day.planned)
     .sort(byOrder);
@@ -278,12 +280,16 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
         <div
           className={cn(
             "flex flex-col gap-1.5 rounded-card px-4 py-2.5 text-[15px] font-medium",
-            expected.length > 0 && confirmed === expected.length ? "bg-success/15 text-fg" : "bg-surface",
+            everyone.length > 0 && validated === everyone.length ? "bg-success/15 text-fg" : "bg-surface",
           )}
           aria-label="Pasar lista"
         >
           <span>
-            Pasar lista · <span className="tabular-nums font-semibold">{confirmed}/{expected.length}</span> han venido
+            Pasar lista · <span className="tabular-nums font-semibold">{validated}/{everyone.length}</span> validados
+            <span className="font-normal text-muted">
+              {" "}
+              · {confirmed}/{expected.length} han venido
+            </span>
           </span>
           {absentGroups.length > 0 && (
             <span className="flex flex-wrap gap-1.5">
@@ -309,22 +315,31 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
           <h2 className="flex min-h-9 items-center gap-2 text-[15px] font-semibold">
             <span aria-hidden>⚠️</span> No cuadra con el planning · {mismatches.length}
           </h2>
+          <p className="text-[13px] text-muted">La Semana no se cambia desde aquí: si el planning está mal, corrígelo en Semana.</p>
           <ul className="divide-y divide-warning/30">
             {mismatches.map((m) => (
-              <li key={m.employee.id}>
+              <li key={m.employee.id} className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => openSheet(m.employee.id)}
-                  className="flex min-h-11 w-full items-center justify-between gap-3 text-left text-[15px]"
+                  className="flex min-h-11 min-w-0 flex-1 flex-col justify-center text-left"
                 >
-                  <span className="min-w-0 truncate font-medium">{m.employee.name}</span>
-                  <span className="flex shrink-0 items-center gap-1.5 text-[13px]">
+                  <span className="truncate text-[15px] font-medium">{m.employee.name}</span>
+                  <span className="flex flex-wrap items-center gap-1.5 text-[13px]">
                     <span className="text-muted">Planning: {m.day.planned!.label}</span>
                     <span aria-hidden>→</span>
                     <span className="font-semibold" style={{ color: m.day.status.color }}>
-                      {m.day.status.code === "WORK" ? "Viene" : m.day.status.label}
+                      {m.day.status.code === "WORK" ? "Ha venido" : m.day.status.label}
                     </span>
                   </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => opsFor(m.employee.id).setStatus(m.day.planned!.id)}
+                  aria-label={`Dejar a ${m.employee.name} como el planning`}
+                  className="min-h-11 shrink-0 rounded-control bg-surface px-3 text-[13px] font-semibold text-accent"
+                >
+                  Como el planning
                 </button>
               </li>
             ))}
@@ -400,7 +415,14 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
               style={{ backgroundColor: g.status.color }}
             >
               <h2 className="text-[17px] font-bold [text-shadow:0_1px_1px_rgb(0_0_0/0.15)]">{g.status.label}</h2>
-              <span className="rounded-full bg-white/25 px-2 py-0.5 text-[13px] font-semibold tabular-nums">{g.members.length}</span>
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[13px] font-semibold tabular-nums",
+                  g.members.every((m) => m.day.present) ? "bg-white text-success" : "bg-white/25",
+                )}
+              >
+                ✓ {g.members.filter((m) => m.day.present).length}/{g.members.length}
+              </span>
             </div>
             <div className="divide-y divide-line pb-1">
               {g.members.map((m) => (
@@ -415,12 +437,8 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
                   hasReports={reportedIds.has(m.employee.id)}
                   showStatus
                   absence={{
-                    onCame: () => {
-                      const work = statusTypes.find((s) => s.code === "WORK");
-                      if (!work) return;
-                      opsFor(m.employee.id).setStatus(work.id, null, true);
-                      if (activeDepartments.length > 0) setMove({ id: m.employee.id, open: true, checkIn: true });
-                    },
+                    onConfirm: () => setPresent(m.employee.id, true),
+                    onUndo: () => setPresent(m.employee.id, false),
                     onChange: () => setAbsentSheet({ id: m.employee.id, open: true, change: true }),
                   }}
                 />
@@ -470,17 +488,26 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
           key={absentSheet.id}
           open={absentSheet.open}
           onClose={() => setAbsentSheet((s) => (s ? { ...s, open: false } : s))}
-          title={absentSheet.change ? `${absentMember.employee.name} · cambiar motivo` : `${absentMember.employee.name} no está hoy`}
+          title={absentSheet.change ? `${absentMember.employee.name} · no cuadra` : `${absentMember.employee.name} no ha venido`}
           note={
-            absentSheet.change ? undefined : (
-              <>
-                ¿Por qué? El planning ponía <b>{absentMember.day.status.label}</b>: se cambiará en la Semana y quedará marcado como aviso.
-              </>
-            )
+            <>
+              Planning: <b>{(absentMember.day.planned ?? absentMember.day.status).label}</b>. La Semana no cambia: si no
+              cuadra, queda como aviso.
+            </>
           }
           current={absentSheet.change ? absentMember.day.status.id : null}
           statusTypes={statusTypes}
           onConfirm={(statusTypeId, reason) => opsFor(absentSheet.id).setStatus(statusTypeId, reason)}
+          onCame={
+            absentSheet.change
+              ? () => {
+                  const work = statusTypes.find((s) => s.code === "WORK");
+                  if (!work) return;
+                  opsFor(absentSheet.id).setStatus(work.id, null);
+                  if (activeDepartments.length > 0) setMove({ id: absentSheet.id, open: true, checkIn: true });
+                }
+              : undefined
+          }
         />
       )}
 
@@ -496,16 +523,6 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
           onPick={(id) => opsFor(move.id).setDepartment(id === moveMember.employee.defaultDepartmentId ? null : id)}
         />
       )}
-
-      <button
-        type="button"
-        onClick={() => openComposer(null)}
-        aria-label="Nuevo aviso con foto"
-        className="fixed right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-[26px] text-accent-fg shadow-lg active:opacity-80"
-        style={{ bottom: "calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px)" }}
-      >
-        <span aria-hidden>📷</span>
-      </button>
 
       <ReportComposer
         open={composer.open}

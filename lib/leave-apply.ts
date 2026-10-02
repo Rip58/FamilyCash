@@ -28,7 +28,7 @@ export async function applyDayStatus(
   }
   await tx.dayEntry.upsert({
     where: { employeeId_date: { employeeId: employee.id, date: toDbDate(date) } },
-    update: { statusTypeId: plan.statusTypeId, reason: plan.reason, plannedStatusTypeId: null },
+    update: { statusTypeId: plan.statusTypeId, reason: plan.reason },
     create: { employeeId: employee.id, date: toDbDate(date), statusTypeId: plan.statusTypeId, reason: plan.reason },
   });
 }

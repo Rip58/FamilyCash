@@ -16,8 +16,8 @@ interface EmployeeRowProps {
   showStatus?: boolean;
   /** El empleado tiene avisos con foto esa noche. */
   hasReports?: boolean;
-  /** En las burbujas de ausencia: ✓ ha venido / ⇄ cambiar motivo. */
-  absence?: { onCame: () => void; onChange: () => void };
+  /** En las burbujas de ausencia: ✓ validar (la ausencia es correcta) / ⇄ no cuadra (otro motivo o ha venido). */
+  absence?: { onConfirm: () => void; onUndo: () => void; onChange: () => void };
   /** Dentro de la burbuja de su departamento: no repetir el nombre del departamento. */
   hideDepartment?: boolean;
   /** Pasar lista: botones ✓/✗ (solo para quien está previsto que trabaje). */
@@ -95,20 +95,31 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
           <button
             type="button"
             onClick={absence.onChange}
-            aria-label={`Cambiar motivo de ${name}`}
+            aria-label={`No cuadra: cambiar lo de ${name}`}
             className={`${checkBtn} text-[20px]`}
             style={{ borderColor: day.status.color, color: day.status.color }}
           >
             ⇄
           </button>
-          <button
-            type="button"
-            onClick={absence.onCame}
-            aria-label={`${name} ha venido`}
-            className={`${checkBtn} border-success/60 text-success`}
-          >
-            ✓
-          </button>
+          {day.present ? (
+            <button
+              type="button"
+              onClick={absence.onUndo}
+              aria-label={`${day.status.label} de ${name} validada. Toca para deshacer`}
+              className={`${checkBtn} border-success bg-success text-white`}
+            >
+              ✓
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={absence.onConfirm}
+              aria-label={`Validar ${day.status.label.toLowerCase()} de ${name}`}
+              className={`${checkBtn} border-success/60 text-success`}
+            >
+              ✓
+            </button>
+          )}
         </span>
       )}
       {attendance && (

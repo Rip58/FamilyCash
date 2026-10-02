@@ -65,10 +65,10 @@ export interface DayEntryLite {
   /** Horas extra de la noche en minutos (null/ausente = sin horas extra). */
   extraMinutes?: number | null;
   extraNote?: string | null;
-  /** Pasar lista: true = ha venido (null/ausente = sin confirmar). */
+  /** Hoy: true = validado (ha venido / ausencia confirmada); null/ausente = sin validar. */
   present?: boolean | null;
-  /** Estado que ponía el planning (Semana) cuando Hoy lo cambió; null = cuadra con el planning. */
-  plannedStatusTypeId?: string | null;
+  /** Hoy: lo que pasó de verdad si no cuadra con el planning (`statusTypeId`); null = como el planning. */
+  actualStatusTypeId?: string | null;
   segments: SegmentLite[];
 }
 
@@ -89,9 +89,9 @@ export interface EffectiveDay {
   timeReason: string | null;
   extraMinutes: number | null;
   extraNote: string | null;
-  /** Confirmado que ha venido (solo si trabaja). */
+  /** Validado en Hoy (ha venido, o la ausencia está confirmada). */
   present: boolean;
-  /** Estado del planning si Hoy no cuadra con él (null = cuadra). */
+  /** Estado del planning (Semana) si lo que pasó de verdad no cuadra con él (null = cuadra). */
   planned: StatusTypeLite | null;
   segments: SegmentLite[];
   hasEntry: boolean;
@@ -115,6 +115,7 @@ export function getEffectiveDay(
   entry: DayEntryLite | undefined | null,
   statusTypes: StatusTypeLite[],
 ): EffectiveDay {
+  // `status` es lo que pasa de verdad (lo validado en Hoy) y `planned` el planning cuando no cuadra.
   let status: StatusTypeLite;
   let source: EffectiveSource;
   if (entry) {
@@ -129,6 +130,9 @@ export function getEffectiveDay(
     status = findByCode(statusTypes, "WORK");
     source = "default";
   }
+  const plan = status;
+  const actual = entry?.actualStatusTypeId ? statusTypes.find((s) => s.id === entry.actualStatusTypeId) : undefined;
+  if (actual) status = actual;
   return {
     employeeId: employee.id,
     date,
@@ -143,11 +147,8 @@ export function getEffectiveDay(
     timeReason: entry?.timeReason ?? null,
     extraMinutes: entry?.extraMinutes ?? null,
     extraNote: entry?.extraNote ?? null,
-    present: status.isWorking && entry?.present === true,
-    planned:
-      entry?.plannedStatusTypeId && entry.plannedStatusTypeId !== status.id
-        ? (statusTypes.find((s) => s.id === entry.plannedStatusTypeId) ?? null)
-        : null,
+    present: entry?.present === true,
+    planned: status.id !== plan.id ? plan : null,
     segments: entry ? [...entry.segments].sort((a, b) => a.sortOrder - b.sortOrder) : [],
     hasEntry: !!entry,
     source,

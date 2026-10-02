@@ -45,7 +45,7 @@ const setStatusSchema = z.object({
   ...base,
   statusTypeId: idSchema,
   reason: optText(200).optional(),
-  /** Además, confirmar que ha venido (si el estado es de trabajo). */
+  /** Obsoleto: elegir estado en Hoy ya lo deja validado. */
   present: z.boolean().optional(),
 });
 const setReasonSchema = z.object({ ...base, reason: optText(200) });
@@ -104,7 +104,7 @@ function toLite(
     extraMinutes: number | null;
     extraNote: string | null;
     present: boolean | null;
-    plannedStatusTypeId: string | null;
+    actualStatusTypeId: string | null;
     segments: {
       id: string;
       sectionId: string | null;
@@ -130,7 +130,7 @@ function toLite(
     extraMinutes: row.extraMinutes,
     extraNote: row.extraNote,
     present: row.present,
-    plannedStatusTypeId: row.plannedStatusTypeId,
+    actualStatusTypeId: row.actualStatusTypeId,
     segments: row.segments.map((s) => ({ ...s })),
   };
 }
@@ -216,7 +216,7 @@ async function mutateScalar(employeeId: string, date: DateStr, patch: EntryPatch
         extraMinutes: next.extraMinutes ?? null,
         extraNote: next.extraNote ?? null,
         present: next.present ?? null,
-        plannedStatusTypeId: next.plannedStatusTypeId ?? null,
+        actualStatusTypeId: next.actualStatusTypeId ?? null,
       };
       await tx.dayEntry.upsert({
         where: { employeeId_date: { employeeId, date: toDbDate(date) } },
@@ -261,7 +261,7 @@ export async function setTimes(input: z.input<typeof setTimesSchema>): Promise<A
   return mutateScalar(employeeId, date, { kind: "times", arrivedAt, leftAt, timeReason });
 }
 
-/** Pasar lista: present=true "ha venido"; false lo deja sin confirmar. */
+/** Pasar lista: present=true "validado como el planning" (ha venido / ausencia confirmada); false lo deja sin validar. */
 export async function setAttendance(input: z.input<typeof setAttendanceSchema>): Promise<ActionResult> {
   const p = setAttendanceSchema.safeParse(input);
   if (!p.success) return invalid();

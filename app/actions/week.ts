@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { addDays, isDateStr, toDbDate, weekDays, weekStart as weekStartOf } from "@/lib/dates";
 import { getEmployees, getEntriesBetween, getStatusTypes } from "@/lib/queries";
-import { planCopyWeek, planSetCell } from "@/lib/week";
+import { planCopyWeek, planRepeatWeek, planSetCell, remainingMonthWeeks } from "@/lib/week";
 
 export type WeekActionResult = { ok: true; changed?: number } | { ok: false; error: string };
 
@@ -69,8 +69,8 @@ export async function setCellStatus(
         update: {
           statusTypeId: plan.statusTypeId,
           reason: plan.reason,
-          plannedStatusTypeId: null,
-          ...(statusTypes.find((s) => s.id === plan.statusTypeId)?.isWorking ? {} : { present: null }),
+          // Si cambia el planning, la validación de Hoy (si era "como el planning") ya no vale.
+          ...(existing && existing.statusTypeId !== plan.statusTypeId && !existing.actualStatusTypeId ? { present: null } : {}),
         },
         create: {
           employeeId: employee.id,
@@ -108,7 +108,7 @@ export async function copyPreviousWeek(weekStart: string): Promise<WeekActionRes
           ? db.dayEntry.deleteMany({ where: { employeeId: op.employeeId, date: toDbDate(op.date) } })
           : db.dayEntry.upsert({
               where: { employeeId_date: { employeeId: op.employeeId, date: toDbDate(op.date) } },
-              update: { statusTypeId: op.statusTypeId, departmentId: op.departmentId, reason: op.reason, plannedStatusTypeId: null },
+              update: { statusTypeId: op.statusTypeId, departmentId: op.departmentId, reason: op.reason },
               create: {
                 employeeId: op.employeeId,
                 date: toDbDate(op.date),
@@ -121,6 +121,49 @@ export async function copyPreviousWeek(weekStart: string): Promise<WeekActionRes
     );
     revalidate();
     return { ok: true, changed: ops.length };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/**
+ * Repite el planning de esta semana en las semanas completas que quedan del mes
+ * (sin repetir vacaciones/bajas puntuales y respetando las que ya hay en destino).
+ */
+export async function repeatWeekToMonthEnd(weekStart: string): Promise<WeekActionResult & { weeks?: number }> {
+  const parsed = weekSchema.safeParse({ weekStart });
+  if (!parsed.success) return { ok: false, error: "Fecha no válida." };
+  const start = weekStartOf(parsed.data.weekStart);
+  const targets = remainingMonthWeeks(start);
+  if (targets.length === 0) return { ok: false, error: "Es la última semana del mes: no quedan semanas que rellenar." };
+  try {
+    const [employees, statusTypes, sourceEntries, targetEntries] = await Promise.all([
+      getEmployees(),
+      getStatusTypes(),
+      getEntriesBetween(start, addDays(start, 6)),
+      getEntriesBetween(targets[0]!, addDays(targets[targets.length - 1]!, 6)),
+    ]);
+    const ops = planRepeatWeek({ sourceStart: start, targets, employees, statusTypes, sourceEntries, targetEntries });
+    await db.$transaction(
+      ops.map((op) =>
+        op.kind === "delete"
+          ? db.dayEntry.deleteMany({ where: { employeeId: op.employeeId, date: toDbDate(op.date) } })
+          : db.dayEntry.upsert({
+              where: { employeeId_date: { employeeId: op.employeeId, date: toDbDate(op.date) } },
+              update: { statusTypeId: op.statusTypeId, departmentId: op.departmentId, reason: op.reason },
+              create: {
+                employeeId: op.employeeId,
+                date: toDbDate(op.date),
+                statusTypeId: op.statusTypeId,
+                departmentId: op.departmentId,
+                reason: op.reason,
+              },
+            }),
+      ),
+      { timeout: 60_000 },
+    );
+    revalidate();
+    return { ok: true, changed: ops.length, weeks: targets.length };
   } catch (e) {
     return fail(e);
   }
@@ -142,6 +185,7 @@ export async function resetWeek(weekStart: string): Promise<WeekActionResult> {
         extraMinutes: null,
         extraNote: null,
         present: null,
+        actualStatusTypeId: null,
         segments: { none: {} },
       },
     });

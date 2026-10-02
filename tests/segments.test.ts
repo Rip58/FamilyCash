@@ -100,7 +100,8 @@ describe("applyEntryPatch / isEntryRedundant", () => {
     expect(e.reason).toBe("gripe");
     e = applyEntryPatch(e, emp, MON, statusTypes, { kind: "status", statusTypeId: "st-WORK" }, "21:30");
     expect(e.reason).toBeNull();
-    expect(isEntryRedundant(e, emp, MON, statusTypes)).toBe(true);
+    expect(e.actualStatusTypeId).toBeNull();
+    expect(e.present).toBe(true); // queda validado: ha venido
   });
   it("tramos, notas y horarios hacen no redundante; quitarlos vuelve a serlo", () => {
     let e: DayEntryLite = applyEntryPatch(undefined, emp, MON, statusTypes, { kind: "segmentAdd", segment: seg("a", "21:30", "05:00") }, "21:30");
@@ -123,7 +124,7 @@ describe("pasar lista", () => {
   const work = (patch: Parameters<typeof applyEntryPatch>[4], cur: DayEntryLite | null = null) =>
     applyEntryPatch(cur, emp, MON, statusTypes, patch, shift.shiftStart);
 
-  it("marcar 'ha venido' guarda la entrada aunque coincida con el patrón", () => {
+  it("validar guarda la entrada aunque coincida con el patrón", () => {
     const e = work({ kind: "attendance", present: true });
     expect(e.present).toBe(true);
     expect(isEntryRedundant(e, emp, MON, statusTypes)).toBe(false);
@@ -133,44 +134,42 @@ describe("pasar lista", () => {
     expect(e.present).toBeNull();
     expect(isEntryRedundant(e, emp, MON, statusTypes)).toBe(true);
   });
-  it("pasar a un estado de ausencia quita la confirmación", () => {
-    const e = work({ kind: "status", statusTypeId: "st-SICK", reason: "fiebre" }, work({ kind: "attendance", present: true }));
-    expect(e.present).toBeNull();
-    expect(e.reason).toBe("fiebre");
-  });
-  it("no se puede confirmar a quien no trabaja", () => {
+  it("se puede validar a quien no trabaja (fiesta/baja confirmada) sin cambiar su estado", () => {
     const off = applyEntryPatch(null, emp, SAT, statusTypes, { kind: "attendance", present: true }, shift.shiftStart);
-    expect(off.present).toBeNull();
+    expect(off.present).toBe(true);
+    expect(off.statusTypeId).toBe("st-OFF");
+    expect(off.actualStatusTypeId).toBeNull();
   });
 });
 
-describe("avisos de planning", () => {
+describe("Hoy no cambia el planning", () => {
   const apply = (patch: Parameters<typeof applyEntryPatch>[4], cur: DayEntryLite | null = null) =>
     applyEntryPatch(cur, emp, MON, statusTypes, patch, shift.shiftStart);
 
-  it("Hoy cambia Trabaja → Baja: recuerda el planning y no es redundante", () => {
-    const e = apply({ kind: "status", statusTypeId: "st-SICK", reason: null });
-    expect(e.plannedStatusTypeId).toBe("st-WORK");
+  it("planning Trabaja, no viene por baja: el planning sigue y se guarda lo real", () => {
+    const e = apply({ kind: "status", statusTypeId: "st-SICK", reason: "fiebre" });
+    expect(e.statusTypeId).toBe("st-WORK");
+    expect(e.actualStatusTypeId).toBe("st-SICK");
+    expect(e.reason).toBe("fiebre");
+    expect(e.present).toBe(true);
     expect(isEntryRedundant(e, emp, MON, statusTypes)).toBe(false);
   });
   it("volver al estado del planning quita el aviso", () => {
     const sick = apply({ kind: "status", statusTypeId: "st-SICK", reason: null });
     const back = apply({ kind: "status", statusTypeId: "st-WORK", reason: null }, sick);
-    expect(back.plannedStatusTypeId).toBeNull();
-    expect(isEntryRedundant(back, emp, MON, statusTypes)).toBe(true);
+    expect(back.statusTypeId).toBe("st-WORK");
+    expect(back.actualStatusTypeId).toBeNull();
   });
-  it("cambios encadenados conservan el planning original", () => {
+  it("cambios encadenados no tocan el planning", () => {
     const off = apply({ kind: "status", statusTypeId: "st-OFF", reason: null });
     const sick = apply({ kind: "status", statusTypeId: "st-SICK", reason: null }, off);
-    expect(sick.plannedStatusTypeId).toBe("st-WORK");
+    expect(sick.statusTypeId).toBe("st-WORK");
+    expect(sick.actualStatusTypeId).toBe("st-SICK");
   });
-});
-
-describe("ha venido desde una ausencia", () => {
-  it("Fiesta → Trabaja con present en un solo cambio", () => {
-    const off = applyEntryPatch(null, emp, MON, statusTypes, { kind: "status", statusTypeId: "st-OFF", reason: null }, shift.shiftStart);
-    const back = applyEntryPatch(off, emp, MON, statusTypes, { kind: "status", statusTypeId: "st-WORK", present: true }, shift.shiftStart);
-    expect(back.statusTypeId).toBe("st-WORK");
-    expect(back.present).toBe(true);
+  it("planning Fiesta y viene a trabajar: queda como aviso, la Semana sigue en Fiesta", () => {
+    const sat = applyEntryPatch(null, emp, SAT, statusTypes, { kind: "status", statusTypeId: "st-WORK" }, shift.shiftStart);
+    expect(sat.statusTypeId).toBe("st-OFF");
+    expect(sat.actualStatusTypeId).toBe("st-WORK");
+    expect(sat.present).toBe(true);
   });
 });

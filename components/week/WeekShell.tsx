@@ -3,16 +3,18 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
-import { copyPreviousWeek, resetWeek } from "@/app/actions/week";
+import { copyPreviousWeek, repeatWeekToMonthEnd, resetWeek } from "@/app/actions/week";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Segmented } from "@/components/ui/Segmented";
 import { cn } from "@/components/ui/cn";
-import { type DateStr, addDays, formatWeekRange, isoWeekNumber, weekStart as weekStartOf } from "@/lib/dates";
-import { weekHref } from "@/lib/week";
+import { type DateStr, addDays, formatDayMonth, formatWeekRange, isoWeekNumber, weekStart as weekStartOf } from "@/lib/dates";
+import { remainingMonthWeeks, weekHref } from "@/lib/week";
 import { PeopleGrid } from "./PeopleGrid";
 import type { PeopleGridData, WeekViewMode } from "./types";
 
 const STORAGE_KEY = "semana:vista";
+
+type Kind = "copy" | "repeat" | "reset";
 const SWIPE_PX = 60;
 
 function isView(v: string | null): v is WeekViewMode {
@@ -35,7 +37,7 @@ export function WeekShell({
 }) {
   const router = useRouter();
   const [view, setView] = useState<WeekViewMode>(initialView ?? "dias");
-  const [menu, setMenu] = useState<{ open: boolean; confirm: "copy" | "reset" | null; message: string | null }>({
+  const [menu, setMenu] = useState<{ open: boolean; confirm: Kind | null; message: string | null }>({
     open: false,
     confirm: null,
     message: null,
@@ -89,9 +91,20 @@ export function WeekShell({
     router.push(dx < 0 ? nextHref : prevHref);
   };
 
-  const run = (kind: "copy" | "reset") => {
+  const repeatTargets = remainingMonthWeeks(weekStart);
+  const repeatRange =
+    repeatTargets.length > 0
+      ? `${formatDayMonth(repeatTargets[0]!)} – ${formatDayMonth(addDays(repeatTargets[repeatTargets.length - 1]!, 6))}`
+      : "";
+
+  const run = (kind: Kind) => {
     startTransition(async () => {
-      const res = kind === "copy" ? await copyPreviousWeek(weekStart) : await resetWeek(weekStart);
+      const res =
+        kind === "copy"
+          ? await copyPreviousWeek(weekStart)
+          : kind === "repeat"
+            ? await repeatWeekToMonthEnd(weekStart)
+            : await resetWeek(weekStart);
       if (res.ok) {
         setMenu({ open: false, confirm: null, message: null });
       } else {
@@ -152,11 +165,32 @@ export function WeekShell({
       <BottomSheet
         open={menu.open}
         onClose={() => setMenu((m) => ({ ...m, open: false }))}
-        title={menu.confirm === "copy" ? "Copiar semana anterior" : menu.confirm === "reset" ? "Restablecer semana" : "Semana"}
+        title={
+          menu.confirm === "copy"
+            ? "Copiar semana anterior"
+            : menu.confirm === "repeat"
+              ? "Repetir hasta fin de mes"
+              : menu.confirm === "reset"
+                ? "Restablecer semana"
+                : "Semana"
+        }
       >
         <div className="flex flex-col gap-2 pt-1">
           {menu.confirm === null && (
             <>
+              <button
+                type="button"
+                disabled={repeatTargets.length === 0}
+                onClick={() => setMenu((m) => ({ ...m, confirm: "repeat" }))}
+                className="flex min-h-12 flex-col justify-center rounded-control bg-accent/10 px-4 text-left text-[16px] font-semibold text-accent disabled:opacity-40"
+              >
+                Repetir esta semana hasta fin de mes
+                <span className="text-[13px] font-normal text-muted">
+                  {repeatTargets.length > 0
+                    ? `${repeatTargets.length} ${repeatTargets.length === 1 ? "semana" : "semanas"}: ${repeatRange}`
+                    : "Es la última semana del mes"}
+                </span>
+              </button>
               <button
                 type="button"
                 onClick={() => setMenu((m) => ({ ...m, confirm: "copy" }))}
@@ -178,7 +212,9 @@ export function WeekShell({
               <p className="text-[15px]">
                 {menu.confirm === "copy"
                   ? "Se copiarán estados, departamentos y motivos de la semana anterior y se sobrescribirán los de esta semana. Las notas, horarios y tareas se conservan."
-                  : "Se borrarán los cambios de esta semana (estados y motivos) y cada persona volverá a sus días fijos. Se conservan los días con nota, horario o tareas."}
+                  : menu.confirm === "repeat"
+                    ? `Se copiará quién trabaja, quién libra y en qué departamento a ${repeatTargets.length === 1 ? "la semana" : `las ${repeatTargets.length} semanas`} del ${repeatRange}. Las vacaciones, bajas y otras ausencias de esta semana no se repiten, y las que ya estén puestas en esas semanas se respetan.`
+                    : "Se borrarán los cambios de esta semana (estados y motivos) y cada persona volverá a sus días fijos. Se conservan los días con nota, horario o tareas."}
               </p>
               {menu.message && (
                 <p role="alert" className="text-[14px] text-danger">
@@ -194,7 +230,13 @@ export function WeekShell({
                   menu.confirm === "reset" ? "bg-danger" : "bg-accent",
                 )}
               >
-                {pending ? "Aplicando…" : menu.confirm === "copy" ? "Sobrescribir con la anterior" : "Restablecer"}
+                {pending
+                  ? "Aplicando…"
+                  : menu.confirm === "copy"
+                    ? "Sobrescribir con la anterior"
+                    : menu.confirm === "repeat"
+                      ? "Repetir hasta fin de mes"
+                      : "Restablecer"}
               </button>
               <button
                 type="button"

@@ -3,7 +3,7 @@
  * plan de escritura de una celda y plan de "copiar semana anterior".
  * El "día efectivo" siempre sale de lib/schedule.ts.
  */
-import { type DateStr, addDays, weekDays } from "./dates";
+import { type DateStr, addDays, diffDays as diffDaysStr, weekDays } from "./dates";
 import {
   type DayEntryLite,
   type DayRoster,
@@ -46,7 +46,7 @@ export function compactNames(people: { name: string; alias?: string | null }[]):
 
 /** ¿Tiene datos además de estado/departamento/motivo? (nota, horario, tramos) */
 export function hasExtraData(e: DayEntryLite): boolean {
-  return !!(e.note || e.arrivedAt || e.leftAt || e.timeReason || (e.extraMinutes ?? 0) > 0 || e.extraNote || e.present === true || e.segments.length > 0);
+  return !!(e.note || e.arrivedAt || e.leftAt || e.timeReason || (e.extraMinutes ?? 0) > 0 || e.extraNote || e.present === true || !!e.actualStatusTypeId || e.segments.length > 0);
 }
 
 /** ¿El estado coincide con el que da el patrón (días fijos) ese día? */
@@ -123,6 +123,10 @@ export function planCopyWeek(input: {
   statusTypes: StatusTypeLite[];
   prevEntries: DayEntryLite[];
   curEntries: DayEntryLite[];
+  /** Días entre la semana origen y la destino (7 = la anterior). */
+  offset?: number;
+  /** Celdas de la semana destino que no se tocan. */
+  keep?: (current: DayEntryLite) => boolean;
 }): EntryOp[] {
   const { employees, statusTypes } = input;
   const key = (e: { employeeId: string; date: DateStr }) => `${e.employeeId}|${e.date}`;
@@ -132,8 +136,9 @@ export function planCopyWeek(input: {
 
   for (const employee of employees.filter((e) => e.active)) {
     for (const date of weekDays(input.weekStart)) {
-      const p = prev.get(`${employee.id}|${addDays(date, -7)}`);
+      const p = prev.get(`${employee.id}|${addDays(date, -(input.offset ?? 7))}`);
       const c = cur.get(`${employee.id}|${date}`);
+      if (c && input.keep?.(c)) continue;
       const extra = c ? hasExtraData(c) : false;
 
       let target: { statusTypeId: string; departmentId: string | null; reason: string | null };
@@ -166,6 +171,60 @@ export function planCopyWeek(input: {
     }
   }
   return ops;
+}
+
+/** Estados que forman el planning "de rotación" y se repiten semana a semana. */
+const ROTATION_CODES = new Set(["WORK", "OFF"]);
+
+/**
+ * Semanas completas (lunes) que quedan del mes tras `weekStart`. Una semana es del mes que
+ * contiene su jueves (la mayoría de sus días), como en la numeración ISO.
+ */
+export function remainingMonthWeeks(weekStart: DateStr): DateStr[] {
+  const month = addDays(weekStart, 3).slice(0, 7);
+  const out: DateStr[] = [];
+  for (let s = addDays(weekStart, 7); addDays(s, 3).slice(0, 7) === month; s = addDays(s, 7)) out.push(s);
+  return out;
+}
+
+/**
+ * Repite el planning de la semana `sourceStart` en las semanas `targets`:
+ *  - copia trabaja/fiesta y departamento; las ausencias puntuales del origen (vacaciones, baja…)
+ *    no se repiten: esa celda vuelve al patrón del empleado;
+ *  - en destino se respetan las ausencias ya puestas (vacaciones aprobadas, bajas…).
+ */
+export function planRepeatWeek(input: {
+  sourceStart: DateStr;
+  targets: DateStr[];
+  employees: EmployeeLite[];
+  statusTypes: StatusTypeLite[];
+  sourceEntries: DayEntryLite[];
+  targetEntries: DayEntryLite[];
+}): EntryOp[] {
+  const { employees, statusTypes } = input;
+  const code = (id: string) => statusTypes.find((s) => s.id === id)?.code ?? "";
+  const byId = new Map(employees.map((e) => [e.id, e]));
+  const source = input.sourceEntries.flatMap((e) => {
+    if (ROTATION_CODES.has(code(e.statusTypeId))) return [e];
+    const emp = byId.get(e.employeeId);
+    if (!emp) return [];
+    const pattern = getEffectiveDay(emp, e.date, null, statusTypes).status.id;
+    return [{ ...e, statusTypeId: pattern, reason: null }];
+  });
+  const keep = (c: DayEntryLite) => !ROTATION_CODES.has(code(c.statusTypeId));
+  return input.targets.flatMap((target) => {
+    const days = weekDays(target);
+    const cur = input.targetEntries.filter((e) => e.date >= days[0]! && e.date <= days[6]!);
+    return planCopyWeek({
+      weekStart: target,
+      employees,
+      statusTypes,
+      prevEntries: source,
+      curEntries: cur,
+      offset: diffDaysStr(input.sourceStart, target),
+      keep,
+    });
+  });
 }
 
 /** Ruta de una semana conservando la vista elegida. */

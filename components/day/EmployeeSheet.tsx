@@ -77,7 +77,11 @@ export function EmployeeSheet({
           </p>
         )}
 
-        <Block title="Estado">
+        <Block title="Qué pasa hoy">
+          <p className="mb-2 text-[13px] text-muted">
+            Planning (Semana): <b className="text-fg">{(day.planned ?? day.status).label}</b>
+            {day.planned ? " · no cuadra, queda como aviso" : ""}. Esto no cambia la Semana.
+          </p>
           <StatusButtons statuses={statusOptions} value={day.status.id} onPick={(s) => ops.setStatus(s.id)} />
           {!day.isWorking && (
             <AutoText

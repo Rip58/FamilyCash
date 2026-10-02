@@ -45,11 +45,12 @@ export default async function Page({
         alias: r.employee.alias ?? null,
         departmentName: g.department?.name ?? null,
         cells: r.cells.map((c) => ({
-          statusId: c.status.id,
+          // Semana muestra SIEMPRE el planning; lo que pasó en Hoy, si difiere, es solo un aviso.
+          statusId: (c.planned ?? c.status).id,
           reason: c.reason,
           extraMinutes: c.extraMinutes,
           extraNote: c.extraNote,
-          planned: c.planned?.label ?? null,
+          actual: c.planned ? c.status.label : null,
           pending: data.pending[`${r.employee.id}|${c.date}`] ?? null,
         })),
       })),

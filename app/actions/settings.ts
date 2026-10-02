@@ -250,7 +250,7 @@ export async function deleteStatus(rawId: string): Promise<ActionResult> {
   const st = await db.statusType.findUnique({ where: { id: p.data } });
   if (!st) return done();
   if (isProtectedStatus(st.code)) return fail("Este estado no se puede borrar.");
-  const used = await db.dayEntry.count({ where: { statusTypeId: st.id } });
+  const used = await db.dayEntry.count({ where: { OR: [{ statusTypeId: st.id }, { actualStatusTypeId: st.id }] } });
   if (used > 0) return fail("Hay días con este estado: no se puede borrar. Desactívalo.");
   await db.statusType.delete({ where: { id: st.id } });
   return done();
