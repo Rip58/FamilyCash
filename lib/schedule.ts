@@ -40,6 +40,8 @@ export interface EmployeeLite {
   fixedDaysOff: number[];
   active: boolean;
   notes?: string | null;
+  /** Orden de las filas en el Excel del planning (vista Semana sin departamentos). */
+  rotaOrder?: number | null;
 }
 
 export interface SegmentLite {

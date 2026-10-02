@@ -31,6 +31,7 @@ export function WeekImport({ weekStart, provider, employees, statuses }: Props) 
   const [phase, setPhase] = useState<Phase>({ kind: "pick" });
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [saving, startSave] = useTransition();
+  const [saveOrder, setSaveOrder] = useState(true);
   const days = weekDays(weekStart);
   const back = `/semana/${weekStart}?v=personas`;
 
@@ -74,6 +75,7 @@ export function WeekImport({ weekStart, provider, employees, statuses }: Props) 
       const r = await applyImportedWeek({
         weekStart,
         rows: toSave.map((row) => ({ employeeId: row.employeeId!, cells: row.cells })),
+        saveOrder,
       });
       if (!r.ok) {
         notify(r.error, "error");
@@ -248,6 +250,19 @@ export function WeekImport({ weekStart, provider, employees, statuses }: Props) 
               No aparecen en la imagen (se quedan como estaban): {missing.map((e) => e.name.split(" ")[0]).join(", ")}.
             </p>
           )}
+
+          <label className="flex min-h-12 items-center gap-3 rounded-card bg-surface px-4 text-[15px]">
+            <input
+              type="checkbox"
+              checked={saveOrder}
+              onChange={(e) => setSaveOrder(e.target.checked)}
+              className="h-5 w-5 accent-[var(--accent)]"
+            />
+            <span>
+              Guardar este orden de filas como el del Excel
+              <span className="block text-[13px] text-muted">Para la vista de Semana sin departamentos</span>
+            </span>
+          </label>
 
           <button
             type="button"

@@ -60,6 +60,7 @@ model Employee {
   defaultDepartmentId String?
   defaultDepartment   Department? @relation(fields: [defaultDepartmentId], references: [id])
   sortOrder           Int     @default(0)   // orden dentro del departamento
+  rotaOrder           Int?                  // orden de las filas en el Excel del planning (se guarda al importar); null = al final
   fixedDaysOff        Int[]                 // 0=Lun … 6=Dom
   active              Boolean @default(true)
   notes               String?               // nota permanente

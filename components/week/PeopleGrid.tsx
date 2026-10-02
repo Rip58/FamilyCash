@@ -253,8 +253,10 @@ function CellSheetBody({
   );
 }
 
-export function PeopleGrid({ data }: { data: PeopleGridData }) {
-  const { days, today, statuses, groups, daysOffPerWeek } = data;
+/** `flat`: sin grupos de departamento, todos en el orden del Excel del planning. */
+export function PeopleGrid({ data, flat = false }: { data: PeopleGridData; flat?: boolean }) {
+  const { days, today, statuses, daysOffPerWeek } = data;
+  const groups = flat ? data.flatGroups : data.groups;
   const statusById = useMemo(() => new Map(statuses.map((s) => [s.id, s])), [statuses]);
 
   const shortById = useMemo(() => {

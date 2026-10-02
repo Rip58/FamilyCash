@@ -1,10 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { addDays, isDateStr, toDbDate, weekDays, weekStart as weekStartOf } from "@/lib/dates";
-import { getEmployees, getEntriesBetween, getStatusTypes } from "@/lib/queries";
+import { REF_TAG, getEmployees, getEntriesBetween, getStatusTypes } from "@/lib/queries";
 import { getEffectiveDay } from "@/lib/schedule";
 import { planCopyWeek, planRepeatWeek, planSetCell, remainingMonthWeeks } from "@/lib/week";
 
@@ -180,6 +180,8 @@ const importSchema = z.object({
       }),
     )
     .max(200),
+  /** Guardar el orden de las filas de la imagen como "orden del Excel" (vista Semana sin departamentos). */
+  saveOrder: z.boolean().optional(),
 });
 
 /**
@@ -233,6 +235,16 @@ export async function applyImportedWeek(input: z.input<typeof importSchema>): Pr
       ),
       { timeout: 60_000 },
     );
+    if (parsed.data.saveOrder) {
+      // Las filas llegan en el orden de la imagen; quien no sale en ella queda al final.
+      const order = new Map(ids.map((id, i) => [id, i]));
+      await db.$transaction(
+        employees
+          .filter((e) => e.active && (e.rotaOrder ?? null) !== (order.get(e.id) ?? null))
+          .map((e) => db.employee.update({ where: { id: e.id }, data: { rotaOrder: order.get(e.id) ?? null } })),
+      );
+      updateTag(REF_TAG);
+    }
     revalidate();
     return { ok: true, changed: writes.length };
   } catch (e) {

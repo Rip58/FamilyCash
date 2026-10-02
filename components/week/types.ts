@@ -43,5 +43,7 @@ export interface PeopleGridData {
   today: DateStr;
   statuses: GridStatus[];
   groups: GridGroup[];
+  /** Vista sin departamentos: una sola lista en el orden del Excel del planning. */
+  flatGroups: GridGroup[];
   daysOffPerWeek: number;
 }

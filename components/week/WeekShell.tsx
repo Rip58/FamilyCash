@@ -13,6 +13,7 @@ import { PeopleGrid } from "./PeopleGrid";
 import type { PeopleGridData, WeekViewMode } from "./types";
 
 const STORAGE_KEY = "semana:vista";
+const FLAT_KEY = "semana:sinDepartamentos";
 
 type Kind = "copy" | "repeat" | "reset";
 const SWIPE_PX = 60;
@@ -43,6 +44,27 @@ export function WeekShell({
     message: null,
   });
   const [pending, startTransition] = useTransition();
+  // Vista Personas sin departamentos (orden del Excel): se recuerda en este móvil.
+  const [flat, setFlat] = useState(false);
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (localStorage.getItem(FLAT_KEY) === "1") setFlat(true);
+    } catch {
+      /* almacenamiento no disponible */
+    }
+  }, []);
+  const toggleFlat = () => {
+    const next = !flat;
+    setFlat(next);
+    try {
+      localStorage.setItem(FLAT_KEY, next ? "1" : "0");
+    } catch {
+      /* ignorar */
+    }
+    chooseView("personas");
+    setMenu({ open: false, confirm: null, message: null });
+  };
   const touch = useRef<{ x: number; y: number } | null>(null);
 
   // Sin ?v= en la URL: recordar la última vista elegida.
@@ -160,7 +182,7 @@ export function WeekShell({
       </div>
 
       <div className={cn(view === "dias" ? "block" : "hidden")}>{daysView}</div>
-      {view === "personas" && <PeopleGrid data={people} />}
+      {view === "personas" && <PeopleGrid data={people} flat={flat} />}
 
       <BottomSheet
         open={menu.open}
@@ -189,6 +211,19 @@ export function WeekShell({
                   {repeatTargets.length > 0
                     ? `${repeatTargets.length} ${repeatTargets.length === 1 ? "semana" : "semanas"}: ${repeatRange}`
                     : "Es la última semana del mes"}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={toggleFlat}
+                aria-pressed={flat}
+                className="flex min-h-12 flex-col justify-center rounded-control bg-surface-2 px-4 text-left text-[16px]"
+              >
+                {flat ? "🗂️ Ver por departamentos" : "📋 Ver sin departamentos (orden del Excel)"}
+                <span className="text-[13px] text-muted">
+                  {flat
+                    ? "Vuelve a agrupar a la plantilla por departamento"
+                    : "Todos en una lista, como en el Excel, para poner las fiestas"}
                 </span>
               </button>
               <Link
