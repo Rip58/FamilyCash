@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { forceUpdate } from "@/lib/app-update";
 
 /**
  * Error de una pantalla (p. ej. la app abierta de una versión anterior tras publicar otra:
  * la acción del servidor ya no existe). "Recargar la app" trae la versión nueva.
  */
 export default function AppError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  const [updating, setUpdating] = useState(false);
   useEffect(() => {
     console.error(error);
   }, [error]);
@@ -23,10 +25,14 @@ export default function AppError({ error, reset }: { error: Error & { digest?: s
       <div className="flex w-full max-w-xs flex-col gap-2">
         <button
           type="button"
-          onClick={() => window.location.reload()}
-          className="min-h-12 rounded-control bg-accent text-[16px] font-semibold text-accent-fg"
+          disabled={updating}
+          onClick={() => {
+            setUpdating(true);
+            void forceUpdate();
+          }}
+          className="min-h-12 rounded-control bg-accent text-[16px] font-semibold text-accent-fg disabled:opacity-60"
         >
-          Recargar la app
+          {updating ? "Actualizando…" : "Recargar la app"}
         </button>
         <button type="button" onClick={reset} className="min-h-11 text-[16px] font-medium text-accent">
           Reintentar

@@ -1,39 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { fetchServerVersion, forceUpdate } from "@/lib/app-update";
 import { CLIENT_BUILD_TIME, CLIENT_VERSION, compareVersions, formatBuildTime, type VersionStatus } from "@/lib/version";
 
 interface ServerVersion {
   version: string;
   builtAt: string | null;
-}
-
-/** Borra service workers y cachés y recarga desde la red. */
-async function forceUpdate() {
-  try {
-    if ("serviceWorker" in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map((r) => r.unregister()));
-    }
-    if ("caches" in window) {
-      const keys = await caches.keys();
-      await Promise.all(keys.map((k) => caches.delete(k)));
-    }
-  } finally {
-    const url = new URL(window.location.href);
-    url.searchParams.set("v", String(Date.now()));
-    window.location.replace(url.toString());
-  }
-}
-
-async function fetchServerVersion(): Promise<ServerVersion | null> {
-  try {
-    const res = await fetch("/api/version", { cache: "no-store" });
-    if (!res.ok) return null;
-    return (await res.json()) as ServerVersion;
-  } catch {
-    return null;
-  }
 }
 
 export function VersionCard() {
@@ -52,12 +25,6 @@ export function VersionCard() {
   };
 
   useEffect(() => {
-    // Limpia el ?v= que deja "Forzar actualización".
-    const url = new URL(window.location.href);
-    if (url.searchParams.has("v")) {
-      url.searchParams.delete("v");
-      window.history.replaceState(null, "", url.toString());
-    }
     void fetchServerVersion().then(apply);
   }, [apply]);
 
@@ -101,7 +68,7 @@ export function VersionCard() {
           type="button"
           onClick={() => {
             setUpdating(true);
-            void forceUpdate();
+            void forceUpdate(server?.version ?? null);
           }}
           disabled={updating}
           className={`min-h-12 flex-1 text-[16px] font-semibold disabled:opacity-50 ${

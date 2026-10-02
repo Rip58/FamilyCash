@@ -5,6 +5,8 @@ export async function proxy(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const ok = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value);
 
+  // Vaciar caché y volver (Forzar actualización): inofensivo, debe funcionar aunque la sesión haya caducado.
+  if (pathname === "/api/refresh") return NextResponse.next();
   if (pathname === "/login") {
     if (ok) return NextResponse.redirect(new URL("/hoy", req.url));
     return NextResponse.next();
