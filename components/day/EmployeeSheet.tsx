@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ReportCard } from "@/components/reports/ReportCard";
-import type { ReportView } from "@/lib/reports";
+import type { ReportView } from "@/lib/report-format";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Chip } from "@/components/ui/Chip";
 import { TimeInput } from "@/components/ui/TimeInput";

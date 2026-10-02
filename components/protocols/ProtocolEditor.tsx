@@ -6,7 +6,7 @@ import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import { createProtocol, deleteProtocol, updateProtocol } from "@/app/actions/protocols";
 import { discardUploadedFiles } from "@/app/actions/reports";
 import { cn } from "@/components/ui";
-import type { ProtocolStepView } from "@/lib/planograms";
+import type { ProtocolStepView } from "@/lib/planogram-format";
 import { indentLine, makeBullet, outdentLine, type EditResult } from "@/lib/protocol-edit";
 import { ProtocolBody } from "./ProtocolBody";
 import { type EditorStep, StepsEditor, newStepKey } from "./StepsEditor";

@@ -1,5 +1,5 @@
 import { StorageModeProvider } from "@/components/reports/StorageContext";
-import { Toaster } from "@/components/settings/kit";
+import { Toaster } from "@/components/ui/toast";
 import { TabBar } from "@/components/ui/TabBar";
 import { storageMode } from "@/lib/storage";
 

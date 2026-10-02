@@ -15,7 +15,7 @@ import {
   type PlanogramView,
   untilLabel,
   untilState,
-} from "@/lib/planograms";
+} from "@/lib/planogram-format";
 import { ProtocolTabs } from "./ProtocolTabs";
 
 const NONE = "Sin ubicación";

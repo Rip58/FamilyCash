@@ -22,7 +22,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { reorderProtocols } from "@/app/actions/protocols";
 import { cn } from "@/components/ui";
-import type { ProtocolStepView } from "@/lib/planograms";
+import type { ProtocolStepView } from "@/lib/planogram-format";
 import { normalize, protocolPlainText } from "@/lib/protocol-markdown";
 import { Highlight, ProtocolBody } from "./ProtocolBody";
 import { ProtocolSteps } from "./ProtocolSteps";

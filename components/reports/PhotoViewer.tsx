@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { notify } from "@/components/settings/kit";
-import type { ReportPhotoView } from "@/lib/reports";
+import type { ReportPhotoView } from "@/lib/report-format";
 
 interface PhotoViewerProps {
   photos: ReportPhotoView[];

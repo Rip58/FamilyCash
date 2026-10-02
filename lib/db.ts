@@ -8,12 +8,12 @@ import { pooledDatabaseUrl } from "@/lib/db-url";
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function createClient(): PrismaClient {
-  // Pocas conexiones por instancia y se cierran pronto si no se usan: en Vercel hay varias instancias
-  // a la vez y todas comparten el límite de conexiones de la base de datos.
+  // Pocas conexiones por instancia (en Vercel hay varias a la vez). Se mantienen abiertas 2 min: reabrir
+  // una conexión (TCP + TLS + login) cuesta ~4 viajes a la BD; el límite real lo pone PgBouncer.
   const adapter = new PrismaPg({
     connectionString: pooledDatabaseUrl(),
     max: 4,
-    idleTimeoutMillis: 10_000,
+    idleTimeoutMillis: 120_000,
     connectionTimeoutMillis: 10_000,
   });
   return new PrismaClient({ adapter });

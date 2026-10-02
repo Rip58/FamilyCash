@@ -9,7 +9,7 @@ import { formatDayLong, formatStamp } from "@/lib/dates";
 import {
   CATEGORY_META, NOTE_CATEGORIES, type NoteCategory, type NoteView, buildTimeline, filterTimeline, groupByMonth,
 } from "@/lib/employee-file";
-import type { ReportView } from "@/lib/reports";
+import type { ReportView } from "@/lib/report-format";
 import { NoteSheet } from "./NoteSheet";
 
 type Filter = NoteCategory | "REPORT" | null;

@@ -1,21 +1,25 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { countPendingRequests } from "@/lib/employee-file-queries";
+import { getDepartments, getEmployees, getSections, getSettings, getStatusTypes } from "@/lib/queries";
 import { VersionCard } from "@/components/settings/VersionCard";
 
 export const metadata = { title: "Ajustes" };
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  const [emps, deps, secs, sts, locs, settings, pending] = await Promise.all([
-    db.employee.count({ where: { active: true } }),
-    db.department.count({ where: { active: true } }),
-    db.section.count({ where: { active: true } }),
-    db.statusType.count({ where: { active: true } }),
+  // Los recuentos salen de los datos de referencia en caché: solo 2 consultas reales.
+  const [employees, departments, sections, statuses, locs, settings, pending] = await Promise.all([
+    getEmployees(),
+    getDepartments(),
+    getSections(),
+    getStatusTypes(),
     db.shelfLocation.count({ where: { active: true } }),
-    db.settings.findUnique({ where: { id: 1 } }),
+    getSettings(),
     countPendingRequests(),
   ]);
+  const active = (rows: { active?: boolean }[]) => rows.filter((r) => r.active !== false).length;
+  const [emps, deps, secs, sts] = [active(employees), active(departments), active(sections), active(statuses)];
   const shift = settings ? `${settings.shiftStart}–${settings.shiftEnd}` : "21:30–06:30";
   const groups: { items: { href: string; label: string; detail?: string; badge?: number; icon: string; color: string }[] }[] = [
     {

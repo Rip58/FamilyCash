@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { PhotoViewer } from "@/components/reports/PhotoViewer";
-import type { ProtocolStepView } from "@/lib/planograms";
+import type { ProtocolStepView } from "@/lib/planogram-format";
 import { Highlight } from "./ProtocolBody";
 
 /** Manual paso a paso: número, foto grande (toca para ampliar) y explicación. */

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { purgeOldReports } from "@/app/actions/reports";
 import { Card } from "@/components/ui/Card";
 import { formatBytes } from "@/lib/upload-rules";
-import { photoCountLabel } from "@/lib/reports";
+import { photoCountLabel } from "@/lib/report-format";
 import { BackHeader, ConfirmButton, Stepper, useRun } from "./kit";
 
 interface Props {

@@ -22,7 +22,7 @@ import {
 } from "@/app/actions/day";
 import { type DateStr, madridParts } from "@/lib/dates";
 import { formatOvertime, totalOvertime } from "@/lib/overtime";
-import type { ReportView } from "@/lib/reports";
+import type { ReportView } from "@/lib/report-format";
 import {
   type DayEntryLite,
   type DepartmentLite,

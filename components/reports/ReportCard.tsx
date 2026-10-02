@@ -5,7 +5,7 @@ import { deleteReport, deleteReportPhoto, updateReport } from "@/app/actions/rep
 import { ConfirmButton, PrimaryButton, inputClass, notify } from "@/components/settings/kit";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { formatDayLong } from "@/lib/dates";
-import { MAX_REPORT_TEXT, photoCountLabel, type ReportView } from "@/lib/reports";
+import { MAX_REPORT_TEXT, photoCountLabel, type ReportView } from "@/lib/report-format";
 import { PhotoThumbs } from "./PhotoThumbs";
 import { PhotoViewer } from "./PhotoViewer";
 

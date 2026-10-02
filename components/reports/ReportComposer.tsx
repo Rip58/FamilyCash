@@ -6,7 +6,7 @@ import { PrimaryButton, inputClass, notify } from "@/components/settings/kit";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import type { DateStr } from "@/lib/dates";
 import { isDateStr } from "@/lib/dates";
-import { MAX_REPORT_TEXT } from "@/lib/reports";
+import { MAX_REPORT_TEXT } from "@/lib/report-format";
 import { PhotoPicker, usePhotoUploads } from "./PhotoPicker";
 
 export interface ComposerEmployee {

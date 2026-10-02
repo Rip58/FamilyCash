@@ -1,45 +1,14 @@
 /**
- * Lineales (cómo tiene que quedar un lineal: foto + nota, opcionalmente hasta una fecha) y
- * pasos con foto de los protocolos. Tipos, validación (zod) y utilidades puras: se usa también en el cliente.
+ * Lineales (cómo tiene que quedar un lineal: foto + nota, opcionalmente hasta una fecha) y pasos con foto
+ * de los protocolos: validación (zod). Tipos y utilidades sin zod en lib/planogram-format.ts.
  */
 import { z } from "zod";
-import { type DateStr, diffDays, formatDayMonth, isDateStr } from "./dates";
-import { photoInputSchema, type ReportPhotoView } from "./reports";
+import { isDateStr } from "./dates";
+import { MAX_PLANOGRAM_TEXT, MAX_STEP_TEXT, MAX_STEPS } from "./planogram-format";
+import { photoInputSchema } from "./reports";
 import { MAX_PHOTOS_PER_REPORT } from "./upload-rules";
 
-export const MAX_PLANOGRAM_TEXT = 1000;
-export const MAX_STEP_TEXT = 2000;
-export const MAX_STEPS = 60;
-
-export interface PlanogramView {
-  id: string;
-  locationId: string | null;
-  locationName: string | null;
-  text: string;
-  until: DateStr | null;
-  createdDate: DateStr;
-  photos: ReportPhotoView[];
-}
-
-export interface LocationOption {
-  id: string;
-  name: string;
-  active: boolean;
-}
-
-export interface StepPhoto {
-  url: string;
-  pathname: string;
-  width: number;
-  height: number;
-  size: number;
-}
-
-export interface ProtocolStepView {
-  id: string;
-  text: string;
-  photo: StepPhoto | null;
-}
+export * from "./planogram-format";
 
 // ---- Validación ----------------------------------------------------------
 
@@ -92,28 +61,6 @@ export const stepsSchema = z
 
 export type CreatePlanogramInput = z.input<typeof createPlanogramSchema>;
 export type StepInput = NonNullable<z.input<typeof stepsSchema>>[number];
-
-// ---- Utilidades ----------------------------------------------------------
-
-export type UntilState = "none" | "ok" | "soon" | "expired";
-
-/** Estado de la fecha "hasta": caducado si ya pasó, "pronto" si quedan 3 días o menos. */
-export function untilState(until: DateStr | null, today: DateStr): UntilState {
-  if (!until) return "none";
-  const left = diffDays(today, until);
-  if (left < 0) return "expired";
-  return left <= 3 ? "soon" : "ok";
-}
-
-/** "Hasta 15 oct" / "Hasta hoy" / "Hasta mañana" / "Caducado el 15 oct". */
-export function untilLabel(until: DateStr | null, today: DateStr): string | null {
-  if (!until) return null;
-  const left = diffDays(today, until);
-  if (left < 0) return `Caducado el ${formatDayMonth(until)}`;
-  if (left === 0) return "Hasta hoy";
-  if (left === 1) return "Hasta mañana";
-  return `Hasta ${formatDayMonth(until)}`;
-}
 
 /** Pathnames de foto que estaban y ya no están (para borrarlos del almacenamiento). */
 export function removedPathnames(before: (string | null)[], after: (string | null)[]): string[] {

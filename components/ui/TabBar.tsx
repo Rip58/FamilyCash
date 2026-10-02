@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import Link, { useLinkStatus } from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { type ReactNode, useEffect } from "react";
 import { cn } from "./cn";
 
 const iconProps = {
@@ -80,8 +80,31 @@ const TABS: { href: string; label: string; icon: ReactNode }[] = [
   },
 ];
 
+/** Al volver a la app tras un rato fuera, refresca los datos (puede haber cambios desde otro móvil). */
+const REFRESH_AFTER_MS = 2 * 60_000;
+
+function useRefreshOnReturn() {
+  const router = useRouter();
+  useEffect(() => {
+    let hiddenAt = 0;
+    const onChange = () => {
+      if (document.visibilityState === "hidden") hiddenAt = Date.now();
+      else if (hiddenAt && Date.now() - hiddenAt > REFRESH_AFTER_MS) router.refresh();
+    };
+    document.addEventListener("visibilitychange", onChange);
+    return () => document.removeEventListener("visibilitychange", onChange);
+  }, [router]);
+}
+
+/** Icono de la pestaña; mientras carga la página pedida, late suavemente. */
+function TabIcon({ children }: { children: ReactNode }) {
+  const { pending } = useLinkStatus();
+  return <span className={cn("transition-opacity", pending && "animate-pulse opacity-50")}>{children}</span>;
+}
+
 export function TabBar() {
   const pathname = usePathname();
+  useRefreshOnReturn();
   return (
     <nav
       aria-label="Navegación principal"
@@ -95,13 +118,15 @@ export function TabBar() {
             <li key={t.href} className="flex-1">
               <Link
                 href={t.href}
+                // Precarga la página COMPLETA (con datos) en segundo plano: al tocar la pestaña sale al instante.
+                prefetch={true}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex min-h-[56px] flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors duration-150",
                   active ? "text-accent" : "text-muted",
                 )}
               >
-                {t.icon}
+                <TabIcon>{t.icon}</TabIcon>
                 {t.label}
               </Link>
             </li>

@@ -8,7 +8,7 @@
  */
 import { type DateStr, formatDayLong, formatWeekRange, isoWeekNumber, weekDays } from "./dates";
 import { totalOvertime, formatOvertime } from "./overtime";
-import { type ReportView, reportsToTextLines } from "./reports";
+import { type ReportView, reportsToTextLines } from "./report-format";
 import type { DayRoster, RosterMember, StatusTypeLite, WeekGrid } from "./schedule";
 
 export interface ShiftConfig {

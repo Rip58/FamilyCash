@@ -4,6 +4,7 @@
  * - Navegación: red primero; si no hay red, muestra /offline.html. El HTML NUNCA se guarda en caché
  *   (es autenticado y con datos del turno: no debe enseñarse viejo).
  * - No intercepta /api, POST (server actions), peticiones RSC ni nada que no sea lo anterior.
+ * - Navigation preload: la petición de la página sale en paralelo al arranque del service worker.
  */
 const VERSION = "v2";
 const SHELL_CACHE = `plantilla-shell-${VERSION}`;
@@ -26,6 +27,8 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(keys.filter((k) => k.startsWith("plantilla-") && k !== SHELL_CACHE && k !== STATIC_CACHE).map((k) => caches.delete(k))),
       )
+      .then(() => self.registration.navigationPreload?.enable())
+      .catch(() => {})
       .then(() => self.clients.claim()),
   );
 });
@@ -39,7 +42,9 @@ self.addEventListener("fetch", (event) => {
 
   if (req.mode === "navigate") {
     event.respondWith(
-      fetch(req).catch(() => caches.match("/offline.html").then((r) => r || new Response("Sin conexión", { status: 503 }))),
+      Promise.resolve(event.preloadResponse)
+        .then((pre) => pre || fetch(req))
+        .catch(() => caches.match("/offline.html").then((r) => r || new Response("Sin conexión", { status: 503 }))),
     );
     return;
   }

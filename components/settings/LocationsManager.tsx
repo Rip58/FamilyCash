@@ -4,7 +4,7 @@ import { useState } from "react";
 import { deleteLocation, reorderLocations, saveLocation } from "@/app/actions/planograms";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { cn } from "@/components/ui/cn";
-import type { LocationOption } from "@/lib/planograms";
+import type { LocationOption } from "@/lib/planogram-format";
 import { AddButton, BackHeader, ConfirmButton, Field, PrimaryButton, SortableList, TextInput, Toggle, inputClass, useRun } from "./kit";
 
 export type LocationRow = LocationOption & { count: number };

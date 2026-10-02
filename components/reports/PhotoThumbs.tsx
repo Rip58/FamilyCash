@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReportPhotoView } from "@/lib/reports";
+import type { ReportPhotoView } from "@/lib/report-format";
 
 /** Miniaturas de fotos (72px) que abren el visor al tocarlas. */
 export function PhotoThumbs({

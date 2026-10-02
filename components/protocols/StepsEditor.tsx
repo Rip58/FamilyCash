@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useStorageMode } from "@/components/reports/StorageContext";
 import { cn } from "@/components/ui/cn";
-import { MAX_STEP_TEXT, MAX_STEPS, type StepPhoto } from "@/lib/planograms";
+import { MAX_STEP_TEXT, MAX_STEPS, type StepPhoto } from "@/lib/planogram-format";
 import { uploadPhoto } from "@/lib/upload";
 
 export interface EditorStep {

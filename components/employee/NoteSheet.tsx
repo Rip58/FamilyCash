@@ -9,7 +9,7 @@ import { Segmented } from "@/components/ui/Segmented";
 import { TimeInput } from "@/components/ui/TimeInput";
 import { isDateStr, madridParts, madridTime } from "@/lib/dates";
 import { CATEGORY_META, MAX_NOTE_TEXT, NOTE_CATEGORIES, type NoteCategory, type NoteView } from "@/lib/employee-file";
-import { photoCountLabel } from "@/lib/reports";
+import { photoCountLabel } from "@/lib/report-format";
 import { MAX_PHOTOS_PER_REPORT } from "@/lib/upload-rules";
 
 interface NoteSheetProps {
