@@ -24,6 +24,7 @@ export interface SettingsData {
   breakEnd: string;
   dayRolloverHour: number;
   daysOffPerWeek: number;
+  aiProvider: string;
 }
 
 /**
@@ -33,7 +34,7 @@ export interface SettingsData {
  */
 export const REF_TAG = "ref";
 /** Súbelo si una migración cambia estos datos, para no servir la caché anterior tras el despliegue. */
-const REF_CACHE_VERSION = "ref-v2";
+const REF_CACHE_VERSION = "ref-v3";
 const refCache = <T>(fn: () => Promise<T>, key: string) =>
   unstable_cache(fn, [REF_CACHE_VERSION, key], { tags: [REF_TAG], revalidate: 300 });
 

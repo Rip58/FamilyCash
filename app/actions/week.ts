@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { addDays, isDateStr, toDbDate, weekDays, weekStart as weekStartOf } from "@/lib/dates";
 import { getEmployees, getEntriesBetween, getStatusTypes } from "@/lib/queries";
+import { getEffectiveDay } from "@/lib/schedule";
 import { planCopyWeek, planRepeatWeek, planSetCell, remainingMonthWeeks } from "@/lib/week";
 
 export type WeekActionResult = { ok: true; changed?: number } | { ok: false; error: string };
@@ -164,6 +165,76 @@ export async function repeatWeekToMonthEnd(weekStart: string): Promise<WeekActio
     );
     revalidate();
     return { ok: true, changed: ops.length, weeks: targets.length };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+const importSchema = z.object({
+  weekStart: dateSchema,
+  rows: z
+    .array(
+      z.object({
+        employeeId: z.string().min(1).max(64),
+        cells: z.array(z.string().min(1).max(64).nullable()).length(7),
+      }),
+    )
+    .max(200),
+});
+
+/**
+ * Guarda en el planning la semana leída de una imagen (ya revisada en la vista previa).
+ * Solo toca las celdas con estado; las vacías (null) se dejan como estaban.
+ */
+export async function applyImportedWeek(input: z.input<typeof importSchema>): Promise<WeekActionResult> {
+  const parsed = importSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Datos no válidos." };
+  const days = weekDays(weekStartOf(parsed.data.weekStart));
+  const ids = parsed.data.rows.map((r) => r.employeeId);
+  if (new Set(ids).size !== ids.length) return { ok: false, error: "Hay una persona asignada a dos filas." };
+  try {
+    const [employees, statusTypes, entries] = await Promise.all([
+      getEmployees(),
+      getStatusTypes(),
+      getEntriesBetween(days[0]!, days[6]!),
+    ]);
+    const known = new Set(statusTypes.map((s) => s.id));
+    const writes: { employeeId: string; date: string; plan: ReturnType<typeof planSetCell>; existing: (typeof entries)[number] | null }[] = [];
+    for (const row of parsed.data.rows) {
+      const employee = employees.find((e) => e.id === row.employeeId);
+      if (!employee) return { ok: false, error: "Hay un empleado que ya no existe." };
+      row.cells.forEach((statusTypeId, i) => {
+        if (!statusTypeId || !known.has(statusTypeId)) return;
+        const date = days[i]!;
+        const existing = entries.find((e) => e.employeeId === employee.id && e.date === date) ?? null;
+        if (existing?.statusTypeId === statusTypeId) return;
+        if (!existing && getEffectiveDay(employee, date, null, statusTypes).status.id === statusTypeId) return;
+        writes.push({
+          employeeId: employee.id,
+          date,
+          existing,
+          plan: planSetCell({ employee, date, statusTypeId, reason: null, existing, statusTypes }),
+        });
+      });
+    }
+    await db.$transaction(
+      writes.map(({ employeeId, date, plan, existing }) =>
+        plan.kind === "delete"
+          ? db.dayEntry.deleteMany({ where: { employeeId, date: toDbDate(date) } })
+          : db.dayEntry.upsert({
+              where: { employeeId_date: { employeeId, date: toDbDate(date) } },
+              update: {
+                statusTypeId: plan.statusTypeId,
+                reason: plan.reason,
+                ...(existing && !existing.actualStatusTypeId ? { present: null } : {}),
+              },
+              create: { employeeId, date: toDbDate(date), statusTypeId: plan.statusTypeId, reason: plan.reason },
+            }),
+      ),
+      { timeout: 60_000 },
+    );
+    revalidate();
+    return { ok: true, changed: writes.length };
   } catch (e) {
     return fail(e);
   }

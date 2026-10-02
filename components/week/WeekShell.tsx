@@ -191,6 +191,13 @@ export function WeekShell({
                     : "Es la última semana del mes"}
                 </span>
               </button>
+              <Link
+                href={`/semana/importar?semana=${weekStart}`}
+                className="flex min-h-12 flex-col justify-center rounded-control bg-surface-2 px-4 text-left text-[16px]"
+              >
+                ✨ Cargar desde imagen (IA)
+                <span className="text-[13px] text-muted">Foto o captura del Excel del planning</span>
+              </Link>
               <button
                 type="button"
                 onClick={() => setMenu((m) => ({ ...m, confirm: "copy" }))}

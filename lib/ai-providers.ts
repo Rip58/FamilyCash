@@ -1,0 +1,143 @@
+/**
+ * Llamadas a la IA para leer el cuadrante de una imagen (solo servidor). Las claves van en variables de
+ * entorno de Vercel: ANTHROPIC_API_KEY (Claude) y OPENAI_API_KEY (ChatGPT). Nunca se envían al cliente.
+ */
+import "server-only";
+import Anthropic from "@anthropic-ai/sdk";
+import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
+import { z } from "zod";
+import type { AiProvider } from "./ai-import-format";
+
+export const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-5-5";
+export const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5";
+
+export function providerConfigured(p: AiProvider): boolean {
+  return p === "claude" ? !!process.env.ANTHROPIC_API_KEY : !!process.env.OPENAI_API_KEY;
+}
+
+export function providerModel(p: AiProvider): string {
+  return p === "claude" ? CLAUDE_MODEL : OPENAI_MODEL;
+}
+
+/** Error con mensaje para mostrar al usuario (en español). */
+export class AiImportError extends Error {}
+
+export interface ImageInput {
+  /** Base64 sin prefijo data:. */
+  data: string;
+  mediaType: "image/jpeg" | "image/png" | "image/webp";
+}
+
+/** Lee la imagen con la IA elegida y devuelve la salida validada con `schema`. */
+export async function extractWithAi<S extends z.ZodType>(
+  provider: AiProvider,
+  image: ImageInput,
+  prompt: string,
+  schema: S,
+): Promise<z.infer<S>> {
+  if (!providerConfigured(provider)) {
+    throw new AiImportError(
+      provider === "claude"
+        ? "Falta la clave de Claude: añade ANTHROPIC_API_KEY en Vercel → Settings → Environment Variables y vuelve a publicar."
+        : "Falta la clave de ChatGPT: añade OPENAI_API_KEY en Vercel → Settings → Environment Variables y vuelve a publicar.",
+    );
+  }
+  return provider === "claude" ? extractWithClaude(image, prompt, schema) : extractWithOpenAI(image, prompt, schema);
+}
+
+async function extractWithClaude<S extends z.ZodType>(image: ImageInput, prompt: string, schema: S): Promise<z.infer<S>> {
+  const client = new Anthropic({ timeout: 110_000, maxRetries: 1 });
+  try {
+    const response = await client.beta.messages.parse({
+      model: CLAUDE_MODEL,
+      max_tokens: 16000,
+      // Si el modelo rechaza la petición, la API la reintenta en otro modelo recomendado.
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      output_config: { effort: "high", format: betaZodOutputFormat(schema) },
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "image", source: { type: "base64", media_type: image.mediaType, data: image.data } },
+            { type: "text", text: prompt },
+          ],
+        },
+      ],
+    });
+    if (response.stop_reason === "refusal") throw new AiImportError("Claude no ha querido procesar la imagen. Prueba con otra captura.");
+    if (response.stop_reason === "max_tokens") throw new AiImportError("La respuesta de Claude se cortó: prueba con una imagen de una sola semana.");
+    if (!response.parsed_output) throw new AiImportError("Claude no devolvió el cuadrante en el formato esperado. Inténtalo de nuevo.");
+    return response.parsed_output as z.infer<S>;
+  } catch (e) {
+    if (e instanceof AiImportError) throw e;
+    if (e instanceof Anthropic.AuthenticationError) throw new AiImportError("La clave de Claude (ANTHROPIC_API_KEY) no es válida.");
+    if (e instanceof Anthropic.PermissionDeniedError) throw new AiImportError("La clave de Claude no tiene permiso para este modelo.");
+    if (e instanceof Anthropic.RateLimitError) throw new AiImportError("Claude está saturado o sin saldo. Espera un momento y reinténtalo.");
+    if (e instanceof Anthropic.BadRequestError) throw new AiImportError(`Claude rechazó la petición: ${e.message.slice(0, 200)}`);
+    if (e instanceof Anthropic.APIConnectionTimeoutError) throw new AiImportError("Claude ha tardado demasiado. Reinténtalo.");
+    if (e instanceof Anthropic.APIError) throw new AiImportError(`Error de Claude (${e.status ?? "red"}). Reinténtalo.`);
+    throw e;
+  }
+}
+
+/** OpenAI exige en modo estricto additionalProperties:false y todas las propiedades en `required`. */
+function strictJsonSchema(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(strictJsonSchema);
+  if (!node || typeof node !== "object") return node;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(node)) if (k !== "$schema") out[k] = strictJsonSchema(v);
+  if (out.type === "object" && out.properties && typeof out.properties === "object") {
+    out.additionalProperties = false;
+    out.required = Object.keys(out.properties);
+  }
+  return out;
+}
+
+async function extractWithOpenAI<S extends z.ZodType>(image: ImageInput, prompt: string, schema: S): Promise<z.infer<S>> {
+  let res: Response;
+  try {
+    res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+      signal: AbortSignal.timeout(110_000),
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              { type: "image_url", image_url: { url: `data:${image.mediaType};base64,${image.data}`, detail: "high" } },
+            ],
+          },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: "cuadrante", strict: true, schema: strictJsonSchema(z.toJSONSchema(schema)) },
+        },
+      }),
+    });
+  } catch {
+    throw new AiImportError("No se pudo contactar con ChatGPT (o ha tardado demasiado). Reinténtalo.");
+  }
+  const body = (await res.json().catch(() => null)) as {
+    error?: { message?: string };
+    choices?: { message?: { content?: string | null; refusal?: string | null }; finish_reason?: string }[];
+  } | null;
+  if (res.status === 401) throw new AiImportError("La clave de ChatGPT (OPENAI_API_KEY) no es válida.");
+  if (res.status === 429) throw new AiImportError("ChatGPT está saturado o sin saldo. Espera un momento y reinténtalo.");
+  if (!res.ok) throw new AiImportError(`Error de ChatGPT (${res.status}): ${body?.error?.message?.slice(0, 200) ?? "sin detalle"}`);
+  const choice = body?.choices?.[0];
+  if (choice?.message?.refusal) throw new AiImportError("ChatGPT no ha querido procesar la imagen. Prueba con otra captura.");
+  if (choice?.finish_reason === "length") throw new AiImportError("La respuesta de ChatGPT se cortó: prueba con una imagen de una sola semana.");
+  let json: unknown;
+  try {
+    json = JSON.parse(choice?.message?.content ?? "");
+  } catch {
+    throw new AiImportError("ChatGPT no devolvió el cuadrante en el formato esperado. Inténtalo de nuevo.");
+  }
+  const parsed = schema.safeParse(json);
+  if (!parsed.success) throw new AiImportError("ChatGPT devolvió datos que no cuadran con la plantilla. Inténtalo de nuevo.");
+  return parsed.data;
+}

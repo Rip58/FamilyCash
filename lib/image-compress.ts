@@ -34,12 +34,12 @@ export interface Attempt {
  * Orden de intentos para no pasar de MAX_PHOTO_BYTES: primero bajar la calidad
  * (0,85 → 0,6 de 0,05 en 0,05) y, si no basta, reducir el lado mayor un 15 % y volver a empezar.
  */
-export function compressionAttempts(longest: number, max: number = MAX_SIDE): Attempt[] {
+export function compressionAttempts(longest: number, max: number = MAX_SIDE, quality: number = PHOTO_QUALITY): Attempt[] {
   const out: Attempt[] = [];
   const start = Math.max(1, Math.min(max, Math.round(longest)));
   const min = Math.min(MIN_SIDE, start);
   for (let side = start; side >= min; side = Math.round(side * 0.85)) {
-    for (let q = Math.round(PHOTO_QUALITY * 100); q >= Math.round(MIN_QUALITY * 100); q -= 5) {
+    for (let q = Math.round(quality * 100); q >= Math.round(MIN_QUALITY * 100); q -= 5) {
       out.push({ side, quality: q / 100 });
     }
   }
@@ -92,7 +92,17 @@ function encode(canvas: HTMLCanvasElement, type: string, quality: number): Promi
 }
 
 /** Decodifica (corrigiendo la orientación EXIF), reescala y devuelve un WebP de ≤ 300 KB. */
-export async function compressImage(file: Blob): Promise<CompressedImage> {
+export interface CompressOptions {
+  maxSide?: number;
+  maxBytes?: number;
+  quality?: number;
+}
+
+/** Opciones para capturas de tablas (cuadrante en Excel): más resolución para que se lea el texto. */
+export const DOCUMENT_IMAGE: CompressOptions = { maxSide: 2576, maxBytes: 1500 * 1024, quality: 0.9 };
+
+export async function compressImage(file: Blob, opts: CompressOptions = {}): Promise<CompressedImage> {
+  const maxBytes = opts.maxBytes ?? MAX_PHOTO_BYTES;
   const d = await decode(file);
   try {
     if (!d.width || !d.height) throw new ImageDecodeError();
@@ -102,7 +112,7 @@ export async function compressImage(file: Blob): Promise<CompressedImage> {
     let type: CompressedImage["type"] = "image/webp";
     let last: CompressedImage | null = null;
     let drawnSide = 0;
-    for (const a of compressionAttempts(Math.max(d.width, d.height))) {
+    for (const a of compressionAttempts(Math.max(d.width, d.height), opts.maxSide ?? MAX_SIDE, opts.quality ?? PHOTO_QUALITY)) {
       const { width, height } = fitDimensions(d.width, d.height, a.side);
       if (a.side !== drawnSide) {
         canvas.width = width;
@@ -121,7 +131,7 @@ export async function compressImage(file: Blob): Promise<CompressedImage> {
       }
       if (!blob) throw new ImageDecodeError();
       last = { blob, width, height, type, quality: a.quality };
-      if (blob.size <= MAX_PHOTO_BYTES) return last;
+      if (blob.size <= maxBytes) return last;
     }
     if (!last) throw new ImageDecodeError();
     return last;

@@ -16,6 +16,7 @@ model Settings {            // fila única id=1
   dayRolloverHour Int     @default(12)   // antes de esta hora "Hoy" = noche anterior
   daysOffPerWeek  Int     @default(2)
   passwordHash    String?                // si existe, sustituye a APP_PASSWORD
+  aiProvider      String  @default("claude") // IA para importar el cuadrante desde imagen: claude | openai
 }
 
 model Department {          // Droguería, Botellería, ...

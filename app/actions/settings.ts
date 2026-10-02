@@ -275,6 +275,17 @@ export async function saveShift(input: z.input<typeof shiftSchema>): Promise<Act
   return done();
 }
 
+// ------------------------------------------------------------ Importar con IA
+
+const aiProviderSchema = z.enum(["claude", "openai"]);
+
+export async function saveAiProvider(provider: z.input<typeof aiProviderSchema>): Promise<ActionResult> {
+  const p = aiProviderSchema.safeParse(provider);
+  if (!p.success) return fail("Proveedor no válido.");
+  await db.settings.upsert({ where: { id: 1 }, update: { aiProvider: p.data }, create: { id: 1, aiProvider: p.data } });
+  return done();
+}
+
 // ----------------------------------------------------------------- Seguridad
 
 const passwordSchema = z

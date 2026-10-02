@@ -36,6 +36,13 @@ export default async function Page() {
       items: [
         { href: "/ajustes/turno", label: "Turno", detail: shift, icon: "🌙", color: "#6366f1" },
         { href: "/ajustes/nomina", label: "Nómina", detail: "Importes", icon: "💶", color: "#16a34a" },
+        {
+          href: "/ajustes/ia",
+          label: "Importar con IA",
+          detail: settings.aiProvider === "openai" ? "ChatGPT" : "Claude",
+          icon: "✨",
+          color: "#d97757",
+        },
       ],
     },
     {
