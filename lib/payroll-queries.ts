@@ -1,9 +1,9 @@
 import "server-only";
-import { type MonthStr, addDays, addMonths, fromDbDate, madridToday, monthDays } from "./dates";
+import { type MonthStr, addDays, addMonths, fromDbDate, madridToday, monthDays, monthOf } from "./dates";
 import { db } from "./db";
 import {
   DEFAULT_PAYROLL, type MonthOverrides, type MonthStats, type NightPlusMode, type OvertimeMode, type PayrollConfig, type PayrollPeriod,
-  mergeStats, monthStatsFromSchedule,
+  type MonthProgress, mergeStats, monthProgress, monthStatsFromSchedule,
 } from "./payroll";
 import { getEmployees, getEntriesBetween, getSettings, getStatusTypes } from "./queries";
 
@@ -37,8 +37,15 @@ export interface PayrollMonth {
   note: string | null;
 }
 
-/** Meses [from..to] (ambos incluidos) con datos automáticos del cuadrante + lo escrito a mano. */
-export async function loadPayrollMonths(from: MonthStr, to: MonthStr, employeeId: string | null): Promise<PayrollMonth[]> {
+/**
+ * Meses [from..to] (ambos incluidos) con datos automáticos del cuadrante + lo escrito a mano, y el mes en curso
+ * en tiempo real (`progress`: hasta hoy + planning del resto) si hay empleado elegido.
+ */
+export async function loadPayrollMonths(
+  from: MonthStr,
+  to: MonthStr,
+  employeeId: string | null,
+): Promise<{ months: PayrollMonth[]; progress: MonthProgress | null }> {
   const months: MonthStr[] = [];
   for (let m = from; m <= to; m = addMonths(m, 1)) months.push(m);
   const first = monthDays(from)[0]!;
@@ -53,9 +60,15 @@ export async function loadPayrollMonths(from: MonthStr, to: MonthStr, employeeId
   ]);
   const me = employeeId ? employees.find((e) => e.id === employeeId) : undefined;
   const byMonth = new Map(slips.map((s) => [s.month, s]));
-  return months.map((month) => {
+  const today = madridToday();
+  const current = monthOf(today);
+  const progress =
+    me && current >= from && current <= to
+      ? monthProgress(current, me, entries, statusTypes, settings.daysOffPerWeek, today)
+      : null;
+  const list = months.map((month) => {
     const auto: MonthStats = me
-      ? monthStatsFromSchedule(month, me, entries, statusTypes, settings.daysOffPerWeek, madridToday())
+      ? monthStatsFromSchedule(month, me, entries, statusTypes, settings.daysOffPerWeek, today)
       : { daysInMonth: monthDays(month).length, daysWorked: 0, daysOff: 0, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 0, offDaysWorked: 0, extraMinutes: 0 };
     const s = byMonth.get(month);
     const overrides: MonthOverrides = s
@@ -75,4 +88,5 @@ export async function loadPayrollMonths(from: MonthStr, to: MonthStr, employeeId
       note: s?.note ?? null,
     };
   });
+  return { months: list, progress };
 }

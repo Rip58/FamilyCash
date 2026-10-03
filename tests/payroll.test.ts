@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addMonths, isMonthStr, monthDays, monthOf } from "@/lib/dates";
 import {
-  DEFAULT_PAYROLL, type MonthStats, calculatePay, configForMonth, mergeStats, monthStatsFromSchedule, parseEuros,
+  DEFAULT_PAYROLL, type MonthStats, calculatePay, configForMonth, mergeStats, monthProgress, monthStatsFromSchedule, parseEuros, projectMonth,
   andorraIrpfAnnualCents, offDayOvertimeMinutes, overtimeRateCents, periodForMonth,
 } from "@/lib/payroll";
 import type { DayEntryLite, EmployeeLite, StatusTypeLite } from "@/lib/schedule";
@@ -180,5 +180,35 @@ describe("Andorra: horas extra por ley, mes parcial e IRPF", () => {
   it("IRPF anual (Llei 5/2014)", () => {
     expect(andorraIrpfAnnualCents(2200000, 6.5)).toBe(0);
     expect(andorraIrpfAnnualCents(3000000, 6.5)).toBe(15750);
+  });
+});
+
+describe("mes en curso en tiempo real", () => {
+  // Octubre 2026 (1 = jueves), fiestas fijas sábado y domingo; hoy = jueves 15.
+  const entries = [entry("2026-10-10", "WORK", { extraMinutes: 120 }), entry("2026-10-20", "VACATION")];
+  const p = monthProgress("2026-10", me, entries, statusTypes, 2, "2026-10-15");
+
+  it("separa lo que ya ha pasado del planning del resto", () => {
+    expect(p.daysLeft).toBe(16);
+    expect(p.soFar).toMatchObject({ daysWorked: 12, daysOff: 3, vacationDays: 0, extraMinutes: 120, offDaysWorked: 1 });
+    expect(p.plannedOffLeft).toBe(5); // 17, 18, 24, 25, 31
+    expect(p.awayLeft).toBe(1);
+    expect(p.planned).toMatchObject({ daysWorked: 22, daysOff: 8, vacationDays: 1, offDaysWorked: 1 });
+  });
+
+  it("como el planning: no cambia nada", () => {
+    expect(projectMonth(p, 5)).toEqual(p.planned);
+  });
+
+  it("menos fiestas que el planning = noches de más y 8 h extra cada una", () => {
+    const r = projectMonth(p, 3, 180);
+    expect(r).toMatchObject({ daysWorked: 24, daysOff: 6, offDaysWorked: 3, extraMinutes: 300 });
+    expect(offDayOvertimeMinutes(r)).toBe(3 * 8 * 60);
+  });
+
+  it("más fiestas: no baja de las fiestas trabajadas ya cerradas ni pasa de los días libres que quedan", () => {
+    expect(projectMonth(p, 9).offDaysWorked).toBe(1);
+    expect(projectMonth(p, 99).daysOff).toBe(3 + 15);
+    expect(projectMonth(p, -3).daysOff).toBe(3);
   });
 });

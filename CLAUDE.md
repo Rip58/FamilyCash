@@ -43,6 +43,7 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 - Pestaña `/nomina` (Registro + Calculadora) y `/ajustes/nomina` (importes y "quién eres"). Lógica pura en `lib/payroll.ts` (céntimos, % ), consultas en `lib/payroll-queries.ts`, acciones en `app/actions/payroll.ts`.
 - `Payslip` por mes "YYYY-MM": los campos null se calculan del cuadrante del empleado elegido en `PayrollSettings.employeeId` (vía `getEffectiveDay`).
 - Andorra: hora extra por ley = (base + resp.)/173,33 h × (1 + recargo, mín. 40 % art. 58.2 LRL) + nocturnidad/h de noche; mes parcial prorrateado por días/30 (`contractDays`); CASS 6,5 %; IRPF anual en `andorraIrpfAnnualCents` (Llei 5/2014).
+- Mes en curso en directo (`components/payroll/LiveMonth.tsx`, arriba en Registro): `monthProgress` (hasta hoy + planning del resto) y `projectMonth` (fiestas estimadas para los días que quedan: cada una de menos que el planning = +1 fiesta trabajada = 8 h extra; nunca baja de las semanas ya cerradas). La estimación se guarda en localStorage (`nomina:estimacion:<mes>`) solo para ese día.
 - Sueldo del mes completo FIJO (no depende de 28/31 días). Horas extra = fiestas trabajadas (`offDaysWorked`, noches > 5 por semana lunes–domingo, la semana cuenta en el mes de su domingo, solo semanas ya cerradas) × 8 h + horas del cierre. El plus de noche solo baja por vacaciones/baja/faltas. Los días trabajados se deducen en `mergeStats`.
 
 ## Notas técnicas (rendimiento)
@@ -73,3 +74,8 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 - IA elegida en Ajustes → Importar con IA (`Settings.aiProvider`: claude | openai). Claves solo en servidor: `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` (modelo con `ANTHROPIC_MODEL` / `OPENAI_MODEL`). Llamadas en `lib/ai-providers.ts`: Claude con `@anthropic-ai/sdk` (`beta.messages.parse` + `betaZodOutputFormat`, `fallbacks: "default"`), OpenAI por `fetch` (json_schema estricto). Esquema, instrucciones y conversión en `lib/ai-import.ts`; tipos y emparejado de nombres (sin zod) en `lib/ai-import-format.ts`.
 - En local, `AI_IMPORT_FAKE=1` devuelve una respuesta de ejemplo (nunca en Vercel).
 - Semana → ⋯ → "Ver sin departamentos (orden del Excel)" (con botón "↕ Ordenar" → `RotaOrderSheet`, carga diferida, solo guarda al pulsar Guardar → `saveRotaOrder`): `PeopleGrid` con `flat` usa `flatGroups` (una lista ordenada por `Employee.rotaOrder`, nulos al final); se recuerda en localStorage (`semana:sinDepartamentos`). `rotaOrder` se guarda al importar una semana desde imagen (casilla "Guardar este orden", `applyImportedWeek({ saveOrder })`, hace `updateTag(REF_TAG)`).
+
+## Notas técnicas (diseño compacto)
+- Iconos de línea en `components/ui/icons.tsx` (`Icon`, `tint(color, pct)` = fondo pastel con `color-mix`). Nada de emojis para iconos de navegación/acciones nuevas.
+- Hoy: barra superior en una línea (contadores por estado con `statusAbbr`, ✓ validados, botones nota / agrupar / cierre), filas de 44px (zona táctil 44px, círculo visual 32px), cabeceras pastel (`GroupCard`). Vista sin departamentos en orden del Excel (`rotaOrder`, localStorage `hoy:sinDepartamentos`).
+- `Segmented` acepta `compact` (44px en total).

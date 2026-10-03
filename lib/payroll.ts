@@ -140,6 +140,78 @@ export function monthStatsFromSchedule(
   return s;
 }
 
+/** El mes en curso: lo que ya ha pasado (hasta hoy incluido) y lo que dice el planning para el resto. */
+export interface MonthProgress {
+  today: DateStr;
+  /** Días del mes que quedan después de hoy. */
+  daysLeft: number;
+  /** Solo días ≤ hoy; fiestas trabajadas de las semanas ya cerradas. */
+  soFar: MonthStats;
+  /** Todo el mes según el planning de Semana (fiestas trabajadas de todas las semanas del mes). */
+  planned: MonthStats;
+  /** Fiestas (libranzas) que el planning pone en los días que quedan. */
+  plannedOffLeft: number;
+  /** Días que quedan con vacaciones, baja o falta en el planning (no se tocan al estimar). */
+  awayLeft: number;
+}
+
+export function monthProgress(
+  month: MonthStr,
+  employee: EmployeeLite,
+  entries: DayEntryLite[],
+  statusTypes: StatusTypeLite[],
+  daysOffPerWeek: number,
+  today: DateStr,
+): MonthProgress {
+  const days = monthDays(month);
+  const left = days.filter((d) => d > today);
+  const mine = entries.filter((e) => e.employeeId === employee.id);
+  const planned = monthStatsFromSchedule(month, employee, mine, statusTypes, daysOffPerWeek);
+  // Lo que el planning pone después de hoy; "hasta hoy" = el mes menos eso.
+  const leftStats = { daysWorked: 0, daysOff: 0, vacationDays: 0, sickDays: 0, absentDays: 0, extraMinutes: 0 };
+  const byDate = new Map(mine.map((e) => [e.date, e]));
+  for (const d of left) {
+    const day = getEffectiveDay(employee, d, byDate.get(d), statusTypes);
+    if (day.isWorking) {
+      leftStats.daysWorked++;
+      leftStats.extraMinutes += day.extraMinutes ?? 0;
+    } else if (day.isDayOff) leftStats.daysOff++;
+    else if (day.status.code === "VACATION") leftStats.vacationDays++;
+    else if (day.status.code === "SICK") leftStats.sickDays++;
+    else leftStats.absentDays++;
+  }
+  const closed = monthStatsFromSchedule(month, employee, mine, statusTypes, daysOffPerWeek, today);
+  const soFar: MonthStats = {
+    ...planned,
+    daysWorked: planned.daysWorked - leftStats.daysWorked,
+    daysOff: planned.daysOff - leftStats.daysOff,
+    vacationDays: planned.vacationDays - leftStats.vacationDays,
+    sickDays: planned.sickDays - leftStats.sickDays,
+    absentDays: planned.absentDays - leftStats.absentDays,
+    extraMinutes: planned.extraMinutes - leftStats.extraMinutes,
+    offDaysWorked: closed.offDaysWorked,
+  };
+  const awayLeft = leftStats.vacationDays + leftStats.sickDays + leftStats.absentDays;
+  return { today, daysLeft: left.length, soFar, planned, plannedOffLeft: leftStats.daysOff, awayLeft };
+}
+
+/**
+ * Proyección del mes: el planning, cambiando las fiestas de los días que quedan por las estimadas.
+ * Cada fiesta de menos respecto al planning es una noche más trabajada (+8 h extra); cada una de más, al revés
+ * (sin bajar de las fiestas trabajadas de las semanas ya cerradas).
+ */
+export function projectMonth(p: MonthProgress, offLeft: number, extraLeftMinutes = 0): MonthStats {
+  const off = Math.min(Math.max(offLeft, 0), p.daysLeft - p.awayLeft);
+  const delta = p.plannedOffLeft - off;
+  return {
+    ...p.planned,
+    daysOff: p.planned.daysOff - delta,
+    daysWorked: p.planned.daysWorked + delta,
+    offDaysWorked: Math.max(p.planned.offDaysWorked + delta, p.soFar.offDaysWorked),
+    extraMinutes: p.planned.extraMinutes + extraLeftMinutes,
+  };
+}
+
 /**
  * Aplica los valores escritos a mano sobre los automáticos (null = automático).
  * Días trabajados = días de contrato − fiestas − vacaciones − baja − faltas.

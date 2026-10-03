@@ -9,11 +9,12 @@ import { Segmented } from "@/components/ui/Segmented";
 import { cn } from "@/components/ui/cn";
 import { type MonthStr, formatMonth } from "@/lib/dates";
 import {
-  type MonthStats, type PayrollConfig, type PayrollPeriod, type ShiftKind, calculatePay, configForMonth, formatDateEs, formatEuros,
+  type MonthProgress, type MonthStats, type PayrollConfig, type PayrollPeriod, type ShiftKind, calculatePay, configForMonth, formatDateEs, formatEuros,
   MONTHLY_HOURS, andorraIrpfAnnualCents, formatHours, mergeStats, offDayOvertimeMinutes, nightPlusPerHourCents, overtimeRateCents, parseEuros,
   periodForMonth,
 } from "@/lib/payroll";
 import type { PayrollMonth } from "@/lib/payroll-queries";
+import { LiveMonth } from "./LiveMonth";
 
 type View = "registro" | "calculadora";
 
@@ -499,7 +500,10 @@ export function PayrollView({
   config,
   employeeName,
   initialView,
+  progress,
 }: {
+  /** Mes en curso en tiempo real (null si no has elegido quién eres). */
+  progress: MonthProgress | null;
   /** Más reciente primero; incluye meses futuros para la calculadora. */
   months: PayrollMonth[];
   current: MonthStr;
@@ -526,6 +530,15 @@ export function PayrollView({
           </Link>{" "}
           para rellenar los meses con lo apuntado en Hoy y Semana.
         </p>
+      )}
+      {progress && view === "registro" && (
+        <LiveMonth
+          month={current}
+          progress={progress}
+          overrides={months.find((m) => m.month === current)?.overrides ?? {}}
+          config={config}
+          periods={periods}
+        />
       )}
       <Segmented
         aria-label="Vista"

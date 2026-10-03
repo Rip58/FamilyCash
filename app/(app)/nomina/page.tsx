@@ -13,7 +13,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ v
   // Desde el primer periodo de salario (inicio del contrato) hasta diciembre del año siguiente.
   const first = periods[0] ? monthOf(periods[0].from) : addMonths(current, -11);
   const last = `${Number(current.slice(0, 4)) + 1}-12`;
-  const [months, employees] = await Promise.all([loadPayrollMonths(first, last, config.employeeId), getEmployees()]);
+  const [{ months, progress }, employees] = await Promise.all([loadPayrollMonths(first, last, config.employeeId), getEmployees()]);
   const me = config.employeeId ? employees.find((e) => e.id === config.employeeId) : undefined;
   return (
     <PayrollView
@@ -22,6 +22,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ v
       periods={periods}
       config={config}
       employeeName={me?.name ?? null}
+      progress={progress}
       initialView={v === "calculadora" ? "calculadora" : "registro"}
     />
   );
