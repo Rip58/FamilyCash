@@ -94,7 +94,8 @@ export type SegmentWithId = SegmentLite & { id: string };
 export type EntryPatch =
   | { kind: "status"; statusTypeId: string; reason?: string | null; present?: boolean }
   | { kind: "reason"; reason: string | null }
-  | { kind: "department"; departmentId: string | null }
+  /** `extraDepartmentIds` = otros departamentos que también cubre (ausente = no cambiarlos). */
+  | { kind: "department"; departmentId: string | null; extraDepartmentIds?: string[] }
   | { kind: "times"; arrivedAt: string | null; leftAt: string | null; timeReason: string | null }
   | { kind: "note"; note: string | null }
   | { kind: "overtime"; extraMinutes: number | null; extraNote: string | null }
@@ -116,6 +117,7 @@ export function baseEntry(employee: EmployeeLite, date: DateStr, statusTypes: St
     date,
     statusTypeId: eff.status.id,
     departmentId: null,
+    extraDepartmentIds: [],
     reason: null,
     note: null,
     arrivedAt: null,
@@ -164,6 +166,10 @@ export function applyEntryPatch(
         patch.departmentId === null || patch.departmentId === employee.defaultDepartmentId
           ? null
           : patch.departmentId;
+      {
+        const main = e.departmentId ?? employee.defaultDepartmentId;
+        e.extraDepartmentIds = [...new Set(patch.extraDepartmentIds ?? e.extraDepartmentIds ?? [])].filter((id) => id !== main);
+      }
       break;
     case "times":
       e.arrivedAt = patch.arrivedAt || null;
@@ -208,6 +214,7 @@ export function isEntryRedundant(
   return (
     entry.statusTypeId === pattern.status.id &&
     (dept === null || dept === employee.defaultDepartmentId) &&
+    (entry.extraDepartmentIds ?? []).length === 0 &&
     !clean(entry.reason) &&
     !clean(entry.note) &&
     !entry.arrivedAt &&
@@ -226,4 +233,19 @@ export function segmentName(
   sectionNames: Map<string, string>,
 ): string {
   return (seg.sectionId ? sectionNames.get(seg.sectionId) : null) ?? seg.label ?? "Tarea";
+}
+
+/**
+ * Elegir varios departamentos en una noche: el primero es el principal (cuenta como "dónde trabaja");
+ * tocar uno elegido lo quita (si era el principal, pasa a serlo el siguiente) y uno sin elegir lo añade.
+ * Sin ninguno elegido vuelve al habitual (main null).
+ */
+export function toggleDepartment(
+  main: string | null,
+  extras: string[],
+  id: string,
+): { main: string | null; extras: string[] } {
+  const all = [...new Set([...(main ? [main] : []), ...extras])];
+  const next = all.includes(id) ? all.filter((x) => x !== id) : [...all, id];
+  return { main: next[0] ?? null, extras: next.slice(1) };
 }

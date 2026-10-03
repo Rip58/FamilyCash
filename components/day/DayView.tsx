@@ -146,8 +146,10 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
         ),
       setReason: (reason) =>
         commit(employeeId, { kind: "reason", reason }, () => setReasonAction({ ...base, reason: reason.trim() || null })),
-      setDepartment: (departmentId) =>
-        commit(employeeId, { kind: "department", departmentId }, () => setDepartmentAction({ ...base, departmentId })),
+      setDepartment: (departmentId, extraDepartmentIds = []) =>
+        commit(employeeId, { kind: "department", departmentId, extraDepartmentIds }, () =>
+          setDepartmentAction({ ...base, departmentId, extraDepartmentIds }),
+        ),
       setTimes: (t) => {
         const arrivedAt = t.arrivedAt || null;
         const leftAt = t.leftAt || null;
@@ -195,11 +197,12 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
   const setPresent = (employeeId: string, present: boolean) =>
     commit(employeeId, { kind: "attendance", present }, () => setAttendanceAction({ employeeId, date, present }));
 
-  const row = (m: RosterMember, inGroup: boolean) => (
+  /** `groupId` = burbuja de departamento en la que se pinta (no repetir ese nombre en la fila). */
+  const row = (m: RosterMember, groupId: string | null) => (
     <EmployeeRow
       key={m.employee.id}
       member={m}
-      hideDepartment={inGroup}
+      groupId={groupId}
       sectionNames={sectionNames}
       departments={deptMap}
       shift={shift}
@@ -260,18 +263,20 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
   // Una burbuja por departamento (donde trabaja hoy) + "Sin departamento".
   const groups = [
     ...roster.departments
-      .filter((d) => d.present.length > 0 || d.isEmpty)
+      .filter((d) => d.present.length > 0 || d.covering.length > 0 || d.isEmpty)
       .map((d) => ({
         id: d.department.id,
         name: d.department.name,
         color: d.department.color as string | null,
-        members: [...d.present].sort(byOrder),
+        // Los que vienen de otro departamento a cubrir éste, al final.
+        members: [...[...d.present].sort(byOrder), ...[...d.covering].sort(byOrder)],
+        staffed: d.staffed,
         target: d.targetStaff,
         isEmpty: d.isEmpty,
         isUnder: d.isUnderStaffed,
       })),
     ...(roster.unassigned.length > 0
-      ? [{ id: "none", name: "Sin departamento", color: null, members: [...roster.unassigned].sort(byOrder), target: 0, isEmpty: false, isUnder: false }]
+      ? [{ id: "none", name: "Sin departamento", color: null, members: [...roster.unassigned].sort(byOrder), staffed: roster.unassigned.length, target: 0, isEmpty: false, isUnder: false }]
       : []),
   ];
   const confirmed = expected.filter((m) => m.day.present).length;
@@ -392,7 +397,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
       {flat ? (
         flatMembers.length > 0 && (
           <Card flush aria-label="Todos (orden del Excel)">
-            <div className="divide-y divide-line">{flatMembers.map((m) => row(m, false))}</div>
+            <div className="divide-y divide-line">{flatMembers.map((m) => row(m, null))}</div>
           </Card>
         )
       ) : (
@@ -414,7 +419,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
                     )}
                     {g.target > 0 && (
                       <span className={cn(g.isEmpty ? "text-danger" : g.isUnder && "text-warning")}>
-                        {g.members.length}/{g.target} plazas
+                        {g.staffed}/{g.target} plazas
                       </span>
                     )}
                   </>
@@ -423,7 +428,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
                 {g.isEmpty ? (
                   <p className="px-3.5 py-2 text-[14px] font-semibold text-danger">Sin personal</p>
                 ) : (
-                  g.members.map((m) => row(m, true))
+                  g.members.map((m) => row(m, g.id))
                 )}
               </GroupCard>
             );
@@ -437,7 +442,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
                 color={g.status.color}
                 badges={<span className={cn(ok === g.members.length && "text-success")}>✓ {ok}/{g.members.length}</span>}
               >
-                {g.members.map((m) => row(m, false))}
+                {g.members.map((m) => row(m, null))}
               </GroupCard>
             );
           })}
@@ -516,8 +521,11 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
           title={move.checkIn ? `${moveMember.employee.name} ha venido · ¿Dónde trabaja hoy?` : undefined}
           departments={activeDepartments}
           currentId={moveMember.day.departmentId}
+          extraIds={moveMember.day.extraDepartmentIds}
           habitualId={moveMember.employee.defaultDepartmentId}
-          onPick={(id) => opsFor(move.id).setDepartment(id === moveMember.employee.defaultDepartmentId ? null : id)}
+          onPick={(id, extras) =>
+            opsFor(move.id).setDepartment(id === moveMember.employee.defaultDepartmentId ? null : id, extras)
+          }
         />
       )}
 

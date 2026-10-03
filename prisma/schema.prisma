@@ -79,6 +79,7 @@ model DayEntry {            // solo existe si el día difiere del patrón o tien
   statusTypeId  String                      // PLANNING (solo lo cambia Semana / peticiones aprobadas)
   statusType    StatusType @relation(fields: [statusTypeId], references: [id])
   departmentId  String?                     // ubicación ese día (null = la habitual)
+  extraDepartmentIds String[] @default([])  // Hoy: otros departamentos que también cubre esa noche
   reason        String?                     // motivo ausencia / cambio
   note          String?                     // nota del día sobre el empleado
   arrivedAt     String?                     // "22:15" si llega tarde

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { toggleDepartment } from "@/lib/segments";
 import { useState } from "react";
 import { ReportCard } from "@/components/reports/ReportCard";
 import type { ReportView } from "@/lib/report-format";
@@ -94,16 +95,23 @@ export function EmployeeSheet({
           )}
         </Block>
 
-        <Block title="Departamento de hoy" hint={habitual ? `Habitual: ${habitual.name}` : "Sin habitual"}>
+        <Block
+          title="Departamentos de hoy"
+          hint={`${habitual ? `Habitual: ${habitual.name}` : "Sin habitual"} · puedes elegir varios`}
+        >
           <div className="flex flex-wrap gap-2">
             {activeDepartments.map((d) => (
               <Chip
                 key={d.id}
-                selected={day.departmentId === d.id}
+                selected={day.departmentId === d.id || day.extraDepartmentIds.includes(d.id)}
                 color={d.color}
-                onClick={() => ops.setDepartment(d.id === employee.defaultDepartmentId ? null : d.id)}
+                onClick={() => {
+                  const next = toggleDepartment(day.departmentId, day.extraDepartmentIds, d.id);
+                  ops.setDepartment(next.main === employee.defaultDepartmentId ? null : next.main, next.extras);
+                }}
               >
                 {d.name}
+                {day.extraDepartmentIds.length > 0 && day.departmentId === d.id && " · principal"}
               </Chip>
             ))}
           </div>

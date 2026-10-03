@@ -19,8 +19,8 @@ interface EmployeeRowProps {
   hasReports?: boolean;
   /** En las burbujas de ausencia: ✓ validar (la ausencia es correcta) / ⇄ no cuadra (otro motivo o ha venido). */
   absence?: { onConfirm: () => void; onUndo: () => void; onChange: () => void };
-  /** Dentro de la burbuja de su departamento: no repetir el nombre del departamento. */
-  hideDepartment?: boolean;
+  /** Burbuja de departamento en la que está la fila: no se repite ese nombre (null = lista sin grupos). */
+  groupId?: string | null;
   /** Pasar lista: botones ✓/✗ (solo para quien está previsto que trabaje). */
   attendance?: { onPresent: () => void; onAbsent: () => void; onUndo: () => void };
 }
@@ -29,12 +29,17 @@ interface EmployeeRowProps {
 const hit = "flex h-11 w-10 shrink-0 items-center justify-center active:opacity-60 [touch-action:manipulation]";
 const dot = "flex h-8 w-8 items-center justify-center rounded-full text-[15px] font-bold";
 
-export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, onMove, showStatus, hasReports, attendance, hideDepartment, absence }: EmployeeRowProps) {
+export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, onMove, showStatus, hasReports, attendance, groupId = null, absence }: EmployeeRowProps) {
   const { employee, day } = member;
   const press = useLongPress(onMove, onOpen);
   const habitual = employee.defaultDepartmentId ? departments.get(employee.defaultDepartmentId) : undefined;
   const moved = day.departmentId !== employee.defaultDepartmentId;
-  const today = !hideDepartment && day.departmentId ? departments.get(day.departmentId) : undefined;
+  // Departamentos de esta noche (principal + los que también cubre) menos el de la burbuja en la que está.
+  const tonight = [day.departmentId, ...day.extraDepartmentIds]
+    .filter((id): id is string => !!id && id !== groupId)
+    .map((id) => departments.get(id))
+    .filter((d): d is DepartmentLite => !!d);
+  const covering = !!groupId && day.departmentId !== groupId && day.extraDepartmentIds.includes(groupId);
   const sections = day.segments.map((s) => segmentName(s, sectionNames));
 
   const name = employee.name;
@@ -53,20 +58,20 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
               {day.reason ? ` · ${day.reason}` : ""}
             </span>
           ) : (
-            (sections.length > 0 || today || moved) && (
+            (sections.length > 0 || tonight.length > 0 || moved) && (
               <span className="flex flex-wrap items-center gap-x-1.5 leading-tight">
-                {today && (
-                  <span className="inline-flex items-center gap-1 text-[12px] text-muted">
-                    <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: today.color }} />
-                    {today.name}
+                {tonight.map((d, i) => (
+                  <span key={d.id} className="inline-flex items-center gap-1 text-[12px] text-muted">
+                    <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: d.color }} />
+                    {covering && i === 0 ? `de ${d.name}` : groupId ? `+ ${d.name}` : d.name}
                   </span>
-                )}
+                ))}
                 {sections.map((n, i) => (
                   <span key={i} className="text-[12px] text-muted">
                     {n}
                   </span>
                 ))}
-                {moved && habitual && <span className="text-[12px] text-warning">↪ de {habitual.name}</span>}
+                {moved && habitual && !covering && <span className="text-[12px] text-warning">↪ de {habitual.name}</span>}
               </span>
             )
           )}

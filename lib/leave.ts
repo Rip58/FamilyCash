@@ -289,8 +289,8 @@ export function planLeaveImpact(input: {
     const b = before.departments.find((d) => d.department.id === deptId);
     const a = after.departments.find((d) => d.department.id === deptId);
     if (!a || !b) continue;
-    const bp = b.present.length;
-    const ap = a.present.length;
+    const bp = b.staffed;
+    const ap = a.staffed;
     if (ap >= bp) continue;
     if (a.isEmpty && !b.isEmpty) {
       issues.push({ date: c.date, departmentId: deptId, departmentName: a.department.name, before: bp, after: ap, target: a.targetStaff, kind: "empty" });

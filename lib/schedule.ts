@@ -59,6 +59,8 @@ export interface DayEntryLite {
   date: DateStr;
   statusTypeId: string;
   departmentId: string | null;
+  /** Otros departamentos que también cubre esa noche (además de `departmentId`). */
+  extraDepartmentIds?: string[];
   reason: string | null;
   note: string | null;
   arrivedAt: string | null;
@@ -84,6 +86,8 @@ export interface EffectiveDay {
   isDayOff: boolean;
   /** Departamento efectivo ese día (entry.departmentId ?? habitual). */
   departmentId: string | null;
+  /** Otros departamentos que también cubre esa noche (sin repetir el principal). */
+  extraDepartmentIds: string[];
   reason: string | null;
   note: string | null;
   arrivedAt: string | null;
@@ -135,13 +139,15 @@ export function getEffectiveDay(
   const plan = status;
   const actual = entry?.actualStatusTypeId ? statusTypes.find((s) => s.id === entry.actualStatusTypeId) : undefined;
   if (actual) status = actual;
+  const departmentId = entry?.departmentId ?? employee.defaultDepartmentId;
   return {
     employeeId: employee.id,
     date,
     status,
     isWorking: status.isWorking,
     isDayOff: isDayOffStatus(status),
-    departmentId: entry?.departmentId ?? employee.defaultDepartmentId,
+    departmentId,
+    extraDepartmentIds: [...new Set(entry?.extraDepartmentIds ?? [])].filter((id) => id !== departmentId),
     reason: entry?.reason ?? null,
     note: entry?.note ?? null,
     arrivedAt: entry?.arrivedAt ?? null,
@@ -178,10 +184,14 @@ export interface DepartmentRoster {
   present: RosterMember[];
   /** Empleados cuyo departamento efectivo es éste pero hoy no trabajan. */
   absent: RosterMember[];
+  /** Trabajan en otro departamento y además cubren éste esa noche. */
+  covering: RosterMember[];
+  /** Personas que cubren el departamento: `present` + `covering`. */
+  staffed: number;
   targetStaff: number;
-  /** Ningún trabajador presente. */
+  /** Ningún trabajador presente (ni nadie que lo cubra). */
   isEmpty: boolean;
-  /** Hay alguien pero menos que `targetStaff` (0 < presentes < plazas). */
+  /** Hay alguien pero menos que `targetStaff` (0 < cubierto < plazas). */
   isUnderStaffed: boolean;
 }
 
@@ -228,13 +238,17 @@ export function getDayRoster(input: DayRosterInput): DayRoster {
     const mine = members.filter((m) => m.day.departmentId === department.id);
     const present = mine.filter((m) => m.day.isWorking);
     const absent = mine.filter((m) => !m.day.isWorking);
+    const covering = members.filter((m) => m.day.isWorking && m.day.extraDepartmentIds.includes(department.id));
+    const staffed = present.length + covering.length;
     return {
       department,
       present,
       absent,
+      covering,
+      staffed,
       targetStaff: department.targetStaff,
-      isEmpty: present.length === 0,
-      isUnderStaffed: present.length > 0 && present.length < department.targetStaff,
+      isEmpty: staffed === 0,
+      isUnderStaffed: staffed > 0 && staffed < department.targetStaff,
     };
   });
 

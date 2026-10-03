@@ -76,6 +76,7 @@ export function toEntryLite(r: EntryRow): DayEntryLite {
     date: fromDbDate(r.date),
     statusTypeId: r.statusTypeId,
     departmentId: r.departmentId,
+    extraDepartmentIds: r.extraDepartmentIds,
     reason: r.reason,
     note: r.note,
     arrivedAt: r.arrivedAt,

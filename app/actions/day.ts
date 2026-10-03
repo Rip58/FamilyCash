@@ -49,7 +49,11 @@ const setStatusSchema = z.object({
   present: z.boolean().optional(),
 });
 const setReasonSchema = z.object({ ...base, reason: optText(200) });
-const setDepartmentSchema = z.object({ ...base, departmentId: idSchema.nullable() });
+const setDepartmentSchema = z.object({
+  ...base,
+  departmentId: idSchema.nullable(),
+  extraDepartmentIds: z.array(idSchema).max(20).optional(),
+});
 const setTimesSchema = z.object({
   ...base,
   arrivedAt: optTime,
@@ -96,6 +100,7 @@ function toLite(
     employeeId: string;
     statusTypeId: string;
     departmentId: string | null;
+    extraDepartmentIds: string[];
     reason: string | null;
     note: string | null;
     arrivedAt: string | null;
@@ -122,6 +127,7 @@ function toLite(
     date,
     statusTypeId: row.statusTypeId,
     departmentId: row.departmentId,
+    extraDepartmentIds: row.extraDepartmentIds,
     reason: row.reason,
     note: row.note,
     arrivedAt: row.arrivedAt,
@@ -200,14 +206,18 @@ async function mutateScalar(employeeId: string, date: DateStr, patch: EntryPatch
       if (patch.kind === "status" && !ctx.statusTypes.some((s) => s.id === patch.statusTypeId)) {
         throw new UserError("Estado desconocido.");
       }
-      if (patch.kind === "department" && patch.departmentId) {
-        const d = await tx.department.findUnique({ where: { id: patch.departmentId } });
-        if (!d) throw new UserError("Departamento desconocido.");
+      if (patch.kind === "department") {
+        const ids = [...(patch.departmentId ? [patch.departmentId] : []), ...(patch.extraDepartmentIds ?? [])];
+        const unique = [...new Set(ids)];
+        if (unique.length && (await tx.department.count({ where: { id: { in: unique } } })) !== unique.length) {
+          throw new UserError("Departamento desconocido.");
+        }
       }
       const next = applyEntryPatch(ctx.entry, ctx.employee, date, ctx.statusTypes, patch, ctx.shift.shiftStart);
       const data = {
         statusTypeId: next.statusTypeId,
         departmentId: next.departmentId,
+        extraDepartmentIds: next.extraDepartmentIds ?? [],
         reason: next.reason,
         note: next.note,
         arrivedAt: next.arrivedAt,
@@ -251,7 +261,11 @@ export async function setReason(input: z.input<typeof setReasonSchema>): Promise
 export async function setDepartment(input: z.input<typeof setDepartmentSchema>): Promise<ActionResult> {
   const p = setDepartmentSchema.safeParse(input);
   if (!p.success) return invalid();
-  return mutateScalar(p.data.employeeId, p.data.date, { kind: "department", departmentId: p.data.departmentId });
+  return mutateScalar(p.data.employeeId, p.data.date, {
+    kind: "department",
+    departmentId: p.data.departmentId,
+    extraDepartmentIds: p.data.extraDepartmentIds,
+  });
 }
 
 export async function setTimes(input: z.input<typeof setTimesSchema>): Promise<ActionResult> {

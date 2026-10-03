@@ -19,7 +19,8 @@ export type SegmentWithId = SegmentLite & { id: string };
 export interface SheetOps {
   setStatus: (statusTypeId: string, reason?: string | null, present?: boolean) => void;
   setReason: (reason: string) => void;
-  setDepartment: (departmentId: string | null) => void;
+  /** departmentId null = el habitual; `extraDepartmentIds` = otros que también cubre esa noche. */
+  setDepartment: (departmentId: string | null, extraDepartmentIds?: string[]) => void;
   setTimes: (t: { arrivedAt: string; leftAt: string; timeReason: string }) => void;
   setNote: (note: string) => void;
   /** minutes 0 = sin horas extra. */

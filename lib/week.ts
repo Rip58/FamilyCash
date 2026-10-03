@@ -295,8 +295,8 @@ export interface DaySummary {
 /** Resumen visual de una noche: quién viene, quién no y si algún departamento se queda corto. */
 export function daySummary(r: DayRoster): DaySummary {
   const issues: DayIssue[] = r.departments
-    .filter((d) => d.present.length + d.absent.length > 0 && (d.isEmpty || d.isUnderStaffed))
-    .map((d) => ({ name: d.department.name, present: d.present.length, target: d.targetStaff }));
+    .filter((d) => d.present.length + d.absent.length + d.covering.length > 0 && (d.isEmpty || d.isUnderStaffed))
+    .map((d) => ({ name: d.department.name, present: d.staffed, target: d.targetStaff }));
   const missing = issues.reduce((n, i) => n + Math.max(0, i.target - i.present), 0);
   const level = issues.some((i) => i.present === 0) ? "bad" : issues.length > 0 ? "warn" : "ok";
   const offGroup = r.absentByStatus.find((g) => g.status.code === "OFF");
