@@ -291,7 +291,7 @@ export async function saveShift(input: z.input<typeof shiftSchema>): Promise<Act
 
 // ------------------------------------------------------------ Importar con IA
 
-const aiProviderSchema = z.enum(["claude", "openai"]);
+const aiProviderSchema = z.enum(["claude", "openai", "gemini"]);
 
 export async function saveAiProvider(provider: z.input<typeof aiProviderSchema>): Promise<ActionResult> {
   const p = aiProviderSchema.safeParse(provider);

@@ -4,12 +4,15 @@
  */
 import { normalize } from "./protocol-markdown";
 
-export type AiProvider = "claude" | "openai";
-export const AI_PROVIDERS: { id: AiProvider; label: string; envVar: string }[] = [
+export type AiProvider = "claude" | "openai" | "gemini";
+export const AI_PROVIDERS: { id: AiProvider; label: string; envVar: string; free?: boolean }[] = [
   { id: "claude", label: "Claude (Anthropic)", envVar: "ANTHROPIC_API_KEY" },
   { id: "openai", label: "ChatGPT (OpenAI)", envVar: "OPENAI_API_KEY" },
+  { id: "gemini", label: "Gemini (Google)", envVar: "GEMINI_API_KEY", free: true },
 ];
-export const isAiProvider = (v: unknown): v is AiProvider => v === "claude" || v === "openai";
+export const isAiProvider = (v: unknown): v is AiProvider => v === "claude" || v === "openai" || v === "gemini";
+
+export const aiProviderLabel = (p: string) => AI_PROVIDERS.find((x) => x.id === p)?.label.split(" (")[0] ?? "Claude";
 
 /** Columnas lunes → domingo tal y como las devuelve la IA. */
 export const DAY_KEYS = ["L", "M", "X", "J", "V", "S", "D"] as const;

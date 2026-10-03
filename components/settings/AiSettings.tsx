@@ -13,6 +13,7 @@ interface ProviderInfo {
   envVar: string;
   configured: boolean;
   model: string;
+  free?: boolean;
 }
 
 /** Ajustes → Importar con IA: qué IA lee las imágenes del cuadrante y si su clave está puesta en Vercel. */
@@ -57,7 +58,10 @@ export function AiSettings({ current, providers }: { current: AiProvider; provid
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[16px] font-semibold">{p.label}</span>
-                  <span className="block text-[13px] text-muted">Modelo: {p.model}</span>
+                  <span className="block text-[13px] text-muted">
+                    Modelo: {p.model}
+                    {p.free && <span className="font-semibold text-success"> · Gratis</span>}
+                  </span>
                 </span>
                 <span
                   className={cn(
@@ -92,8 +96,17 @@ export function AiSettings({ current, providers }: { current: AiProvider; provid
           </li>
         </ol>
         <p className="mt-2 text-[13px] text-muted">
-          La clave solo la usa el servidor; nunca llega al móvil. Cada lectura de una imagen cuesta unos céntimos en tu
-          cuenta de la IA.
+          La clave solo la usa el servidor; nunca llega al móvil. Con Claude o ChatGPT cada lectura de una imagen cuesta
+          unos céntimos en tu cuenta de la IA.
+        </p>
+        <p className="mt-2 text-[13px] text-muted">
+          <b className="text-fg">Gemini</b>: la clave se saca gratis en{" "}
+          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="font-semibold text-accent">
+            aistudio.google.com/apikey
+          </a>{" "}
+          (variable <code className="rounded bg-surface-2 px-1">GEMINI_API_KEY</code>). Gratis con límite diario, de sobra
+          para un par de imágenes por semana. Ojo: en el plan gratuito Google puede revisar y usar las imágenes (con los
+          nombres de la plantilla) para mejorar sus productos.
         </p>
       </Card>
       <Link

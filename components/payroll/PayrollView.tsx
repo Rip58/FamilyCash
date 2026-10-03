@@ -107,8 +107,8 @@ function MonthEditor({ m, onDone }: { m: PayrollMonth; onDone: () => void }) {
   return (
     <div className="flex flex-col gap-3 pb-2">
       <p className="text-[13px] text-muted">
-        Vacío = automático (lo apuntado en Hoy/Semana). El sueldo del mes es fijo; las fiestas trabajadas (semanas con más de 5
-        noches) suman 8 h extra cada una.
+        Vacío = automático (lo apuntado en Hoy/Semana dentro del periodo de la nómina, de cierre a cierre). El sueldo del mes
+        es fijo; las fiestas trabajadas (semanas con más de 5 noches) suman 8 h extra cada una.
       </p>
       <p className="rounded-control bg-surface-2 px-3 py-2 text-[15px]" aria-live="polite">
         Días trabajados: <b>{live.daysWorked}</b>

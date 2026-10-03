@@ -3,7 +3,7 @@
  * calculadora de bruto/neto. Importes en céntimos; porcentajes en %.
  * Es una estimación: no sustituye a la nómina oficial.
  */
-import { type DateStr, type MonthStr, addDays, monthDays, weekdayIndex } from "./dates";
+import { type DateStr, type MonthStr, addDays, monthDays, payPeriodDays, weekdayIndex } from "./dates";
 import { type DayEntryLite, type EmployeeLite, type StatusTypeLite, getEffectiveDay } from "./schedule";
 
 export type NightPlusMode = "PER_NIGHT" | "PERCENT";
@@ -13,6 +13,8 @@ export type ShiftKind = "NIGHT" | "DAY";
 
 export interface PayrollConfig {
   employeeId: string | null;
+  /** Día de cierre de la nómina: lo de después (horas, fiestas…) pasa a la del mes siguiente. null = mes natural. */
+  cutoffDay: number | null;
   /** Salario base si ningún periodo cubre el mes. */
   baseMonthlyCents: number;
   respPlusCents: number;
@@ -34,6 +36,7 @@ export interface PayrollConfig {
 
 export const DEFAULT_PAYROLL: PayrollConfig = {
   employeeId: null,
+  cutoffDay: 27,
   baseMonthlyCents: 0,
   respPlusCents: 0,
   proratedExtraCents: 0,
@@ -76,6 +79,7 @@ export function configForMonth(cfg: PayrollConfig, periods: PayrollPeriod[], mon
 
 /** Datos del mes (días por tipo y horas extra). */
 export interface MonthStats {
+  /** Días del periodo de la nómina (del cierre anterior al cierre de este mes). */
   daysInMonth: number;
   /** Días de contrato en el mes (alta o baja a mitad de mes); ausente = mes completo. */
   contractDays?: number;
@@ -102,11 +106,13 @@ export function monthStatsFromSchedule(
   daysOffPerWeek = 2,
   /** Hasta qué día contar fiestas trabajadas; las semanas futuras aún no están cerradas (= mes estándar). */
   until?: DateStr,
+  /** Día de cierre de la nómina (ver `payPeriodDays`); sin él, mes natural. */
+  cutoffDay?: number | null,
 ): MonthStats {
   const byDate = new Map<DateStr, DayEntryLite>(
     entries.filter((e) => e.employeeId === employee.id).map((e) => [e.date, e]),
   );
-  const days = monthDays(month);
+  const days = payPeriodDays(month, cutoffDay);
   const s: MonthStats = {
     daysInMonth: days.length,
     daysWorked: 0,
@@ -118,7 +124,7 @@ export function monthStatsFromSchedule(
     offDaysWorked: 0,
     extraMinutes: 0,
   };
-  // Fiestas trabajadas por semanas (lunes–domingo); cada semana cuenta en el mes de su domingo.
+  // Fiestas trabajadas por semanas (lunes–domingo); cada semana cuenta en el periodo de su domingo.
   const workingNights = 7 - daysOffPerWeek;
   for (const sunday of days.filter((d) => weekdayIndex(d) === 6 && (!until || d <= until))) {
     let worked = 0;
@@ -162,11 +168,12 @@ export function monthProgress(
   statusTypes: StatusTypeLite[],
   daysOffPerWeek: number,
   today: DateStr,
+  cutoffDay?: number | null,
 ): MonthProgress {
-  const days = monthDays(month);
+  const days = payPeriodDays(month, cutoffDay);
   const left = days.filter((d) => d > today);
   const mine = entries.filter((e) => e.employeeId === employee.id);
-  const planned = monthStatsFromSchedule(month, employee, mine, statusTypes, daysOffPerWeek);
+  const planned = monthStatsFromSchedule(month, employee, mine, statusTypes, daysOffPerWeek, undefined, cutoffDay);
   // Lo que el planning pone después de hoy; "hasta hoy" = el mes menos eso.
   const leftStats = { daysWorked: 0, daysOff: 0, vacationDays: 0, sickDays: 0, absentDays: 0, extraMinutes: 0 };
   const byDate = new Map(mine.map((e) => [e.date, e]));
@@ -180,7 +187,7 @@ export function monthProgress(
     else if (day.status.code === "SICK") leftStats.sickDays++;
     else leftStats.absentDays++;
   }
-  const closed = monthStatsFromSchedule(month, employee, mine, statusTypes, daysOffPerWeek, today);
+  const closed = monthStatsFromSchedule(month, employee, mine, statusTypes, daysOffPerWeek, today, cutoffDay);
   const soFar: MonthStats = {
     ...planned,
     daysWorked: planned.daysWorked - leftStats.daysWorked,

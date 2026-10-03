@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addMonths, isMonthStr, monthDays, monthOf } from "@/lib/dates";
+import { addMonths, isMonthStr, monthDays, monthOf, payMonthOf, payPeriodDays } from "@/lib/dates";
 import {
   DEFAULT_PAYROLL, type MonthStats, calculatePay, configForMonth, mergeStats, monthProgress, monthStatsFromSchedule, parseEuros, projectMonth,
   andorraIrpfAnnualCents, offDayOvertimeMinutes, overtimeRateCents, periodForMonth,
@@ -210,5 +210,41 @@ describe("mes en curso en tiempo real", () => {
     expect(projectMonth(p, 9).offDaysWorked).toBe(1);
     expect(projectMonth(p, 99).daysOff).toBe(3 + 15);
     expect(projectMonth(p, -3).daysOff).toBe(3);
+  });
+});
+
+describe("cierre de nómina el 27", () => {
+  it("periodo del 28 del mes anterior al 27", () => {
+    const oct = payPeriodDays("2026-10", 27);
+    expect([oct[0], oct.at(-1), oct.length]).toEqual(["2026-09-28", "2026-10-27", 30]);
+    const mar = payPeriodDays("2026-03", 27);
+    expect([mar[0], mar.at(-1)]).toEqual(["2026-02-28", "2026-03-27"]);
+    // sin cierre (o cierre que no cabe) = mes natural
+    expect(payPeriodDays("2026-10", null)).toEqual(monthDays("2026-10"));
+    expect(payPeriodDays("2026-02", 30)[0]).toBe("2026-01-31"); // cierre que no cabe en febrero: hasta fin de mes
+    expect(payPeriodDays("2026-02", 30).at(-1)).toBe("2026-02-28");
+    expect(payPeriodDays("2026-03", 30)[0]).toBe("2026-03-01");
+  });
+
+  it("después del cierre ya es la nómina del mes siguiente", () => {
+    expect(payMonthOf("2026-10-27", 27)).toBe("2026-10");
+    expect(payMonthOf("2026-10-28", 27)).toBe("2026-11");
+    expect(payMonthOf("2026-12-30", 27)).toBe("2027-01");
+    expect(payMonthOf("2026-10-31", null)).toBe("2026-10");
+  });
+
+  it("las horas extra del 28 en adelante pasan a la nómina siguiente", () => {
+    const extra = [entry("2026-10-27", "WORK", { extraMinutes: 60 }), entry("2026-10-29", "WORK", { extraMinutes: 120 })];
+    expect(monthStatsFromSchedule("2026-10", me, extra, statusTypes, 2, undefined, 27).extraMinutes).toBe(60);
+    expect(monthStatsFromSchedule("2026-11", me, extra, statusTypes, 2, undefined, 27).extraMinutes).toBe(120);
+    // sin cierre: todo en octubre
+    expect(monthStatsFromSchedule("2026-10", me, extra, statusTypes, 2).extraMinutes).toBe(180);
+  });
+
+  it("una fiesta trabajada cuenta en la nómina del periodo de su domingo", () => {
+    // sábado 31 oct trabajado → semana del domingo 1 nov → nómina de noviembre
+    const sat = [entry("2026-10-31", "WORK")];
+    expect(monthStatsFromSchedule("2026-10", me, sat, statusTypes, 2, undefined, 27).offDaysWorked).toBe(0);
+    expect(monthStatsFromSchedule("2026-11", me, sat, statusTypes, 2, undefined, 27).offDaysWorked).toBe(1);
   });
 });

@@ -240,6 +240,28 @@ export function monthDays(month: MonthStr): DateStr[] {
   return Array.from({ length: n }, (_, i) => addDays(first, i));
 }
 
+/** Último día del periodo de la nómina de `month`: el día de cierre, o fin de mes si el cierre no cabe (o no hay). */
+function payPeriodEnd(month: MonthStr, cutoffDay: number | null | undefined): DateStr {
+  const days = monthDays(month);
+  return cutoffDay && cutoffDay >= 1 && cutoffDay < days.length ? days[cutoffDay - 1]! : days.at(-1)!;
+}
+
+/**
+ * Días que cuentan en la nómina de `month` (horas extra, fiestas, ausencias): del día siguiente al cierre del mes
+ * anterior al día de cierre de este mes. Con cierre el 27, la de octubre va del 28 sep al 27 oct.
+ */
+export function payPeriodDays(month: MonthStr, cutoffDay: number | null | undefined): DateStr[] {
+  const from = addDays(payPeriodEnd(addMonths(month, -1), cutoffDay), 1);
+  const to = payPeriodEnd(month, cutoffDay);
+  return Array.from({ length: diffDays(from, to) + 1 }, (_, i) => addDays(from, i));
+}
+
+/** Nómina en la que cuenta un día: después del cierre ya es la del mes siguiente. */
+export function payMonthOf(date: DateStr, cutoffDay: number | null | undefined): MonthStr {
+  const month = monthOf(date);
+  return date > payPeriodEnd(month, cutoffDay) ? addMonths(month, 1) : month;
+}
+
 /** "Septiembre 2026". */
 export function formatMonth(month: MonthStr): string {
   return formatMonthYear(`${month}-01`);

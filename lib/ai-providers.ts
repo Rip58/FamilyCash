@@ -1,22 +1,27 @@
 /**
  * Llamadas a la IA para leer el cuadrante de una imagen (solo servidor). Las claves van en variables de
- * entorno de Vercel: ANTHROPIC_API_KEY (Claude) y OPENAI_API_KEY (ChatGPT). Nunca se envían al cliente.
+ * entorno de Vercel: ANTHROPIC_API_KEY (Claude), OPENAI_API_KEY (ChatGPT) y GEMINI_API_KEY (Gemini). Nunca se envían al cliente.
  */
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import type { AiProvider } from "./ai-import-format";
+import { geminiSchema } from "./ai-import";
 
 export const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-5-5";
 export const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5";
+export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+
+const geminiKey = () => process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
 
 export function providerConfigured(p: AiProvider): boolean {
+  if (p === "gemini") return !!geminiKey();
   return p === "claude" ? !!process.env.ANTHROPIC_API_KEY : !!process.env.OPENAI_API_KEY;
 }
 
 export function providerModel(p: AiProvider): string {
-  return p === "claude" ? CLAUDE_MODEL : OPENAI_MODEL;
+  return p === "claude" ? CLAUDE_MODEL : p === "gemini" ? GEMINI_MODEL : OPENAI_MODEL;
 }
 
 /** Error con mensaje para mostrar al usuario (en español). */
@@ -36,12 +41,13 @@ export async function extractWithAi<S extends z.ZodType>(
   schema: S,
 ): Promise<z.infer<S>> {
   if (!providerConfigured(provider)) {
+    const [name, env] =
+      provider === "claude" ? ["Claude", "ANTHROPIC_API_KEY"] : provider === "gemini" ? ["Gemini", "GEMINI_API_KEY"] : ["ChatGPT", "OPENAI_API_KEY"];
     throw new AiImportError(
-      provider === "claude"
-        ? "Falta la clave de Claude: añade ANTHROPIC_API_KEY en Vercel → Settings → Environment Variables y vuelve a publicar."
-        : "Falta la clave de ChatGPT: añade OPENAI_API_KEY en Vercel → Settings → Environment Variables y vuelve a publicar.",
+      `Falta la clave de ${name}: añade ${env} en Vercel → Settings → Environment Variables y vuelve a publicar.`,
     );
   }
+  if (provider === "gemini") return extractWithGemini(image, prompt, schema);
   return provider === "claude" ? extractWithClaude(image, prompt, schema) : extractWithOpenAI(image, prompt, schema);
 }
 
@@ -139,5 +145,53 @@ async function extractWithOpenAI<S extends z.ZodType>(image: ImageInput, prompt:
   }
   const parsed = schema.safeParse(json);
   if (!parsed.success) throw new AiImportError("ChatGPT devolvió datos que no cuadran con la plantilla. Inténtalo de nuevo.");
+  return parsed.data;
+}
+
+async function extractWithGemini<S extends z.ZodType>(image: ImageInput, prompt: string, schema: S): Promise<z.infer<S>> {
+  let res: Response;
+  try {
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": geminiKey() },
+      signal: AbortSignal.timeout(110_000),
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts: [{ inline_data: { mime_type: image.mediaType, data: image.data } }, { text: prompt }],
+          },
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: geminiSchema(z.toJSONSchema(schema)),
+          temperature: 0,
+        },
+      }),
+    });
+  } catch {
+    throw new AiImportError("No se pudo contactar con Gemini (o ha tardado demasiado). Reinténtalo.");
+  }
+  const body = (await res.json().catch(() => null)) as {
+    error?: { message?: string; status?: string };
+    promptFeedback?: { blockReason?: string };
+    candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
+  } | null;
+  const msg = body?.error?.message ?? "";
+  if (res.status === 400 && /api key/i.test(msg)) throw new AiImportError("La clave de Gemini (GEMINI_API_KEY) no es válida.");
+  if (res.status === 401 || res.status === 403) throw new AiImportError("La clave de Gemini (GEMINI_API_KEY) no es válida o no tiene permiso.");
+  if (res.status === 429) throw new AiImportError("Gemini: has llegado al límite gratuito. Espera un rato (o mañana) y reinténtalo.");
+  if (!res.ok) throw new AiImportError(`Error de Gemini (${res.status}): ${msg.slice(0, 200) || "sin detalle"}`);
+  if (body?.promptFeedback?.blockReason) throw new AiImportError("Gemini no ha querido procesar la imagen. Prueba con otra captura.");
+  const cand = body?.candidates?.[0];
+  if (cand?.finishReason === "MAX_TOKENS") throw new AiImportError("La respuesta de Gemini se cortó: prueba con una imagen de una sola semana.");
+  let json: unknown;
+  try {
+    json = JSON.parse((cand?.content?.parts ?? []).map((p) => p.text ?? "").join(""));
+  } catch {
+    throw new AiImportError("Gemini no devolvió el cuadrante en el formato esperado. Inténtalo de nuevo.");
+  }
+  const parsed = schema.safeParse(json);
+  if (!parsed.success) throw new AiImportError("Gemini devolvió datos que no cuadran con la plantilla. Inténtalo de nuevo.");
   return parsed.data;
 }

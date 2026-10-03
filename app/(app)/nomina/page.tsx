@@ -1,5 +1,5 @@
 import { PayrollView } from "@/components/payroll/PayrollView";
-import { addMonths, madridToday, monthOf } from "@/lib/dates";
+import { addMonths, madridToday, payMonthOf } from "@/lib/dates";
 import { getPayrollConfig, getPayrollPeriods, loadPayrollMonths } from "@/lib/payroll-queries";
 import { getEmployees } from "@/lib/queries";
 
@@ -9,11 +9,12 @@ export const dynamic = "force-dynamic";
 export default async function Page({ searchParams }: { searchParams: Promise<{ v?: string }> }) {
   const { v } = await searchParams;
   const [config, periods] = await Promise.all([getPayrollConfig(), getPayrollPeriods()]);
-  const current = monthOf(madridToday());
+  // Nómina en curso: después del día de cierre ya es la del mes siguiente.
+  const current = payMonthOf(madridToday(), config.cutoffDay);
   // Desde el primer periodo de salario (inicio del contrato) hasta diciembre del año siguiente.
-  const first = periods[0] ? monthOf(periods[0].from) : addMonths(current, -11);
+  const first = periods[0] ? payMonthOf(periods[0].from, config.cutoffDay) : addMonths(current, -11);
   const last = `${Number(current.slice(0, 4)) + 1}-12`;
-  const [{ months, progress }, employees] = await Promise.all([loadPayrollMonths(first, last, config.employeeId), getEmployees()]);
+  const [{ months, progress }, employees] = await Promise.all([loadPayrollMonths(first, last, config.employeeId, config.cutoffDay), getEmployees()]);
   const me = config.employeeId ? employees.find((e) => e.id === config.employeeId) : undefined;
   return (
     <PayrollView

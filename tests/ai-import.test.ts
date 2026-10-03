@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { importPrompt, importSchema, matchEmployee, toImportRows } from "@/lib/ai-import";
+import { z } from "zod";
+import { geminiSchema, importPrompt, importSchema, matchEmployee, toImportRows } from "@/lib/ai-import";
 import type { EmployeeLite, StatusTypeLite } from "@/lib/schedule";
 
 const emp = (id: string, name: string, alias: string | null = null): EmployeeLite => ({
@@ -74,5 +75,21 @@ describe("petición a la IA", () => {
     expect(prompt).toContain("11 oct");
     expect(prompt).toContain("VACATION");
     expect(prompt).toContain("c1: Cintya Sanchez");
+  });
+});
+
+describe("esquema para Gemini", () => {
+  it("solo deja tipo, propiedades, requeridos, items y descripción", () => {
+    const s = geminiSchema(z.toJSONSchema(importSchema(["WORK", "OFF"]))) as Record<string, unknown>;
+    expect(s).not.toHaveProperty("$schema");
+    expect(s).not.toHaveProperty("additionalProperties");
+    expect(s.type).toBe("object");
+    expect(s.required).toEqual(["week_monday", "rows", "notes"]);
+    const rows = (s.properties as Record<string, Record<string, unknown>>).rows!;
+    const item = rows.items as Record<string, unknown>;
+    expect(item.required).toEqual(["name", "employee_id", "days"]);
+    const days = (item.properties as Record<string, Record<string, unknown>>).days!;
+    expect(days.propertyOrdering).toEqual(["L", "M", "X", "J", "V", "S", "D"]);
+    expect(JSON.stringify(s)).not.toContain("additionalProperties");
   });
 });

@@ -1,5 +1,5 @@
 import "server-only";
-import { type MonthStr, addDays, addMonths, fromDbDate, madridToday, monthDays, monthOf } from "./dates";
+import { type MonthStr, addDays, fromDbDate, madridToday, addMonths, payMonthOf, payPeriodDays } from "./dates";
 import { db } from "./db";
 import {
   DEFAULT_PAYROLL, type MonthOverrides, type MonthStats, type NightPlusMode, type OvertimeMode, type PayrollConfig, type PayrollPeriod,
@@ -45,31 +45,33 @@ export async function loadPayrollMonths(
   from: MonthStr,
   to: MonthStr,
   employeeId: string | null,
+  /** Día de cierre de la nómina (PayrollSettings.cutoffDay). */
+  cutoffDay: number | null = null,
 ): Promise<{ months: PayrollMonth[]; progress: MonthProgress | null }> {
   const months: MonthStr[] = [];
   for (let m = from; m <= to; m = addMonths(m, 1)) months.push(m);
-  const first = monthDays(from)[0]!;
-  const last = monthDays(to).at(-1)!;
+  const first = payPeriodDays(from, cutoffDay)[0]!;
+  const last = payPeriodDays(to, cutoffDay).at(-1)!;
   const [employees, statusTypes, settings, entries, slips] = await Promise.all([
     getEmployees(),
     getStatusTypes(),
     getSettings(),
-    // 6 días antes: la semana del primer domingo del mes empieza en el mes anterior.
+    // 6 días antes: la semana del primer domingo del periodo empieza antes.
     employeeId ? getEntriesBetween(addDays(first, -6), last) : Promise.resolve([]),
     db.payslip.findMany({ where: { month: { gte: from, lte: to } } }),
   ]);
   const me = employeeId ? employees.find((e) => e.id === employeeId) : undefined;
   const byMonth = new Map(slips.map((s) => [s.month, s]));
   const today = madridToday();
-  const current = monthOf(today);
+  const current = payMonthOf(today, cutoffDay);
   const progress =
     me && current >= from && current <= to
-      ? monthProgress(current, me, entries, statusTypes, settings.daysOffPerWeek, today)
+      ? monthProgress(current, me, entries, statusTypes, settings.daysOffPerWeek, today, cutoffDay)
       : null;
   const list = months.map((month) => {
     const auto: MonthStats = me
-      ? monthStatsFromSchedule(month, me, entries, statusTypes, settings.daysOffPerWeek, today)
-      : { daysInMonth: monthDays(month).length, daysWorked: 0, daysOff: 0, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 0, offDaysWorked: 0, extraMinutes: 0 };
+      ? monthStatsFromSchedule(month, me, entries, statusTypes, settings.daysOffPerWeek, today, cutoffDay)
+      : { daysInMonth: payPeriodDays(month, cutoffDay).length, daysWorked: 0, daysOff: 0, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 0, offDaysWorked: 0, extraMinutes: 0 };
     const s = byMonth.get(month);
     const overrides: MonthOverrides = s
       ? {

@@ -12,6 +12,7 @@ const percent = z.number().min(0).max(100);
 
 const settingsSchema = z.object({
   employeeId: z.string().max(64).nullable(),
+  cutoffDay: z.number().int().min(1).max(31).nullable(),
   baseMonthlyCents: cents,
   respPlusCents: cents,
   proratedExtraCents: cents,

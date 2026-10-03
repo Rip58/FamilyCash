@@ -86,3 +86,20 @@ export function toImportRows(out: ImportOutput, employees: EmployeeLite[], statu
     });
   return rows;
 }
+
+/** Gemini acepta un subconjunto de JSON Schema (OpenAPI): solo tipo, propiedades, requeridos, items y descripción. */
+export function geminiSchema(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(geminiSchema);
+  if (!node || typeof node !== "object") return node;
+  const n = node as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  if (typeof n.type === "string") out.type = n.type;
+  if (typeof n.description === "string") out.description = n.description;
+  if (n.items) out.items = geminiSchema(n.items);
+  if (n.properties && typeof n.properties === "object") {
+    out.properties = Object.fromEntries(Object.entries(n.properties).map(([k, v]) => [k, geminiSchema(v)]));
+    out.required = Object.keys(n.properties);
+    out.propertyOrdering = Object.keys(n.properties);
+  }
+  return out;
+}

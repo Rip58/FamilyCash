@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { aiProviderLabel } from "@/lib/ai-import-format";
 import { db } from "@/lib/db";
 import { countPendingRequests } from "@/lib/employee-file-queries";
 import { getDepartments, getEmployees, getSections, getSettings, getStatusTypes } from "@/lib/queries";
@@ -40,7 +41,7 @@ export default async function Page() {
         {
           href: "/ajustes/ia",
           label: "Importar con IA",
-          detail: settings.aiProvider === "openai" ? "ChatGPT" : "Claude",
+          detail: aiProviderLabel(settings.aiProvider),
           icon: "sparkles",
           color: "#d97757",
         },

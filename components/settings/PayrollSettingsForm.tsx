@@ -166,6 +166,28 @@ export function PayrollSettingsForm({
               ))}
             </select>
           </Field>
+          <Field
+            label="Día de cierre de la nómina"
+            hint={
+              cfg.cutoffDay
+                ? `Lo de después del día ${cfg.cutoffDay} (horas extra, fiestas trabajadas, ausencias) cuenta en la nómina del mes siguiente.`
+                : "Mes natural: cada mes cuenta del 1 al último día."
+            }
+          >
+            <select
+              aria-label="Día de cierre de la nómina"
+              value={cfg.cutoffDay ?? ""}
+              onChange={(e) => save({ cutoffDay: e.target.value ? Number(e.target.value) : null })}
+              className={inputClass}
+            >
+              <option value="">Fin de mes (mes natural)</option>
+              {Array.from({ length: 30 }, (_, i) => i + 1).map((d) => (
+                <option key={d} value={d}>
+                  Día {d}
+                </option>
+              ))}
+            </select>
+          </Field>
         </Card>
         <Periods periods={periods} />
         <Card title="Salario">

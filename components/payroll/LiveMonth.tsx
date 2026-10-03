@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { cn } from "@/components/ui/cn";
-import { type MonthStr, formatMonth } from "@/lib/dates";
+import { type MonthStr, formatDayMonth, formatMonth, payPeriodDays } from "@/lib/dates";
 import {
   type MonthOverrides, type MonthProgress, type MonthStats, type PayrollConfig, type PayrollPeriod, calculatePay, configForMonth,
   formatEuros, formatHours, mergeStats, offDayOvertimeMinutes, overtimeRateCents, projectMonth,
@@ -112,15 +112,16 @@ export function LiveMonth({
   const soFarExtra = offDayOvertimeMinutes(progress.soFar) + progress.soFar.extraMinutes;
   const monthExtra = offDayOvertimeMinutes(projected) + projected.extraMinutes;
   const day = progress.soFar.daysInMonth - progress.daysLeft;
+  const period = payPeriodDays(month, config.cutoffDay);
   const changed = offLeft !== progress.plannedOffLeft || extraLeft !== 0;
 
   return (
     <section aria-label="Mes en curso" className="overflow-hidden rounded-card bg-surface">
       <div className="px-4 pb-2 pt-3">
         <div className="flex items-baseline justify-between gap-2">
-          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-muted">{formatMonth(month)} · en directo</h2>
+          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-muted">Nómina {formatMonth(month)}</h2>
           <span className="text-[12px] tabular-nums text-muted">
-            día {day} de {progress.soFar.daysInMonth}
+            {formatDayMonth(period[0]!)} – {formatDayMonth(period.at(-1)!)} · día {day}/{progress.soFar.daysInMonth}
           </span>
         </div>
         <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden>
@@ -177,7 +178,7 @@ export function LiveMonth({
       {progress.daysLeft > 0 && (
         <div className="border-t border-line px-4 py-1">
           <Stepper
-            label={`Fiestas en los ${progress.daysLeft} días que quedan`}
+            label={`Fiestas en los ${progress.daysLeft} días hasta el cierre`}
             hint={`Planning: ${progress.plannedOffLeft}${progress.awayLeft > 0 ? ` · ${progress.awayLeft} de vacaciones/baja` : ""} · 1 menos = +8 h extra`}
             value={offLeft}
             max={maxOff}
@@ -188,7 +189,7 @@ export function LiveMonth({
           />
           <Stepper
             label="Horas de cierre que prevés"
-            hint="Horas extra al cerrar el turno, de aquí a fin de mes"
+            hint={`Horas extra al cerrar el turno, de aquí al ${formatDayMonth(period.at(-1)!)}`}
             value={extraLeft}
             display={formatHours(extraLeft)}
             step={60}

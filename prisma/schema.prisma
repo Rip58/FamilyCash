@@ -16,7 +16,7 @@ model Settings {            // fila única id=1
   dayRolloverHour Int     @default(12)   // antes de esta hora "Hoy" = noche anterior
   daysOffPerWeek  Int     @default(2)
   passwordHash    String?                // si existe, sustituye a APP_PASSWORD
-  aiProvider      String  @default("claude") // IA para importar el cuadrante desde imagen: claude | openai
+  aiProvider      String  @default("claude") // IA para importar el cuadrante desde imagen: claude | openai | gemini
 }
 
 model Department {          // Droguería, Botellería, ...
@@ -238,6 +238,7 @@ model LeaveRequest {        // petición de cambio de fiesta / vacaciones / perm
 model PayrollSettings {     // fila única id=1: importes para la calculadora de nómina
   id                     Int     @id @default(1)
   employeeId             String?                 // "yo": empleado del que salen los datos del mes
+  cutoffDay              Int?    @default(27)    // cierre de la nómina: lo de después pasa al mes siguiente (null = mes natural)
   baseMonthlyCents       Int     @default(0)  // si no hay periodo de salario que cubra el mes
   respPlusCents          Int     @default(0)
   proratedExtraCents     Int     @default(0)
