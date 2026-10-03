@@ -76,6 +76,7 @@ export default async function Page({ params }: { params: Promise<{ date?: string
           name: e.name,
           defaultDepartmentId: e.defaultDepartmentId,
           sortOrder: e.sortOrder,
+          rotaOrder: e.rotaOrder,
           fixedDaysOff: e.fixedDaysOff,
           active: e.active,
           notes: e.notes,

@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useOptimistic, useState, useSyncExternalStore, useTransition } from "react";
+import { type ReactNode, useEffect, useMemo, useOptimistic, useState, useSyncExternalStore, useTransition } from "react";
 import { ReportCard } from "@/components/reports/ReportCard";
 import { ReportComposer } from "@/components/reports/ReportComposer";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/components/ui/cn";
+import { Icon, tint } from "@/components/ui/icons";
 import {
   addSegment as addSegmentAction,
   deleteSegment as deleteSegmentAction,
@@ -23,6 +24,7 @@ import {
 import { type DateStr, madridParts } from "@/lib/dates";
 import { formatOvertime, totalOvertime } from "@/lib/overtime";
 import type { ReportView } from "@/lib/report-format";
+import { statusAbbr } from "@/lib/week";
 import {
   type DayEntryLite,
   type DepartmentLite,
@@ -55,6 +57,10 @@ interface DayViewProps {
 }
 
 const subscribeNever = () => () => {};
+// Lista sin departamentos (orden del Excel): se recuerda en este móvil.
+const FLAT_KEY = "hoy:sinDepartamentos";
+const iconBtn =
+  "flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-surface text-accent active:opacity-70 [touch-action:manipulation]";
 const currentMadridHour = () => madridParts(new Date()).hour;
 
 interface OptimisticAction {
@@ -70,6 +76,25 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
   const [absentSheet, setAbsentSheet] = useState<{ id: string; open: boolean; change?: boolean } | null>(null);
   const [closeSheet, setCloseSheet] = useState<{ open: boolean; n: number }>({ open: false, n: 0 });
   const madridHour = useSyncExternalStore(subscribeNever, currentMadridHour, () => null);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [flat, setFlat] = useState(false);
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (localStorage.getItem(FLAT_KEY) === "1") setFlat(true);
+    } catch {
+      /* almacenamiento no disponible */
+    }
+  }, []);
+  const toggleFlat = () => {
+    const next = !flat;
+    setFlat(next);
+    try {
+      localStorage.setItem(FLAT_KEY, next ? "1" : "0");
+    } catch {
+      /* ignorar */
+    }
+  };
   const [composer, setComposer] = useState<{ open: boolean; employeeId: string | null }>({ open: false, employeeId: null });
 
   const [optEntries, applyOptimistic] = useOptimistic(entries, (cur: DayEntryLite[], a: OptimisticAction) => {
@@ -170,15 +195,15 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
   const setPresent = (employeeId: string, present: boolean) =>
     commit(employeeId, { kind: "attendance", present }, () => setAttendanceAction({ employeeId, date, present }));
 
-  const row = (m: RosterMember, showStatus = false) => (
+  const row = (m: RosterMember, inGroup: boolean) => (
     <EmployeeRow
       key={m.employee.id}
       member={m}
-      hideDepartment
+      hideDepartment={inGroup}
       sectionNames={sectionNames}
       departments={deptMap}
       shift={shift}
-      showStatus={showStatus}
+      showStatus={!m.day.isWorking}
       hasReports={reportedIds.has(m.employee.id)}
       onOpen={() => openSheet(m.employee.id)}
       onMove={() => openMove(m.employee.id)}
@@ -193,6 +218,15 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
               onAbsent: () => setAbsentSheet({ id: m.employee.id, open: true }),
             }
           : undefined
+      }
+      absence={
+        m.day.isWorking
+          ? undefined
+          : {
+              onConfirm: () => setPresent(m.employee.id, true),
+              onUndo: () => setPresent(m.employee.id, false),
+              onChange: () => setAbsentSheet({ id: m.employee.id, open: true, change: true }),
+            }
       }
     />
   );
@@ -248,75 +282,71 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
     .sort(byOrder);
   const absentGroups = roster.absentByStatus.filter((g) => g.members.length > 0);
 
+  const absentMembers = absentGroups.flatMap((g) => g.members);
+  // Orden del Excel (Semana → Ver sin departamentos); sin orden, al final por el orden habitual.
+  const flatMembers = [...expected, ...absentMembers].sort(
+    (a, b) => (a.employee.rotaOrder ?? 1e9) - (b.employee.rotaOrder ?? 1e9) || byOrder(a, b),
+  );
+  const allValidated = everyone.length > 0 && validated === everyone.length;
+
   return (
-    <div className="flex flex-col gap-3 pb-6">
-      {roster.countsByStatus.length > 0 && (
-        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[14px] text-muted" aria-label="Resumen del día">
+    <div className="flex flex-col gap-2 pb-6">
+      <div className="flex items-center gap-1">
+        <p className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5" aria-label="Resumen del día">
           {roster.countsByStatus.map(({ status, count }) => (
-            <span key={status.id} className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: status.color }} aria-hidden />
-              <span>
-                <span className="font-semibold text-fg">{count}</span>{" "}
-                {status.code === "WORK" ? "trabajan" : status.label.toLowerCase()}
-              </span>
+            <span
+              key={status.id}
+              title={status.label}
+              aria-label={`${count} ${status.label.toLowerCase()}`}
+              className="inline-flex h-7 items-center gap-1 rounded-full px-1.5 text-[13px] font-semibold tabular-nums"
+              style={{ backgroundColor: tint(status.color, 18) }}
+            >
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: status.color }} aria-hidden />
+              {count}
+              <span className="font-medium text-muted">{statusAbbr(status)}</span>
             </span>
           ))}
+          {everyone.length > 0 && (
+            <span
+              aria-label={`Pasar lista: ${validated} de ${everyone.length} validados; ${confirmed} de ${expected.length} han venido`}
+              className={cn(
+                "inline-flex h-7 items-center rounded-full px-1.5 text-[13px] font-semibold tabular-nums",
+                allValidated ? "bg-success/20 text-success" : "text-muted",
+              )}
+            >
+              ✓ {validated}/{everyone.length}
+            </span>
+          )}
         </p>
-      )}
-
-      <button
-        type="button"
-        onClick={() => setCloseSheet((s) => ({ open: true, n: s.n + 1 }))}
-        className={cn(
-          "flex min-h-12 w-full items-center justify-between gap-3 rounded-card px-4 text-left text-[16px] font-semibold active:opacity-80",
-          closeHighlight ? "bg-accent text-accent-fg" : "bg-surface text-accent",
-        )}
-      >
-        <span>Cierre de turno · Horas extra</span>
-        {nightExtra > 0 && <span className="text-[14px] font-medium tabular-nums">{formatOvertime(nightExtra, true)}</span>}
-      </button>
-
-      {(expected.length > 0 || absentGroups.length > 0) && (
-        <div
-          className={cn(
-            "flex flex-col gap-1.5 rounded-card px-4 py-2.5 text-[15px] font-medium",
-            everyone.length > 0 && validated === everyone.length ? "bg-success/15 text-fg" : "bg-surface",
-          )}
-          aria-label="Pasar lista"
+        <button type="button" onClick={() => setNoteOpen(true)} aria-label="Nota del día" className={cn(iconBtn, "w-10")}>
+          <Icon name="note" className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
+          onClick={toggleFlat}
+          aria-pressed={flat}
+          aria-label={flat ? "Agrupar por departamentos" : "Ver sin departamentos (orden del Excel)"}
+          className={cn(iconBtn, "w-10")}
         >
-          <span>
-            Pasar lista · <span className="tabular-nums font-semibold">{validated}/{everyone.length}</span> validados
-            <span className="font-normal text-muted">
-              {" "}
-              · {confirmed}/{expected.length} han venido
-            </span>
-          </span>
-          {absentGroups.length > 0 && (
-            <span className="flex flex-wrap gap-1.5">
-              {absentGroups.map((g) => (
-                <span
-                  key={g.status.id}
-                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[13px] font-semibold text-white"
-                  style={{ backgroundColor: g.status.color }}
-                >
-                  {g.status.label} <span className="tabular-nums">{g.members.length}</span>
-                </span>
-              ))}
-            </span>
-          )}
-        </div>
-      )}
+          <Icon name={flat ? "group" : "list"} className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setCloseSheet((s) => ({ open: true, n: s.n + 1 }))}
+          aria-label="Cierre de turno · Horas extra"
+          className={cn(iconBtn, "gap-1 px-2.5 text-[14px] font-semibold", closeHighlight && "bg-accent text-accent-fg")}
+        >
+          <Icon name="clockMoon" className="h-5 w-5" />
+          {nightExtra > 0 ? <span className="tabular-nums">{formatOvertime(nightExtra, true)}</span> : "Cierre"}
+        </button>
+      </div>
 
       {mismatches.length > 0 && (
-        <section
-          aria-label="No cuadra con el planning"
-          className="rounded-card border-2 border-warning bg-warning/10 px-4 py-2"
-        >
-          <h2 className="flex min-h-9 items-center gap-2 text-[15px] font-semibold">
+        <section aria-label="No cuadra con el planning" className="rounded-card bg-warning/12 px-3.5 py-1.5">
+          <h2 className="flex min-h-8 items-center gap-1.5 text-[14px] font-semibold">
             <span aria-hidden>⚠️</span> No cuadra con el planning · {mismatches.length}
           </h2>
-          <p className="text-[13px] text-muted">La Semana no se cambia desde aquí: si el planning está mal, corrígelo en Semana.</p>
-          <ul className="divide-y divide-warning/30">
+          <ul className="divide-y divide-warning/25">
             {mismatches.map((m) => (
               <li key={m.employee.id} className="flex items-center gap-2">
                 <button
@@ -324,9 +354,9 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
                   onClick={() => openSheet(m.employee.id)}
                   className="flex min-h-11 min-w-0 flex-1 flex-col justify-center text-left"
                 >
-                  <span className="truncate text-[15px] font-medium">{m.employee.name}</span>
-                  <span className="flex flex-wrap items-center gap-1.5 text-[13px]">
-                    <span className="text-muted">Planning: {m.day.planned!.label}</span>
+                  <span className="truncate text-[15px] leading-tight">{m.employee.name}</span>
+                  <span className="flex flex-wrap items-center gap-1 text-[12px] leading-tight">
+                    <span className="text-muted">{m.day.planned!.label}</span>
                     <span aria-hidden>→</span>
                     <span className="font-semibold" style={{ color: m.day.status.color }}>
                       {m.day.status.code === "WORK" ? "Ha venido" : m.day.status.label}
@@ -337,115 +367,82 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
                   type="button"
                   onClick={() => opsFor(m.employee.id).setStatus(m.day.planned!.id)}
                   aria-label={`Dejar a ${m.employee.name} como el planning`}
-                  className="min-h-11 shrink-0 rounded-control bg-surface px-3 text-[13px] font-semibold text-accent"
+                  className="min-h-11 shrink-0 px-2 text-[13px] font-semibold text-accent"
                 >
                   Como el planning
                 </button>
               </li>
             ))}
           </ul>
+          <p className="pb-1 text-[12px] leading-snug text-muted">Si el planning está mal, corrígelo en Semana.</p>
         </section>
       )}
 
-      <div className={cn(!optNote && "-mt-1")}>
-        <DayNoteCard note={optNote} onSave={saveDayNote} />
-      </div>
+      <DayNoteCard note={optNote} onSave={saveDayNote} open={noteOpen} onOpenChange={setNoteOpen} />
 
       {reports.length > 0 && (
         <section aria-label="Avisos" className="flex flex-col gap-2">
-          <h2 className="px-1 text-[13px] font-semibold uppercase tracking-wide text-muted">
-            Avisos · {reports.length}
-          </h2>
+          <h2 className="px-1 text-[12px] font-semibold uppercase tracking-wide text-muted">Avisos · {reports.length}</h2>
           {reports.map((r) => (
             <ReportCard key={r.id} report={r} />
           ))}
         </section>
       )}
 
-      {groups.map((g) => {
-        const came = g.members.filter((m) => m.day.present).length;
-        return (
-          <Card key={g.id} flush tone={g.isEmpty ? "danger" : "default"} aria-label={g.name}>
-            <div
-              className={cn(
-                "flex min-h-12 items-center justify-between gap-3 px-4",
-                "text-white",
-              )}
-              style={{ backgroundColor: g.color ?? "#64748b" }}
-            >
-              <h2 className="min-w-0 truncate text-[17px] font-bold [text-shadow:0_1px_1px_rgb(0_0_0/0.15)]">{g.name}</h2>
-              <span className="flex shrink-0 items-center gap-1.5 text-[13px] font-semibold tabular-nums">
-                {g.members.length > 0 && (
-                  <span
-                    className={cn(
-                      "rounded-full px-2 py-0.5",
-                      came === g.members.length ? "bg-white text-success" : "bg-white/25",
-                    )}
-                  >
-                    ✓ {came}/{g.members.length}
-                  </span>
-                )}
-                {g.target > 0 && (
-                  <span
-                    className={cn(
-                      "rounded-full px-2 py-0.5",
-                      g.isEmpty ? "bg-white text-danger" : g.isUnder ? "bg-white text-warning" : "bg-white/25",
-                    )}
-                  >
-                    {g.members.length}/{g.target} plazas
-                  </span>
-                )}
-              </span>
-            </div>
-            {g.isEmpty ? (
-              <p className="px-4 py-3 text-[15px] font-semibold text-danger">Sin personal</p>
-            ) : (
-              <div className="divide-y divide-line pb-1">{g.members.map((m) => row(m))}</div>
-            )}
+      {flat ? (
+        flatMembers.length > 0 && (
+          <Card flush aria-label="Todos (orden del Excel)">
+            <div className="divide-y divide-line">{flatMembers.map((m) => row(m, false))}</div>
           </Card>
-        );
-      })}
-
-      {roster.absentByStatus
-        .filter((g) => g.members.length > 0)
-        .map((g) => (
-          <Card key={g.status.id} flush aria-label={g.status.label}>
-            <div
-              className="flex min-h-12 items-center justify-between gap-3 px-4 text-white"
-              style={{ backgroundColor: g.status.color }}
-            >
-              <h2 className="text-[17px] font-bold [text-shadow:0_1px_1px_rgb(0_0_0/0.15)]">{g.status.label}</h2>
-              <span
-                className={cn(
-                  "rounded-full px-2 py-0.5 text-[13px] font-semibold tabular-nums",
-                  g.members.every((m) => m.day.present) ? "bg-white text-success" : "bg-white/25",
-                )}
+        )
+      ) : (
+        <>
+          {groups.map((g) => {
+            const came = g.members.filter((m) => m.day.present).length;
+            return (
+              <GroupCard
+                key={g.id}
+                name={g.name}
+                color={g.color}
+                danger={g.isEmpty}
+                badges={
+                  <>
+                    {g.members.length > 0 && (
+                      <span className={cn(came === g.members.length && "text-success")}>
+                        ✓ {came}/{g.members.length}
+                      </span>
+                    )}
+                    {g.target > 0 && (
+                      <span className={cn(g.isEmpty ? "text-danger" : g.isUnder && "text-warning")}>
+                        {g.members.length}/{g.target} plazas
+                      </span>
+                    )}
+                  </>
+                }
               >
-                ✓ {g.members.filter((m) => m.day.present).length}/{g.members.length}
-              </span>
-            </div>
-            <div className="divide-y divide-line pb-1">
-              {g.members.map((m) => (
-                <EmployeeRow
-                  key={m.employee.id}
-                  member={m}
-                  sectionNames={sectionNames}
-                  departments={deptMap}
-                  shift={shift}
-                  onOpen={() => openSheet(m.employee.id)}
-                  onMove={() => openMove(m.employee.id)}
-                  hasReports={reportedIds.has(m.employee.id)}
-                  showStatus
-                  absence={{
-                    onConfirm: () => setPresent(m.employee.id, true),
-                    onUndo: () => setPresent(m.employee.id, false),
-                    onChange: () => setAbsentSheet({ id: m.employee.id, open: true, change: true }),
-                  }}
-                />
-              ))}
-            </div>
-          </Card>
-        ))}
+                {g.isEmpty ? (
+                  <p className="px-3.5 py-2 text-[14px] font-semibold text-danger">Sin personal</p>
+                ) : (
+                  g.members.map((m) => row(m, true))
+                )}
+              </GroupCard>
+            );
+          })}
+          {absentGroups.map((g) => {
+            const ok = g.members.filter((m) => m.day.present).length;
+            return (
+              <GroupCard
+                key={g.status.id}
+                name={g.status.label}
+                color={g.status.color}
+                badges={<span className={cn(ok === g.members.length && "text-success")}>✓ {ok}/{g.members.length}</span>}
+              >
+                {g.members.map((m) => row(m, false))}
+              </GroupCard>
+            );
+          })}
+        </>
+      )}
 
       {sheet && sheetMember && (
         <EmployeeSheet
@@ -533,5 +530,33 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
         employeeId={composer.employeeId}
       />
     </div>
+  );
+}
+
+/** Burbuja de departamento o de estado: cabecera pastel baja con barra de color. */
+function GroupCard({
+  name,
+  color,
+  badges,
+  danger,
+  children,
+}: {
+  name: string;
+  color: string | null;
+  badges: ReactNode;
+  danger?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <Card flush tone={danger ? "danger" : "default"} aria-label={name}>
+      <div
+        className="flex min-h-9 items-center justify-between gap-2 border-l-4 px-3"
+        style={{ backgroundColor: tint(color, 16), borderLeftColor: color ?? "#64748b" }}
+      >
+        <h2 className="min-w-0 truncate text-[14px] font-semibold">{name}</h2>
+        <span className="flex shrink-0 items-center gap-2.5 text-[12px] font-semibold tabular-nums text-muted">{badges}</span>
+      </div>
+      <div className="divide-y divide-line">{children}</div>
+    </Card>
   );
 }

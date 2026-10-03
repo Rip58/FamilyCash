@@ -3,6 +3,7 @@
 import { formatOvertime } from "@/lib/overtime";
 import { leftKind, segmentName, type ShiftTimes } from "@/lib/segments";
 import type { DepartmentLite, RosterMember } from "@/lib/schedule";
+import { tint } from "@/components/ui/icons";
 import { useLongPress } from "./useLongPress";
 
 interface EmployeeRowProps {
@@ -24,8 +25,9 @@ interface EmployeeRowProps {
   attendance?: { onPresent: () => void; onAbsent: () => void; onUndo: () => void };
 }
 
-const checkBtn =
-  "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 text-[18px] font-bold active:opacity-70 [touch-action:manipulation]";
+/** Zona táctil de 44px con un círculo visual más pequeño (filas compactas, como en Semana). */
+const hit = "flex h-11 w-10 shrink-0 items-center justify-center active:opacity-60 [touch-action:manipulation]";
+const dot = "flex h-8 w-8 items-center justify-center rounded-full text-[15px] font-bold";
 
 export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, onMove, showStatus, hasReports, attendance, hideDepartment, absence }: EmployeeRowProps) {
   const { employee, day } = member;
@@ -41,26 +43,26 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
       <button
         type="button"
         {...press}
-        className="flex min-h-[52px] min-w-0 flex-1 select-none items-center gap-3 py-2 pl-4 pr-2 text-left [-webkit-touch-callout:none] active:bg-surface-2"
+        className="flex min-h-11 min-w-0 flex-1 select-none items-center gap-2 py-1 pl-3.5 pr-1 text-left [-webkit-touch-callout:none] active:bg-surface-2"
       >
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[16px] font-medium">{employee.name}</span>
+          <span className="block truncate text-[15px] leading-tight">{employee.name}</span>
           {showStatus ? (
-            <span className="block truncate text-[13px] text-muted">
+            <span className="block truncate text-[12px] leading-tight text-muted">
               {day.status.label}
               {day.reason ? ` · ${day.reason}` : ""}
             </span>
           ) : (
             (sections.length > 0 || today || moved) && (
-              <span className="mt-0.5 flex flex-wrap items-center gap-1">
+              <span className="flex flex-wrap items-center gap-x-1.5 leading-tight">
                 {today && (
-                  <span className="inline-flex items-center gap-1 text-[12px] font-medium text-muted">
-                    <span aria-hidden className="h-2 w-2 rounded-full" style={{ backgroundColor: today.color }} />
+                  <span className="inline-flex items-center gap-1 text-[12px] text-muted">
+                    <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: today.color }} />
                     {today.name}
                   </span>
                 )}
                 {sections.map((n, i) => (
-                  <span key={i} className="rounded-full bg-surface-2 px-2 py-0.5 text-[12px] text-muted">
+                  <span key={i} className="text-[12px] text-muted">
                     {n}
                   </span>
                 ))}
@@ -69,7 +71,7 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
             )
           )}
         </span>
-        <span className="flex shrink-0 items-center gap-2 text-[13px] text-muted">
+        <span className="flex shrink-0 items-center gap-1.5 text-[12px] text-muted">
           {day.arrivedAt && <span title="Llega tarde">⏰ {day.arrivedAt}</span>}
           {day.leftAt && (
             <span title={leftKind(day.leftAt, shift) === "more" ? "Se queda más" : "Se va antes"}>
@@ -91,65 +93,46 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
         </span>
       </button>
       {absence && (
-        <span className="flex shrink-0 items-center gap-1.5 pr-3">
-          <button
-            type="button"
-            onClick={absence.onChange}
-            aria-label={`No cuadra: cambiar lo de ${name}`}
-            className={`${checkBtn} text-[20px]`}
-            style={{ borderColor: day.status.color, color: day.status.color }}
-          >
-            ⇄
+        <span className="flex shrink-0 items-center pr-1.5">
+          <button type="button" onClick={absence.onChange} aria-label={`No cuadra: cambiar lo de ${name}`} className={hit}>
+            <span className={dot} style={{ backgroundColor: tint(day.status.color, 18), color: day.status.color }}>
+              ⇄
+            </span>
           </button>
           {day.present ? (
             <button
               type="button"
               onClick={absence.onUndo}
               aria-label={`${day.status.label} de ${name} validada. Toca para deshacer`}
-              className={`${checkBtn} border-success bg-success text-white`}
+              className={hit}
             >
-              ✓
+              <span className={`${dot} bg-success text-white`}>✓</span>
             </button>
           ) : (
             <button
               type="button"
               onClick={absence.onConfirm}
               aria-label={`Validar ${day.status.label.toLowerCase()} de ${name}`}
-              className={`${checkBtn} border-success/60 text-success`}
+              className={hit}
             >
-              ✓
+              <span className={`${dot} bg-success/15 text-success`}>✓</span>
             </button>
           )}
         </span>
       )}
       {attendance && (
-        <span className="flex shrink-0 items-center gap-1.5 pr-3">
+        <span className="flex shrink-0 items-center pr-1.5">
           {day.present ? (
-            <button
-              type="button"
-              onClick={attendance.onUndo}
-              aria-label={`${name} ha venido. Toca para deshacer`}
-              className={`${checkBtn} border-success bg-success text-white`}
-            >
-              ✓
+            <button type="button" onClick={attendance.onUndo} aria-label={`${name} ha venido. Toca para deshacer`} className={hit}>
+              <span className={`${dot} bg-success text-white`}>✓</span>
             </button>
           ) : (
             <>
-              <button
-                type="button"
-                onClick={attendance.onAbsent}
-                aria-label={`${name} no ha venido`}
-                className={`${checkBtn} border-danger/50 text-danger`}
-              >
-                ✗
+              <button type="button" onClick={attendance.onAbsent} aria-label={`${name} no ha venido`} className={hit}>
+                <span className={`${dot} bg-danger/12 text-danger`}>✗</span>
               </button>
-              <button
-                type="button"
-                onClick={attendance.onPresent}
-                aria-label={`${name} ha venido`}
-                className={`${checkBtn} border-success/60 text-success`}
-              >
-                ✓
+              <button type="button" onClick={attendance.onPresent} aria-label={`${name} ha venido`} className={hit}>
+                <span className={`${dot} bg-success/15 text-success`}>✓</span>
               </button>
             </>
           )}

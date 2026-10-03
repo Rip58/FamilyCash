@@ -18,6 +18,8 @@ interface SegmentedProps<T extends string> {
   className?: string;
   /** Permite varias líneas (útil con muchos estados). */
   wrap?: boolean;
+  /** Más bajo (44px en total con el marco). */
+  compact?: boolean;
 }
 
 export function Segmented<T extends string>({
@@ -25,6 +27,7 @@ export function Segmented<T extends string>({
   value,
   onChange,
   wrap,
+  compact,
   className,
   ...aria
 }: SegmentedProps<T>) {
@@ -46,7 +49,8 @@ export function Segmented<T extends string>({
             name={name}
             onClick={() => onChange(o.value)}
             className={cn(
-              "min-h-11 flex-1 rounded-[8px] px-3 text-[14px] font-medium transition-colors duration-150",
+              "flex-1 rounded-[8px] px-3 font-medium transition-colors duration-150",
+              compact ? "min-h-9 text-[13px]" : "min-h-11 text-[14px]",
               selected ? "text-white shadow-sm" : "text-fg",
               selected && !o.color && "bg-accent",
             )}

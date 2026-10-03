@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { countPendingRequests } from "@/lib/employee-file-queries";
 import { getDepartments, getEmployees, getSections, getSettings, getStatusTypes } from "@/lib/queries";
 import { VersionCard } from "@/components/settings/VersionCard";
+import { Icon, type IconName, tint } from "@/components/ui/icons";
 
 export const metadata = { title: "Ajustes" };
 export const dynamic = "force-dynamic";
@@ -21,35 +22,35 @@ export default async function Page() {
   const active = (rows: { active?: boolean }[]) => rows.filter((r) => r.active !== false).length;
   const [emps, deps, secs, sts] = [active(employees), active(departments), active(sections), active(statuses)];
   const shift = settings ? `${settings.shiftStart}–${settings.shiftEnd}` : "21:30–06:30";
-  const groups: { items: { href: string; label: string; detail?: string; badge?: number; icon: string; color: string }[] }[] = [
+  const groups: { items: { href: string; label: string; detail?: string; badge?: number; icon: IconName; color: string }[] }[] = [
     {
       items: [
-        { href: "/ajustes/empleados", label: "Empleados", detail: String(emps), icon: "👤", color: "#3b82f6" },
-        { href: "/ajustes/peticiones", label: "Peticiones", badge: pending, icon: "📝", color: "#f59e0b" },
-        { href: "/ajustes/departamentos", label: "Departamentos", detail: String(deps), icon: "🏷️", color: "#f97316" },
-        { href: "/ajustes/secciones", label: "Secciones", detail: String(secs), icon: "🧭", color: "#14b8a6" },
-        { href: "/ajustes/estados", label: "Estados", detail: String(sts), icon: "🎨", color: "#8b5cf6" },
-        { href: "/ajustes/ubicaciones", label: "Ubicaciones", detail: String(locs), icon: "🧃", color: "#ec4899" },
+        { href: "/ajustes/empleados", label: "Empleados", detail: String(emps), icon: "users", color: "#3b82f6" },
+        { href: "/ajustes/peticiones", label: "Peticiones", badge: pending, icon: "inbox", color: "#f59e0b" },
+        { href: "/ajustes/departamentos", label: "Departamentos", detail: String(deps), icon: "tag", color: "#f97316" },
+        { href: "/ajustes/secciones", label: "Secciones", detail: String(secs), icon: "route", color: "#14b8a6" },
+        { href: "/ajustes/estados", label: "Estados", detail: String(sts), icon: "swatch", color: "#8b5cf6" },
+        { href: "/ajustes/ubicaciones", label: "Ubicaciones", detail: String(locs), icon: "pin", color: "#ec4899" },
       ],
     },
     {
       items: [
-        { href: "/ajustes/turno", label: "Turno", detail: shift, icon: "🌙", color: "#6366f1" },
-        { href: "/ajustes/nomina", label: "Nómina", detail: "Importes", icon: "💶", color: "#16a34a" },
+        { href: "/ajustes/turno", label: "Turno", detail: shift, icon: "moon", color: "#6366f1" },
+        { href: "/ajustes/nomina", label: "Nómina", detail: "Importes", icon: "wallet", color: "#16a34a" },
         {
           href: "/ajustes/ia",
           label: "Importar con IA",
           detail: settings.aiProvider === "openai" ? "ChatGPT" : "Claude",
-          icon: "✨",
+          icon: "sparkles",
           color: "#d97757",
         },
       ],
     },
     {
       items: [
-        { href: "/ajustes/seguridad", label: "Seguridad", icon: "🔒", color: "#64748b" },
-        { href: "/ajustes/datos", label: "Datos", detail: "Exportar CSV", icon: "📄", color: "#22c55e" },
-        { href: "/ajustes/almacenamiento", label: "Almacenamiento", detail: "Avisos y fichas", icon: "🗂️", color: "#0ea5e9" },
+        { href: "/ajustes/seguridad", label: "Seguridad", icon: "lock", color: "#64748b" },
+        { href: "/ajustes/datos", label: "Datos", detail: "Exportar CSV", icon: "database", color: "#22c55e" },
+        { href: "/ajustes/almacenamiento", label: "Almacenamiento", detail: "Avisos y fichas", icon: "images", color: "#0ea5e9" },
       ],
     },
   ];
@@ -67,10 +68,10 @@ export default async function Page() {
               >
                 <span
                   aria-hidden
-                  className="flex h-8 w-8 items-center justify-center rounded-[8px] text-[16px]"
-                  style={{ backgroundColor: it.color }}
+                  className="flex h-8 w-8 items-center justify-center rounded-[9px]"
+                  style={{ backgroundColor: tint(it.color, 15), color: it.color }}
                 >
-                  {it.icon}
+                  <Icon name={it.icon} className="h-[18px] w-[18px]" strokeWidth={2} />
                 </span>
                 <span className="flex-1 text-[17px]">{it.label}</span>
                 {it.detail && <span className="text-[15px] text-muted">{it.detail}</span>}

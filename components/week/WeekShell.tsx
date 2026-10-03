@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { copyPreviousWeek, repeatWeekToMonthEnd, resetWeek } from "@/app/actions/week";
 import { BottomSheet } from "@/components/ui/BottomSheet";
+import { Icon } from "@/components/ui/icons";
 import { Segmented } from "@/components/ui/Segmented";
 import { cn } from "@/components/ui/cn";
 import { type DateStr, addDays, formatDayMonth, formatWeekRange, isoWeekNumber, weekStart as weekStartOf } from "@/lib/dates";
@@ -140,6 +141,8 @@ export function WeekShell({
     });
   };
 
+  const iconBtn =
+    "flex h-11 w-10 shrink-0 items-center justify-center rounded-full text-accent active:bg-surface-2 [touch-action:manipulation]";
   const navBtn =
     "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[26px] leading-none text-accent active:bg-surface-2";
 
@@ -157,9 +160,10 @@ export function WeekShell({
         </Link>
       </header>
 
-      <div className="mt-2 mb-3 flex items-center gap-2">
+      <div className="mt-1 mb-2 flex items-center gap-1">
         <Segmented<WeekViewMode>
           aria-label="Vista"
+          compact
           className="min-w-0 flex-1"
           value={view}
           onChange={chooseView}
@@ -169,36 +173,42 @@ export function WeekShell({
           ]}
         />
         {!isCurrentWeek && (
-          <Link
-            href={weekHref(null, view)}
-            className="flex min-h-11 items-center rounded-full bg-accent px-4 text-[15px] font-semibold text-accent-fg"
-          >
-            Hoy
+          <Link href={weekHref(null, view)} className="flex h-11 shrink-0 items-center px-0.5">
+            <span className="flex h-8 items-center rounded-full bg-accent px-3 text-[13px] font-semibold text-accent-fg">Hoy</span>
           </Link>
+        )}
+        {view === "personas" && (
+          <button
+            type="button"
+            onClick={toggleFlat}
+            aria-pressed={flat}
+            aria-label={flat ? "Agrupar por departamentos" : "Ver sin departamentos (orden del Excel)"}
+            className={iconBtn}
+          >
+            <Icon name={flat ? "group" : "list"} className="h-5 w-5" />
+          </button>
+        )}
+        {view === "personas" && flat && (
+          <button
+            type="button"
+            aria-label="Ordenar la lista"
+            onClick={() => setSorting((s) => ({ open: true, n: s.n + 1 }))}
+            className={iconBtn}
+          >
+            <Icon name="sort" className="h-5 w-5" />
+          </button>
         )}
         <button
           type="button"
           aria-label="Acciones de la semana"
           onClick={() => setMenu({ open: true, confirm: null, message: null })}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface text-[22px] leading-none"
+          className={cn(iconBtn, "text-[20px] leading-none text-fg")}
         >
           ⋯
         </button>
       </div>
 
       <div className={cn(view === "dias" ? "block" : "hidden")}>{daysView}</div>
-      {view === "personas" && flat && (
-        <div className="mb-2 flex items-center justify-between gap-2 px-1">
-          <span className="text-[13px] text-muted">Sin departamentos · orden del Excel</span>
-          <button
-            type="button"
-            onClick={() => setSorting((s) => ({ open: true, n: s.n + 1 }))}
-            className="min-h-11 rounded-control bg-surface px-4 text-[15px] font-medium text-accent"
-          >
-            ↕ Ordenar
-          </button>
-        </div>
-      )}
       {view === "personas" && <PeopleGrid data={people} flat={flat} />}
       {sorting.n > 0 && (
         <RotaOrderSheet
