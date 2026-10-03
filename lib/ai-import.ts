@@ -130,3 +130,17 @@ export function geminiSchema(node: unknown): unknown {
   }
   return out;
 }
+
+/**
+ * Gemini retira modelos ("This model models/gemini-2.5-flash is no longer available… use models/gemini-3.8-flash"):
+ * el modelo a probar en su lugar. Primero el que sugiere el propio error; si no, el Flash más nuevo de la lista
+ * de la cuenta (sin "lite"/"preview" si hay otro). null si no hay alternativa.
+ */
+export function geminiFallbackModel(message: string, available: string[], tried: string): string | null {
+  const suggested = /use\s+(?:models\/)?(gemini-[\w.-]+)/i.exec(message)?.[1]?.replace(/[.,;]+$/, "");
+  if (suggested && suggested !== tried) return suggested;
+  const flash = available
+    .filter((id) => /flash/i.test(id) && id !== tried)
+    .sort((a, b) => b.localeCompare(a, "en", { numeric: true }));
+  return flash.find((id) => !/(lite|preview|exp)/i.test(id)) ?? flash[0] ?? null;
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { geminiSchema, importPrompt, importSchema, matchEmployee, toImportRows } from "@/lib/ai-import";
+import { geminiFallbackModel, geminiSchema, importPrompt, importSchema, matchEmployee, toImportRows } from "@/lib/ai-import";
 import type { EmployeeLite, StatusTypeLite } from "@/lib/schedule";
 
 const emp = (id: string, name: string, alias: string | null = null): EmployeeLite => ({
@@ -91,5 +91,20 @@ describe("esquema para Gemini", () => {
     const days = (item.properties as Record<string, Record<string, unknown>>).days!;
     expect(days.propertyOrdering).toEqual(["L", "M", "X", "J", "V", "S", "D"]);
     expect(JSON.stringify(s)).not.toContain("additionalProperties");
+  });
+});
+
+describe("Gemini: modelo retirado", () => {
+  const msg =
+    "This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the latest features and improvements.";
+  it("usa el que sugiere el error", () => {
+    expect(geminiFallbackModel(msg, [], "gemini-2.5-flash")).toBe("gemini-3.8-flash");
+  });
+  it("si no sugiere ninguno, el Flash más nuevo de la cuenta (sin lite/preview)", () => {
+    const ids = ["gemini-2.5-pro", "gemini-3.5-flash-lite", "gemini-3.7-flash", "gemini-3.10-flash-preview", "gemini-3.8-flash"];
+    expect(geminiFallbackModel("not found", ids, "gemini-2.5-flash")).toBe("gemini-3.8-flash");
+    expect(geminiFallbackModel("not found", ["gemini-2.5-pro"], "gemini-2.5-flash")).toBeNull();
+    // no vuelve a probar el mismo
+    expect(geminiFallbackModel("use models/gemini-2.5-flash", [], "gemini-2.5-flash")).toBeNull();
   });
 });

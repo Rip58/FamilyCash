@@ -7,11 +7,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import type { AiProvider } from "./ai-import-format";
-import { geminiSchema } from "./ai-import";
+import { geminiFallbackModel, geminiSchema } from "./ai-import";
 
 export const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-5-5";
 export const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5";
-export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+// Alias de Google que apunta siempre al Flash más reciente (los modelos con versión se retiran).
+export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
 
 const geminiKey = () => process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
 
@@ -219,7 +220,14 @@ async function extractWithOpenAI<S extends z.ZodType>(model: string, images: Ima
   return parsed.data;
 }
 
-async function extractWithGemini<S extends z.ZodType>(model: string, images: ImageInput[], prompt: string, schema: S): Promise<z.infer<S>> {
+async function extractWithGemini<S extends z.ZodType>(
+  model: string,
+  images: ImageInput[],
+  prompt: string,
+  schema: S,
+  retried = false,
+  highRes = true,
+): Promise<z.infer<S>> {
   let res: Response;
   try {
     res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
@@ -238,7 +246,7 @@ async function extractWithGemini<S extends z.ZodType>(model: string, images: Ima
           responseSchema: geminiSchema(z.toJSONSchema(schema)),
           temperature: 0,
           // Máxima resolución de imagen: el cuadrante tiene texto pequeño y colores parecidos.
-          mediaResolution: "MEDIA_RESOLUTION_HIGH",
+          ...(highRes ? { mediaResolution: "MEDIA_RESOLUTION_HIGH" } : {}),
         },
       }),
     });
@@ -251,6 +259,16 @@ async function extractWithGemini<S extends z.ZodType>(model: string, images: Ima
     candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
   } | null;
   const msg = body?.error?.message ?? "";
+  // Modelo retirado o inexistente: se prueba una vez con el que sugiere Google o el Flash más nuevo de la cuenta.
+  if (res.status === 404 && !retried) {
+    const available = ((await listModels("gemini")) ?? []).map((m) => m.id);
+    const next = geminiFallbackModel(msg, available, model);
+    if (next) return extractWithGemini(next, images, prompt, schema, true, highRes);
+  }
+  // Algún modelo no acepta la opción de resolución: se repite sin ella.
+  if (res.status === 400 && highRes && /media.?resolution/i.test(msg)) {
+    return extractWithGemini(model, images, prompt, schema, retried, false);
+  }
   if (res.status === 400 && /api key/i.test(msg)) throw new AiImportError("La clave de Gemini (GEMINI_API_KEY) no es válida.");
   if (res.status === 401 || res.status === 403) throw new AiImportError("La clave de Gemini (GEMINI_API_KEY) no es válida o no tiene permiso.");
   if (res.status === 429) throw new AiImportError("Gemini: has llegado al límite gratuito. Espera un rato (o mañana) y reinténtalo.");
