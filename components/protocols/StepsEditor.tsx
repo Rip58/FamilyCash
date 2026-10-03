@@ -179,14 +179,14 @@ function StepCard({
               type="button"
               disabled={step.uploading !== null}
               onClick={() => fileRef.current?.click()}
-              className="min-h-11 flex-1 rounded-control bg-surface-2 text-[15px] font-medium text-accent"
+              className="min-h-11 flex-1 rounded-full bg-surface-2 text-[14px] font-medium text-accent"
             >
               Cambiar foto
             </button>
             <button
               type="button"
               onClick={onRemovePhoto}
-              className="min-h-11 flex-1 rounded-control bg-surface-2 text-[15px] font-medium text-danger"
+              className="min-h-11 flex-1 rounded-full bg-surface-2 text-[14px] font-medium text-danger"
             >
               Quitar foto
             </button>

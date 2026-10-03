@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Icon } from "@/components/ui/icons";
 import { useMemo, useState, useTransition } from "react";
 import {
   DndContext,
@@ -84,14 +85,14 @@ function Accordion({ item, open, onToggle, query }: { item: ProtocolItem; open: 
           aria-expanded={open}
           aria-controls={panelId}
           onClick={onToggle}
-          className="flex min-h-[52px] w-full items-center justify-between gap-3 px-4 py-2 text-left text-[17px] font-medium"
+          className="flex min-h-11 w-full items-center justify-between gap-3 px-4 py-1.5 text-left text-[16px] font-medium"
         >
           <span className="flex min-w-0 flex-col">
             <span>
               <Highlight text={item.title} query={query} />
             </span>
             {item.steps.length > 0 && (
-              <span className="text-[13px] font-normal text-muted">
+              <span className="text-[12px] font-normal leading-tight text-muted">
                 {item.steps.length === 1 ? "1 paso" : `${item.steps.length} pasos`}
                 {item.steps.some((st) => st.photo) && " con fotos 📷"}
               </span>
@@ -115,9 +116,9 @@ function Accordion({ item, open, onToggle, query }: { item: ProtocolItem; open: 
             {open && <ProtocolSteps steps={item.steps} title={item.title} query={query} />}
             <Link
               href={`/protocolos/${item.id}`}
-              className="mt-3 inline-flex min-h-11 items-center rounded-control bg-surface-2 px-4 text-[15px] font-medium text-accent"
+              className="mt-2 inline-flex h-11 items-center"
             >
-              Editar
+              <span className="flex h-8 items-center rounded-full bg-surface-2 px-3.5 text-[14px] font-medium text-accent">Editar</span>
             </Link>
           </div>
         </div>
@@ -133,11 +134,11 @@ function SortableRow({ item }: { item: ProtocolItem }) {
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        "flex min-h-[52px] items-center gap-2 border-b border-line bg-surface pl-4 last:border-b-0",
+        "flex min-h-11 items-center gap-2 border-b border-line bg-surface pl-4 last:border-b-0",
         isDragging && "relative z-10 shadow-lg",
       )}
     >
-      <span className="flex-1 py-2 text-[17px] font-medium">{item.title}</span>
+      <span className="flex-1 py-1.5 text-[16px] font-medium">{item.title}</span>
       <button
         type="button"
         aria-label={`Arrastrar para reordenar ${item.title}`}
@@ -246,13 +247,16 @@ export function ProtocolList({ initial }: { initial: ProtocolItem[] }) {
 
   return (
     <div className="pb-6">
-      <div className="flex items-center justify-between gap-3 pt-4">
-        <h1 className="text-[28px] font-bold tracking-tight">Protocolos</h1>
+      <div className="flex items-center justify-between gap-3 pt-3">
+        <h1 className="text-[24px] font-bold tracking-tight">Protocolos</h1>
         <Link
           href="/protocolos/nuevo"
-          className="inline-flex min-h-11 items-center rounded-control bg-accent px-4 text-[15px] font-semibold text-accent-fg"
+          className="flex h-11 shrink-0 items-center"
         >
-          + Protocolo
+          <span className="flex h-9 items-center gap-1 rounded-full bg-accent pl-2.5 pr-3.5 text-[14px] font-semibold text-accent-fg">
+            <Icon name="plus" className="h-4 w-4" strokeWidth={2.4} />
+            Protocolo
+          </span>
         </Link>
       </div>
       <ProtocolTabs active="protocolos" />
@@ -274,12 +278,14 @@ export function ProtocolList({ initial }: { initial: ProtocolItem[] }) {
             type="button"
             aria-pressed={sorting}
             onClick={() => setSorting((s) => !s)}
+            aria-label={sorting ? "Terminar de ordenar" : "Ordenar protocolos"}
             className={cn(
-              "min-h-11 rounded-control px-4 text-[15px] font-medium",
-              sorting ? "bg-accent text-accent-fg" : "bg-surface text-accent",
+              "flex h-11 shrink-0 items-center justify-center gap-1 rounded-full text-[14px] font-semibold",
+              sorting ? "bg-accent px-3.5 text-accent-fg" : "w-11 bg-surface text-accent",
             )}
           >
-            {sorting ? "Hecho" : "Ordenar"}
+            <Icon name={sorting ? "check" : "sort"} className="h-5 w-5" />
+            {sorting && "Hecho"}
           </button>
         </div>
       )}
@@ -310,7 +316,7 @@ export function ProtocolList({ initial }: { initial: ProtocolItem[] }) {
         <p className="mt-8 text-center text-muted">Ningún protocolo coincide con “{q}”.</p>
       )}
 
-      <div className="mt-4 space-y-5">
+      <div className="mt-3 space-y-4">
         {groups.map((g) => (
           <section key={g.name} aria-label={g.name}>
             <h2 className="px-1 pb-1.5 text-[13px] font-semibold uppercase tracking-wide text-muted">{g.name}</h2>

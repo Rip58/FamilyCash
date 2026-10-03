@@ -8,6 +8,7 @@ import { PhotoViewer } from "@/components/reports/PhotoViewer";
 import { ConfirmButton, PrimaryButton, inputClass, notify, useRun } from "@/components/settings/kit";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { cn } from "@/components/ui/cn";
+import { Icon } from "@/components/ui/icons";
 import { type DateStr, formatDayMonth } from "@/lib/dates";
 import {
   type LocationOption,
@@ -53,14 +54,13 @@ export function PlanogramBoard({
 
   return (
     <div className="pb-6">
-      <div className="flex items-center justify-between gap-3 pt-4">
-        <h1 className="text-[28px] font-bold tracking-tight">Protocolos</h1>
-        <button
-          type="button"
-          onClick={() => setCreating(true)}
-          className="inline-flex min-h-11 items-center rounded-control bg-accent px-4 text-[15px] font-semibold text-accent-fg"
-        >
-          + Lineal
+      <div className="flex items-center justify-between gap-3 pt-3">
+        <h1 className="text-[24px] font-bold tracking-tight">Protocolos</h1>
+        <button type="button" onClick={() => setCreating(true)} className="flex h-11 shrink-0 items-center">
+          <span className="flex h-9 items-center gap-1 rounded-full bg-accent pl-2.5 pr-3.5 text-[14px] font-semibold text-accent-fg">
+            <Icon name="plus" className="h-4 w-4" strokeWidth={2.4} />
+            Lineal
+          </span>
         </button>
       </div>
       <ProtocolTabs active="lineales" />
@@ -211,12 +211,8 @@ function PlanogramCard({
         <div className="mt-2 flex items-center gap-2">
           <UntilTag until={item.until} today={today} />
           <span className="flex-1 text-right text-[12px] text-muted">desde {formatDayMonth(item.createdDate)}</span>
-          <button
-            type="button"
-            onClick={onEdit}
-            className="min-h-11 rounded-control bg-surface-2 px-4 text-[15px] font-medium text-accent"
-          >
-            Editar
+          <button type="button" onClick={onEdit} className="flex h-11 shrink-0 items-center">
+            <span className="flex h-8 items-center rounded-full bg-surface-2 px-3.5 text-[14px] font-medium text-accent">Editar</span>
           </button>
         </div>
       </div>
