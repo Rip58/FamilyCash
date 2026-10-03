@@ -66,7 +66,7 @@ export function StorageSettings({ reports, notes, photos, reportPhotos, notePhot
           </div>
         </dl>
         <p className="mt-2 text-[13px] text-muted">
-          Las fotos se guardan en WebP (calidad 85, máx. 1600 px): como mucho 300 KB cada una.
+          Las fotos se guardan en WebP (calidad 95, máx. 1600 px): unos 300 KB, como mucho 600 KB cada una.
         </p>
       </Card>
 

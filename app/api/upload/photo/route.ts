@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 const err = (error: string, status: number) => NextResponse.json({ error }, { status });
 
-/** Recibe una foto ya comprimida (≤ 300 KB) y la guarda en Vercel Blob (privado) o, en desarrollo, en `.uploads/`. */
+/** Recibe una foto ya comprimida (≤ 600 KB) y la guarda en Vercel Blob (privado) o, en desarrollo, en `.uploads/`. */
 export async function POST(req: Request) {
   const jar = await cookies();
   if (!(await verifySessionToken(jar.get(SESSION_COOKIE)?.value))) return err("No autorizado", 401);

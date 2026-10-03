@@ -1,5 +1,5 @@
 /**
- * Subida de fotos desde el cliente: `uploadPhoto` comprime la foto (WebP ≤ 300 KB) y la envía a
+ * Subida de fotos desde el cliente: `uploadPhoto` comprime la foto (WebP ≤ 600 KB) y la envía a
  * /api/upload/photo, que la guarda en Vercel Blob (privado) o, en desarrollo, en `.uploads/`.
  */
 import { compressImage } from "./image-compress";
@@ -49,7 +49,7 @@ function send(blob: Blob, opts: UploadOptions): Promise<{ url: string; pathname:
   });
 }
 
-/** Comprime (WebP 0,85, 1600 px, ≤ 300 KB) y sube una foto. Lanza Error con mensaje en español. */
+/** Comprime (WebP 0,95, 1600 px, ≤ 600 KB) y sube una foto. Lanza Error con mensaje en español. */
 export async function uploadPhoto(file: File, opts: UploadOptions): Promise<UploadedPhoto> {
   if (file.size === 0) throw new Error("El archivo está vacío.");
   const { blob, width, height } = await compressImage(file);

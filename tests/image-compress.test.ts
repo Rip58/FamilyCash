@@ -34,11 +34,11 @@ describe("fitDimensions", () => {
 });
 
 describe("compressionAttempts", () => {
-  it("empieza en WebP 0,85 a 1600 px y baja la calidad hasta 0,6 antes de reducir", () => {
+  it("empieza en WebP 0,95 a 1600 px y baja la calidad hasta 0,6 antes de reducir", () => {
     const a = compressionAttempts(4032);
     expect(a[0]).toEqual({ side: 1600, quality: PHOTO_QUALITY });
-    expect(a.slice(0, 6).map((x) => x.quality)).toEqual([0.85, 0.8, 0.75, 0.7, 0.65, 0.6]);
-    expect(a[6]).toEqual({ side: 1360, quality: 0.85 });
+    expect(a.slice(0, 8).map((x) => x.quality)).toEqual([0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6]);
+    expect(a[8]).toEqual({ side: 1360, quality: 0.95 });
   });
   it("nunca baja de MIN_QUALITY ni de MIN_SIDE", () => {
     const a = compressionAttempts(4032);
@@ -50,7 +50,8 @@ describe("compressionAttempts", () => {
     expect(a[0]?.side).toBe(640);
     expect(a.every((x) => x.side === 640)).toBe(true);
   });
-  it("el límite de peso es 300 KB", () => {
-    expect(MAX_PHOTO_BYTES).toBe(300 * 1024);
+  it("calidad 0,95 y límite de peso 600 KB", () => {
+    expect(PHOTO_QUALITY).toBe(0.95);
+    expect(MAX_PHOTO_BYTES).toBe(600 * 1024);
   });
 });

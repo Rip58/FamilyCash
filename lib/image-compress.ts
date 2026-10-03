@@ -1,13 +1,13 @@
 /**
- * Compresión de fotos en el cliente: WebP calidad 0,85, lado mayor 1600 px y como mucho
- * 300 KB (si pasa, baja la calidad hasta 0,6 y luego reduce el tamaño). Si el navegador no
+ * Compresión de fotos en el cliente: WebP calidad 0,95, lado mayor 1600 px y como mucho
+ * 600 KB (si pasa, baja la calidad hasta 0,6 y luego reduce el tamaño). Si el navegador no
  * sabe codificar WebP (Safari antiguo), usa JPEG con el mismo límite.
  * La lógica de dimensiones e intentos es pura (testeada); el resto usa APIs del navegador.
  */
 export const MAX_SIDE = 1600;
-export const PHOTO_QUALITY = 0.85;
+export const PHOTO_QUALITY = 0.95;
 export const MIN_QUALITY = 0.6;
-export const MAX_PHOTO_BYTES = 300 * 1024;
+export const MAX_PHOTO_BYTES = 600 * 1024;
 /** Lado mayor mínimo al que se reduce para cumplir el límite de peso. */
 export const MIN_SIDE = 800;
 
@@ -32,7 +32,7 @@ export interface Attempt {
 
 /**
  * Orden de intentos para no pasar de MAX_PHOTO_BYTES: primero bajar la calidad
- * (0,85 → 0,6 de 0,05 en 0,05) y, si no basta, reducir el lado mayor un 15 % y volver a empezar.
+ * (0,95 → 0,6 de 0,05 en 0,05) y, si no basta, reducir el lado mayor un 15 % y volver a empezar.
  */
 export function compressionAttempts(longest: number, max: number = MAX_SIDE, quality: number = PHOTO_QUALITY): Attempt[] {
   const out: Attempt[] = [];
@@ -91,7 +91,7 @@ function encode(canvas: HTMLCanvasElement, type: string, quality: number): Promi
   return new Promise((res) => canvas.toBlob(res, type, quality));
 }
 
-/** Decodifica (corrigiendo la orientación EXIF), reescala y devuelve un WebP de ≤ 300 KB. */
+/** Decodifica (corrigiendo la orientación EXIF), reescala y devuelve un WebP de ≤ 600 KB. */
 export interface CompressOptions {
   maxSide?: number;
   maxBytes?: number;

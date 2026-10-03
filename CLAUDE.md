@@ -66,7 +66,7 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 
 
 ## Notas técnicas (lineales y pasos de protocolo)
-- Fotos: `compressImage` (`lib/image-compress.ts`) genera WebP calidad 0,85, lado ≤ 1600 px y ≤ 300 KB (baja calidad hasta 0,6 y luego tamaño, `compressionAttempts`); si el navegador no codifica WebP, JPEG con el mismo límite.
+- Fotos: `compressImage` (`lib/image-compress.ts`) genera WebP calidad 0,95, lado ≤ 1600 px y ≤ 600 KB (≈ 280 KB una foto normal; baja calidad hasta 0,6 y luego tamaño, `compressionAttempts`); si el navegador no codifica WebP, JPEG con el mismo límite.
 - Protocolos → pestañas (`ProtocolTabs`): protocolos y `/protocolos/lineales`. `ProtocolStep` (texto + foto opcional) se reescribe entero al guardar (`app/actions/protocols.ts`), borrando del almacenamiento las fotos que dejan de usarse (`removedPathnames`). El editor descarta las fotos subidas y no guardadas.
 - Lineales: `Planogram` + `PlanogramPhoto`, ubicación `ShelfLocation` (Ajustes → Ubicaciones). Lógica pura en `lib/planograms.ts` (zod, `untilState`), lecturas en `lib/planogram-queries.ts`, acciones en `app/actions/planograms.ts`. Caducados (fecha "hasta" pasada) se agrupan aparte.
 - `discardUploadedFiles` y `storageStats` cuentan también fotos de lineales y pasos: si añades otra tabla con fotos, añádela ahí.
