@@ -5,25 +5,43 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { applyImportedWeek } from "@/app/actions/week";
 import { notify } from "@/components/ui/toast";
+import { BottomSheet } from "@/components/ui/BottomSheet";
 import { cn } from "@/components/ui/cn";
+import { tint } from "@/components/ui/icons";
 import type { AiProvider, ImportResult, ImportRow } from "@/lib/ai-import-format";
-import { type DateStr, WEEKDAY_SHORT, addDays, formatDayMonth, formatWeekRange, isoWeekNumber, weekDays } from "@/lib/dates";
+import { type DateStr, WEEKDAY_LETTERS, addDays, formatDayLong, formatDayMonth, formatWeekRange, isoWeekNumber, weekDays } from "@/lib/dates";
 import { DOCUMENT_IMAGE, compressImage } from "@/lib/image-compress";
-import { statusAbbr } from "@/lib/week";
+import { isDayOffStatus } from "@/lib/schedule";
+import { statusAbbr, weekSummary } from "@/lib/week";
+import type { GridStatus } from "./types";
+
+interface ImportEmployee {
+  id: string;
+  name: string;
+  /** Nombre corto como en Semana. */
+  short: string;
+  /** Planning actual de la semana (statusTypeId por día, lunes → domingo). */
+  current: string[];
+}
 
 interface Props {
   weekStart: DateStr;
+  daysOffPerWeek: number;
   provider: { id: AiProvider; label: string; model: string; configured: boolean };
-  employees: { id: string; name: string }[];
-  statuses: { id: string; code: string; label: string; color: string }[];
+  employees: ImportEmployee[];
+  statuses: GridStatus[];
 }
+
+type Editing =
+  | { kind: "person"; row: number; open: boolean }
+  | { kind: "cell"; row: number; day: number; open: boolean };
 
 type Phase = { kind: "pick" } | { kind: "reading" } | { kind: "review"; result: ImportResult } | { kind: "error"; message: string };
 
-const selectCls = "min-h-11 w-full rounded-control bg-surface-2 px-2 text-[15px] outline-none focus:ring-2 focus:ring-accent";
+const GRID_COLS = "grid-cols-[minmax(0,1fr)_repeat(7,34px)_60px]";
 
 /** Semana → Cargar desde imagen: la IA lee el cuadrante, se revisa aquí y se guarda en el planning. */
-export function WeekImport({ weekStart, provider, employees, statuses }: Props) {
+export function WeekImport({ weekStart, daysOffPerWeek, provider, employees, statuses }: Props) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -32,6 +50,7 @@ export function WeekImport({ weekStart, provider, employees, statuses }: Props) 
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [saving, startSave] = useTransition();
   const [saveOrder, setSaveOrder] = useState(true);
+  const [editing, setEditing] = useState<Editing | null>(null);
   const days = weekDays(weekStart);
   const back = `/semana/${weekStart}?v=personas`;
 
@@ -67,6 +86,12 @@ export function WeekImport({ weekStart, provider, employees, statuses }: Props) 
   const patchRow = (i: number, p: Partial<ImportRow>) => setRows((cur) => cur.map((r, k) => (k === i ? { ...r, ...p } : r)));
   const taken = new Map(rows.flatMap((r, i) => (r.employeeId ? [[r.employeeId, i] as const] : [])));
   const toSave = rows.filter((r) => r.employeeId);
+  const byId = new Map(employees.map((e) => [e.id, e]));
+  const changes = toSave.reduce(
+    (n, r) => n + r.cells.filter((c, k) => c && c !== byId.get(r.employeeId!)?.current[k]).length,
+    0,
+  );
+  const editRow = editing ? rows[editing.row] : undefined;
   const unknownCells = toSave.reduce((n, r) => n + r.cells.filter((c) => !c).length, 0);
   const missing = employees.filter((e) => !taken.has(e.id));
 
@@ -186,64 +211,19 @@ export function WeekImport({ weekStart, provider, employees, statuses }: Props) 
             Revisa y corrige. Las filas sin persona no se cargan; las casillas con «?» se dejan como estaban.
           </p>
 
-          <ul className="flex flex-col gap-2">
-            {rows.map((row, i) => (
-              <li key={i} className={cn("rounded-card bg-surface p-3", !row.employeeId && "opacity-70")}>
-                <div className="flex items-center gap-2">
-                  <span className="min-w-0 flex-1 truncate text-[13px] text-muted">En la imagen: «{row.name}»</span>
-                </div>
-                <select
-                  aria-label={`Persona para «${row.name}»`}
-                  value={row.employeeId ?? ""}
-                  onChange={(e) => patchRow(i, { employeeId: e.target.value || null })}
-                  className={cn(selectCls, "mt-1 font-semibold", !row.employeeId && "ring-2 ring-warning")}
-                >
-                  <option value="">— No cargar esta fila —</option>
-                  {employees.map((e) => (
-                    <option key={e.id} value={e.id} disabled={taken.has(e.id) && taken.get(e.id) !== i}>
-                      {e.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="mt-2 grid grid-cols-7 gap-1">
-                  {days.map((d, k) => {
-                    const st = statuses.find((s) => s.id === row.cells[k]);
-                    return (
-                      <label key={d} className="flex flex-col items-center gap-0.5">
-                        <span className="text-[11px] font-medium text-muted">{WEEKDAY_SHORT[k]}</span>
-                        {/* Casilla con solo la letra; el desplegable nativo (invisible encima) muestra el nombre completo. */}
-                        <span
-                          className="relative flex h-11 w-full items-center justify-center rounded-[8px] border text-[15px] font-bold"
-                          style={
-                            st
-                              ? { borderColor: `${st.color}cc`, backgroundColor: `${st.color}33` }
-                              : { borderColor: "var(--warning)", backgroundColor: "transparent" }
-                          }
-                        >
-                          {st ? statusAbbr(st) : "?"}
-                          <select
-                            aria-label={`${row.name}, ${WEEKDAY_SHORT[k]} ${d.slice(8)}`}
-                            value={row.cells[k] ?? ""}
-                            onChange={(e) =>
-                              patchRow(i, { cells: row.cells.map((c, j) => (j === k ? e.target.value || null : c)) })
-                            }
-                            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                          >
-                            <option value="">? · Dejar como está</option>
-                            {statuses.map((s) => (
-                              <option key={s.id} value={s.id}>
-                                {statusAbbr(s)} · {s.label}
-                              </option>
-                            ))}
-                          </select>
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </li>
-            ))}
-          </ul>
+          <ImportGrid
+            rows={rows}
+            days={days}
+            employees={employees}
+            statuses={statuses}
+            daysOffPerWeek={daysOffPerWeek}
+            onPerson={(i) => setEditing({ kind: "person", row: i, open: true })}
+            onCell={(i, k) => setEditing({ kind: "cell", row: i, day: k, open: true })}
+          />
+          <p className="px-1 text-[12px] text-muted">
+            Igual que en Semana: toca un nombre para cambiar la persona y una casilla para cambiar el estado. Con borde azul =
+            cambia respecto al planning actual · «?» = no se entendió (se deja como está).
+          </p>
 
           {missing.length > 0 && (
             <p className="px-1 text-[13px] text-muted">
@@ -272,6 +252,102 @@ export function WeekImport({ weekStart, provider, employees, statuses }: Props) 
             Volver a leer otra imagen
           </button>
 
+          <BottomSheet
+            open={!!editing?.open}
+            onClose={() => setEditing((e) => (e ? { ...e, open: false } : e))}
+            title={
+              editing && editRow
+                ? editing.kind === "person"
+                  ? `En la imagen: «${editRow.name}»`
+                  : `${editRow.employeeId ? byId.get(editRow.employeeId)?.name : editRow.name} · ${formatDayLong(days[editing.day]!)}`
+                : ""
+            }
+          >
+            {editing?.kind === "person" && editRow && (
+              <ul className="flex flex-col gap-1 pb-2">
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      patchRow(editing.row, { employeeId: null });
+                      setEditing({ ...editing, open: false });
+                    }}
+                    className={cn(
+                      "flex min-h-11 w-full items-center rounded-control bg-surface-2 px-4 text-left text-[15px] text-muted",
+                      !editRow.employeeId && "ring-2 ring-accent",
+                    )}
+                  >
+                    — No cargar esta fila —
+                  </button>
+                </li>
+                {employees.map((e) => {
+                  const used = taken.has(e.id) && taken.get(e.id) !== editing.row;
+                  return (
+                    <li key={e.id}>
+                      <button
+                        type="button"
+                        disabled={used}
+                        onClick={() => {
+                          patchRow(editing.row, { employeeId: e.id });
+                          setEditing({ ...editing, open: false });
+                        }}
+                        className={cn(
+                          "flex min-h-11 w-full items-center justify-between rounded-control bg-surface-2 px-4 text-left text-[15px] disabled:opacity-40",
+                          editRow.employeeId === e.id && "ring-2 ring-accent",
+                        )}
+                      >
+                        {e.name}
+                        {used && <span className="text-[12px] text-muted">ya en otra fila</span>}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {editing?.kind === "cell" && editRow && (
+              <div className="flex flex-col gap-2 pb-2">
+                {editRow.employeeId && (
+                  <p className="px-1 text-[13px] text-muted">
+                    Ahora en el planning: {statuses.find((s) => s.id === byId.get(editRow.employeeId!)?.current[editing.day])?.label ?? "—"}
+                  </p>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                  {statuses.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => {
+                        patchRow(editing.row, { cells: editRow.cells.map((c, j) => (j === editing.day ? s.id : c)) });
+                        setEditing({ ...editing, open: false });
+                      }}
+                      className={cn(
+                        "flex min-h-12 items-center gap-2 rounded-control border-2 px-3 text-left text-[15px] font-medium",
+                        editRow.cells[editing.day] === s.id ? "border-accent" : "border-transparent",
+                      )}
+                      style={{ backgroundColor: tint(s.color, 22) }}
+                    >
+                      <span className="w-6 text-center font-bold">{statusAbbr(s)}</span>
+                      {s.label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      patchRow(editing.row, { cells: editRow.cells.map((c, j) => (j === editing.day ? null : c)) });
+                      setEditing({ ...editing, open: false });
+                    }}
+                    className={cn(
+                      "col-span-2 flex min-h-12 items-center justify-center rounded-control border-2 border-dashed px-3 text-[15px] text-muted",
+                      editRow.cells[editing.day] === null ? "border-accent" : "border-warning",
+                    )}
+                  >
+                    ? · Dejar como está
+                  </button>
+                </div>
+              </div>
+            )}
+          </BottomSheet>
+
           <div
             className="fixed inset-x-0 z-30 mx-auto flex max-w-xl flex-col gap-1 px-4"
             style={{ bottom: "calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 8px)" }}
@@ -284,7 +360,7 @@ export function WeekImport({ weekStart, provider, employees, statuses }: Props) 
             >
               {saving
                 ? "Guardando…"
-                : `Cargar ${toSave.length} ${toSave.length === 1 ? "persona" : "personas"} en la semana del ${formatDayMonth(weekStart)}`}
+                : `Guardar en la semana · ${changes} ${changes === 1 ? "cambio" : "cambios"}`}
             </button>
             {unknownCells > 0 && (
               <span className="rounded-full bg-bg/90 py-0.5 text-center text-[12px] text-muted">
@@ -297,3 +373,109 @@ export function WeekImport({ weekStart, provider, employees, statuses }: Props) 
     </div>
   );
 }
+
+/** Vista previa con el mismo aspecto que Semana → Personas (sin departamentos, en el orden de la imagen). */
+function ImportGrid({
+  rows,
+  days,
+  employees,
+  statuses,
+  daysOffPerWeek,
+  onPerson,
+  onCell,
+}: {
+  rows: ImportRow[];
+  days: DateStr[];
+  employees: ImportEmployee[];
+  statuses: GridStatus[];
+  daysOffPerWeek: number;
+  onPerson: (row: number) => void;
+  onCell: (row: number, day: number) => void;
+}) {
+  const byId = new Map(employees.map((e) => [e.id, e]));
+  const statusById = new Map(statuses.map((s) => [s.id, s]));
+  return (
+    <div className="-mx-4">
+      <div className={cn("sticky top-[env(safe-area-inset-top)] z-10 grid items-end border-b border-line bg-bg pb-1", GRID_COLS)}>
+        <span className="px-4 pb-1 text-[12px] font-medium text-muted">Persona</span>
+        {days.map((d, i) => (
+          <span key={d} className="flex flex-col items-center leading-tight">
+            <span className="text-[12px] font-semibold text-muted">{WEEKDAY_LETTERS[i]}</span>
+            <span className="text-[12px] text-muted">{Number(d.slice(8))}</span>
+          </span>
+        ))}
+        <span className="pb-1 text-center text-[11px] font-medium text-muted">Total</span>
+      </div>
+      <section aria-label="Semana leída" className="mx-1.5 mt-2 overflow-hidden rounded-card bg-surface">
+        {rows.map((row, i) => {
+          const emp = row.employeeId ? byId.get(row.employeeId) : undefined;
+          // Lo que quedará: lo leído, o el planning actual en las casillas «?».
+          const final = row.cells.map((c, k) => (c ?? emp?.current[k] ?? null));
+          const known = final.flatMap((id) => (id && statusById.get(id) ? [statusById.get(id)!] : []));
+          const daysOff = known.filter((s) => isDayOffStatus(s)).length;
+          const warn = !!emp && known.length === 7 && daysOff !== daysOffPerWeek;
+          const summary = emp ? weekSummary(known.map((s) => ({ status: s, extraMinutes: null })), statuses) : [];
+          return (
+            <div key={i} className={cn("grid items-center border-b border-line last:border-b-0", GRID_COLS, !emp && "opacity-60")}>
+              <button
+                type="button"
+                onClick={() => onPerson(i)}
+                aria-label={`Fila «${row.name}»: ${emp ? emp.name : "sin persona"}. Toca para cambiar`}
+                className="flex h-11 min-w-0 flex-col justify-center pl-4 pr-1 text-left [touch-action:manipulation]"
+              >
+                <span className={cn("truncate text-[15px] leading-tight", !emp && "font-medium text-warning")}>
+                  {emp ? emp.short : "¿Quién?"}
+                </span>
+                {(!emp || ![emp.name, emp.short].some((n) => normalizeName(n) === normalizeName(row.name))) && (
+                  <span className="truncate text-[11px] leading-tight text-muted">«{row.name}»</span>
+                )}
+              </button>
+              {days.map((d, k) => {
+                const id = row.cells[k];
+                const st = id ? statusById.get(id) : undefined;
+                const changed = !!emp && !!id && id !== emp.current[k];
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => onCell(i, k)}
+                    aria-label={`${emp?.name ?? row.name}, ${formatDayLong(d)}: ${st ? st.label : "no se entiende, se deja como está"}${changed ? " (cambia)" : ""}`}
+                    className="relative flex h-11 w-[34px] select-none items-center justify-center [touch-action:manipulation]"
+                  >
+                    <span
+                      className={cn(
+                        "flex h-8 w-[30px] items-center justify-center rounded-[8px] border text-[13px] font-semibold",
+                        st ? (st.isWorking ? "text-muted" : "text-fg") : "border-dashed border-warning text-warning",
+                        changed && "ring-2 ring-accent",
+                      )}
+                      style={
+                        st
+                          ? { borderColor: `${st.color}${st.isWorking ? "55" : "cc"}`, backgroundColor: `${st.color}${st.isWorking ? "1a" : "44"}` }
+                          : undefined
+                      }
+                    >
+                      {st ? statusAbbr(st) : "?"}
+                    </span>
+                  </button>
+                );
+              })}
+              <span
+                className="flex flex-wrap content-center justify-center gap-x-1 px-0.5 text-[11px] font-semibold leading-[13px] tabular-nums"
+                data-warning={warn ? "true" : undefined}
+              >
+                {summary.map((t) => (
+                  <span key={t.key} className={cn("text-muted", warn && t.dayOff && "rounded bg-warning/25 px-0.5 text-warning")}>
+                    {t.text}
+                  </span>
+                ))}
+              </span>
+            </div>
+          );
+        })}
+      </section>
+    </div>
+  );
+}
+
+const normalizeName = (s: string) =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
