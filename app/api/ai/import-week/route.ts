@@ -12,6 +12,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 const MAX_BYTES = 5 * 1024 * 1024;
+/** Una semana puede venir en varias capturas (parte de arriba y de abajo de la hoja). */
+const MAX_IMAGES = 4;
 const err = (error: string, status: number) => NextResponse.json({ ok: false, error }, { status });
 
 /** Lee el cuadrante de una imagen con la IA elegida en Ajustes y devuelve la propuesta (no guarda nada). */
@@ -25,14 +27,19 @@ export async function POST(req: Request) {
   } catch {
     return err("Petición no válida.", 400);
   }
-  const file = form.get("file");
+  const files = form.getAll("file").filter((f): f is File => f instanceof File);
   const week = String(form.get("weekStart") ?? "");
-  if (!(file instanceof File)) return err("Falta la imagen.", 400);
+  if (files.length === 0) return err("Falta la imagen.", 400);
+  if (files.length > MAX_IMAGES) return err(`Como mucho ${MAX_IMAGES} imágenes a la vez.`, 400);
   if (!isDateStr(week)) return err("Semana no válida.", 400);
-  if (file.size > MAX_BYTES) return err("La imagen pesa demasiado (máx. 5 MB).", 400);
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const type = sniffImageType(bytes);
-  if (!type) return err("El archivo no es una imagen (JPEG, PNG o WebP).", 400);
+  const images: { data: string; mediaType: "image/jpeg" | "image/png" | "image/webp" }[] = [];
+  for (const file of files) {
+    if (file.size > MAX_BYTES) return err("Una imagen pesa demasiado (máx. 5 MB).", 400);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const type = sniffImageType(bytes);
+    if (!type) return err("Un archivo no es una imagen (JPEG, PNG o WebP).", 400);
+    images.push({ data: Buffer.from(bytes).toString("base64"), mediaType: type as "image/jpeg" | "image/png" | "image/webp" });
+  }
 
   const [settings, employees, statusTypes] = await Promise.all([getSettings(), getEmployees(), getStatusTypes()]);
   const provider = isAiProvider(settings.aiProvider) ? settings.aiProvider : "claude";
@@ -45,8 +52,8 @@ export async function POST(req: Request) {
         ? fakeOutput(employees.filter((e) => e.active).slice(0, 4).map((e) => e.name))
         : await extractWithAi(
             provider,
-            { data: Buffer.from(bytes).toString("base64"), mediaType: type as "image/jpeg" | "image/png" | "image/webp" },
-            importPrompt({ weekStart, statusTypes, employees }),
+            images,
+            importPrompt({ weekStart, statusTypes, employees, imageCount: images.length }),
             schema,
           );
     const result: ImportResult = {

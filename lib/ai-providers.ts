@@ -33,10 +33,10 @@ export interface ImageInput {
   mediaType: "image/jpeg" | "image/png" | "image/webp";
 }
 
-/** Lee la imagen con la IA elegida y devuelve la salida validada con `schema`. */
+/** Lee las imágenes (partes de la misma semana) con la IA elegida y devuelve la salida validada con `schema`. */
 export async function extractWithAi<S extends z.ZodType>(
   provider: AiProvider,
-  image: ImageInput,
+  images: ImageInput[],
   prompt: string,
   schema: S,
 ): Promise<z.infer<S>> {
@@ -47,11 +47,11 @@ export async function extractWithAi<S extends z.ZodType>(
       `Falta la clave de ${name}: añade ${env} en Vercel → Settings → Environment Variables y vuelve a publicar.`,
     );
   }
-  if (provider === "gemini") return extractWithGemini(image, prompt, schema);
-  return provider === "claude" ? extractWithClaude(image, prompt, schema) : extractWithOpenAI(image, prompt, schema);
+  if (provider === "gemini") return extractWithGemini(images, prompt, schema);
+  return provider === "claude" ? extractWithClaude(images, prompt, schema) : extractWithOpenAI(images, prompt, schema);
 }
 
-async function extractWithClaude<S extends z.ZodType>(image: ImageInput, prompt: string, schema: S): Promise<z.infer<S>> {
+async function extractWithClaude<S extends z.ZodType>(images: ImageInput[], prompt: string, schema: S): Promise<z.infer<S>> {
   const client = new Anthropic({ timeout: 110_000, maxRetries: 1 });
   try {
     const response = await client.beta.messages.parse({
@@ -65,7 +65,10 @@ async function extractWithClaude<S extends z.ZodType>(image: ImageInput, prompt:
         {
           role: "user",
           content: [
-            { type: "image", source: { type: "base64", media_type: image.mediaType, data: image.data } },
+            ...images.map((image) => ({
+              type: "image" as const,
+              source: { type: "base64" as const, media_type: image.mediaType, data: image.data },
+            })),
             { type: "text", text: prompt },
           ],
         },
@@ -100,7 +103,7 @@ function strictJsonSchema(node: unknown): unknown {
   return out;
 }
 
-async function extractWithOpenAI<S extends z.ZodType>(image: ImageInput, prompt: string, schema: S): Promise<z.infer<S>> {
+async function extractWithOpenAI<S extends z.ZodType>(images: ImageInput[], prompt: string, schema: S): Promise<z.infer<S>> {
   let res: Response;
   try {
     res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -114,7 +117,10 @@ async function extractWithOpenAI<S extends z.ZodType>(image: ImageInput, prompt:
             role: "user",
             content: [
               { type: "text", text: prompt },
-              { type: "image_url", image_url: { url: `data:${image.mediaType};base64,${image.data}`, detail: "high" } },
+              ...images.map((image) => ({
+                type: "image_url",
+                image_url: { url: `data:${image.mediaType};base64,${image.data}`, detail: "high" },
+              })),
             ],
           },
         ],
@@ -148,7 +154,7 @@ async function extractWithOpenAI<S extends z.ZodType>(image: ImageInput, prompt:
   return parsed.data;
 }
 
-async function extractWithGemini<S extends z.ZodType>(image: ImageInput, prompt: string, schema: S): Promise<z.infer<S>> {
+async function extractWithGemini<S extends z.ZodType>(images: ImageInput[], prompt: string, schema: S): Promise<z.infer<S>> {
   let res: Response;
   try {
     res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`, {
@@ -159,13 +165,15 @@ async function extractWithGemini<S extends z.ZodType>(image: ImageInput, prompt:
         contents: [
           {
             role: "user",
-            parts: [{ inline_data: { mime_type: image.mediaType, data: image.data } }, { text: prompt }],
+            parts: [...images.map((image) => ({ inline_data: { mime_type: image.mediaType, data: image.data } })), { text: prompt }],
           },
         ],
         generationConfig: {
           responseMimeType: "application/json",
           responseSchema: geminiSchema(z.toJSONSchema(schema)),
           temperature: 0,
+          // Máxima resolución de imagen: el cuadrante tiene texto pequeño y colores parecidos.
+          mediaResolution: "MEDIA_RESOLUTION_HIGH",
         },
       }),
     });

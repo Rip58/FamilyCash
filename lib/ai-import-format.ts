@@ -47,8 +47,20 @@ export function nameScore(read: string, employee: { name: string; alias?: string
   // Cada palabra leída debe estar en el nombre (entera, o como inicial/abreviatura de un apellido):
   // "Ana G." / "Ana Garcia" / "Garcia Ana"
   const covers = (w: string, i: number) => fw.some((f, j) => f === w || (j > 0 && i > 0 && f.startsWith(w)));
-  const covered = rw.filter(covers);
-  if (rw.length >= 2) return covered.length === rw.length ? 90 : 0;
+  // Con tolerancia: un apellido largo con una letra mal leída ("Colldefons"), o la última palabra
+  // cortada por la celda del Excel ("AYAZO BALI" por "Ayazo Baldovino").
+  const roughly = (w: string, i: number) =>
+    i > 0 &&
+    fw.some(
+      (f, j) =>
+        j > 0 &&
+        ((w.length >= 5 && f.length >= 5 && editDistance(w, f) <= 1) ||
+          (i === rw.length - 1 && rw.length >= 3 && commonPrefix(w, f) >= 3)),
+    );
+  if (rw.length >= 2) {
+    if (rw.every(covers)) return 90;
+    return rw.every((w, i) => covers(w, i) || roughly(w, i)) ? 85 : 0;
+  }
   if (fw[0] === rw[0] || alias === rw[0]) return 80;
   return 0;
 }
@@ -70,4 +82,26 @@ export function matchEmployee<E extends { id: string; name: string; alias?: stri
   if (scored.length === 0) return null;
   if (scored.length > 1 && scored[1]!.s === scored[0]!.s) return null;
   return scored[0]!.e;
+}
+
+function commonPrefix(a: string, b: string): number {
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  return i;
+}
+
+/** Distancia de edición (Levenshtein) entre dos palabras cortas. */
+function editDistance(a: string, b: string): number {
+  if (Math.abs(a.length - b.length) > 1) return 2;
+  const prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let diag = prev[0]!;
+    prev[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = prev[j]!;
+      prev[j] = Math.min(prev[j]! + 1, prev[j - 1]! + 1, diag + (a[i - 1] === b[j - 1] ? 0 : 1));
+      diag = tmp;
+    }
+  }
+  return prev[b.length]!;
 }

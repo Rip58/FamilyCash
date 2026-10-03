@@ -7,7 +7,7 @@ import { applyImportedWeek } from "@/app/actions/week";
 import { notify } from "@/components/ui/toast";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { cn } from "@/components/ui/cn";
-import { tint } from "@/components/ui/icons";
+import { Icon, tint } from "@/components/ui/icons";
 import type { AiProvider, ImportResult, ImportRow } from "@/lib/ai-import-format";
 import { type DateStr, WEEKDAY_LETTERS, addDays, formatDayLong, formatDayMonth, formatWeekRange, isoWeekNumber, weekDays } from "@/lib/dates";
 import { DOCUMENT_IMAGE, compressImage } from "@/lib/image-compress";
@@ -38,14 +38,15 @@ type Editing =
 
 type Phase = { kind: "pick" } | { kind: "reading" } | { kind: "review"; result: ImportResult } | { kind: "error"; message: string };
 
+const MAX_IMAGES = 4;
 const GRID_COLS = "grid-cols-[minmax(0,1fr)_repeat(7,34px)_60px]";
 
 /** Semana → Cargar desde imagen: la IA lee el cuadrante, se revisa aquí y se guarda en el planning. */
 export function WeekImport({ weekStart, daysOffPerWeek, provider, employees, statuses }: Props) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  // Una semana puede venir en varias capturas (parte de arriba y de abajo de la hoja).
+  const [images, setImages] = useState<{ file: File; url: string }[]>([]);
   const [phase, setPhase] = useState<Phase>({ kind: "pick" });
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [saving, startSave] = useTransition();
@@ -54,24 +55,32 @@ export function WeekImport({ weekStart, daysOffPerWeek, provider, employees, sta
   const days = weekDays(weekStart);
   const back = `/semana/${weekStart}?v=personas`;
 
-  useEffect(() => () => void (preview && URL.revokeObjectURL(preview)), [preview]);
+  const urls = useRef<string[]>([]);
+  useEffect(() => () => urls.current.forEach((u) => URL.revokeObjectURL(u)), []);
 
-  function pick(f: File | undefined) {
-    if (!f) return;
-    if (preview) URL.revokeObjectURL(preview);
-    setFile(f);
-    setPreview(URL.createObjectURL(f));
+  function pick(list: FileList | null) {
+    const picked = [...(list ?? [])].slice(0, MAX_IMAGES - images.length);
+    if (picked.length === 0) return;
+    const added = picked.map((file) => ({ file, url: URL.createObjectURL(file) }));
+    urls.current.push(...added.map((a) => a.url));
+    setImages((cur) => [...cur, ...added]);
+    setPhase({ kind: "pick" });
+  }
+  function removeImage(i: number) {
+    setImages((cur) => cur.filter((_, k) => k !== i));
     setPhase({ kind: "pick" });
   }
 
   async function read() {
-    if (!file) return;
+    if (images.length === 0) return;
     setPhase({ kind: "reading" });
     try {
-      // Más resolución que las fotos normales para que se lea bien el texto de la tabla.
-      const img = await compressImage(file, DOCUMENT_IMAGE);
       const form = new FormData();
-      form.append("file", img.blob, "cuadrante");
+      for (const [i, { file }] of images.entries()) {
+        // Más resolución que las fotos normales para que se lea bien el texto de la tabla.
+        const img = await compressImage(file, DOCUMENT_IMAGE);
+        form.append("file", img.blob, `cuadrante-${i + 1}`);
+      }
       form.append("weekStart", weekStart);
       const res = await fetch("/api/ai/import-week", { method: "POST", body: form });
       const body = (await res.json().catch(() => null)) as { ok: boolean; error?: string; result?: ImportResult } | null;
@@ -154,30 +163,55 @@ export function WeekImport({ weekStart, daysOffPerWeek, provider, employees, sta
             ref={fileRef}
             type="file"
             accept="image/*"
+            multiple
             className="sr-only"
             tabIndex={-1}
-            aria-label="Imagen del cuadrante"
+            aria-label="Imágenes del cuadrante"
             onChange={(e) => {
-              pick(e.target.files?.[0]);
+              pick(e.target.files);
               e.target.value = "";
             }}
           />
-          {preview ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={preview} alt="Imagen elegida" className="max-h-[50vh] w-full rounded-card bg-surface object-contain" />
+          {images.length > 0 ? (
+            <ul className="flex flex-col gap-2" aria-label="Imágenes elegidas">
+              {images.map((im, i) => (
+                <li key={im.url} className="relative overflow-hidden rounded-card bg-surface">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={im.url} alt={`Imagen ${i + 1}`} className="max-h-[40vh] w-full object-contain" />
+                  <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[12px] font-semibold text-white">
+                    {i + 1}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeImage(i)}
+                    disabled={phase.kind === "reading"}
+                    aria-label={`Quitar la imagen ${i + 1}`}
+                    className="absolute right-1 top-1 flex h-11 w-11 items-center justify-center"
+                  >
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white">
+                      <Icon name="close" className="h-4 w-4" strokeWidth={2.4} />
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
           ) : (
             <p className="rounded-card bg-surface px-4 py-6 text-center text-[15px] text-muted">
-              Haz una foto o captura del Excel con la semana (nombres a la izquierda, días arriba) y elígela aquí.
+              Haz una foto o captura del Excel con la semana y elígela aquí. Si no cabe en una, elige varias (parte de arriba
+              y de abajo de la hoja): se leen juntas.
             </p>
           )}
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            disabled={phase.kind === "reading"}
-            className="flex min-h-12 items-center justify-center gap-2 rounded-control bg-surface text-[16px] font-medium text-accent disabled:opacity-50"
-          >
-            <span aria-hidden>📷</span> {preview ? "Elegir otra imagen" : "Hacer foto / Elegir imagen"}
-          </button>
+          {images.length < MAX_IMAGES && (
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={phase.kind === "reading"}
+              className="flex min-h-12 items-center justify-center gap-2 rounded-control bg-surface text-[16px] font-medium text-accent disabled:opacity-50"
+            >
+              <Icon name="images" className="h-5 w-5" />
+              {images.length > 0 ? "Añadir otra imagen de la misma semana" : "Hacer foto / Elegir imágenes"}
+            </button>
+          )}
           {phase.kind === "error" && (
             <p role="alert" className="rounded-control bg-danger/10 px-3 py-2 text-[14px] text-danger">
               {phase.message}
@@ -186,10 +220,14 @@ export function WeekImport({ weekStart, daysOffPerWeek, provider, employees, sta
           <button
             type="button"
             onClick={read}
-            disabled={!file || phase.kind === "reading"}
+            disabled={images.length === 0 || phase.kind === "reading"}
             className="min-h-12 rounded-control bg-accent text-[16px] font-semibold text-accent-fg disabled:opacity-40"
           >
-            {phase.kind === "reading" ? "Leyendo con IA… (hasta 1 min)" : "Leer con IA"}
+            {phase.kind === "reading"
+              ? "Leyendo con IA… (hasta 1 min)"
+              : images.length > 1
+                ? `Leer las ${images.length} imágenes con IA`
+                : "Leer con IA"}
           </button>
         </section>
       )}

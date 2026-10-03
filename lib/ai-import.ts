@@ -41,29 +41,56 @@ export function importPrompt(input: {
   weekStart: DateStr;
   statusTypes: StatusTypeLite[];
   employees: EmployeeLite[];
+  /** Nº de imágenes enviadas (partes de la misma semana). */
+  imageCount?: number;
 }): string {
   const days = weekDays(input.weekStart);
-  const statuses = input.statusTypes
-    .filter((s) => s.active !== false)
-    .map((s) => `- ${s.code}: ${s.label}${s.isWorking ? " (trabaja)" : " (no trabaja)"}`)
-    .join("\n");
+  const active = input.statusTypes.filter((s) => s.active !== false);
+  const codes = new Set(active.map((s) => s.code));
+  const statuses = active.map((s) => `- ${s.code}: ${s.label}${s.isWorking ? " (trabaja)" : " (no trabaja)"}`).join("\n");
   const people = input.employees
     .filter((e) => e.active)
     .map((e) => `- ${e.id}: ${e.name}${e.alias ? ` (alias ${e.alias})` : ""}`)
     .join("\n");
-  return `La imagen es el cuadrante de turnos (planning) del turno de noche de una tienda, normalmente una captura o foto de un Excel: una fila por persona y una columna por día.
+  // Estado de la app para cada color: por nombre (p. ej. un estado «Suspensión» creado en Ajustes) o por código;
+  // si no hay ninguno, "?" (que la persona lo elija en la vista previa).
+  const plain = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const byLabel = (word: string) => active.find((st) => plain(st.label).includes(word))?.code;
+  const or = (...c: string[]) => c.find((x) => codes.has(x)) ?? UNKNOWN;
+  const named = (word: string, ...fallback: string[]) => byLabel(word) ?? or(...fallback);
+  const n = input.imageCount ?? 1;
+  const year = input.weekStart.slice(0, 4);
+  return `${n > 1 ? `Te paso ${n} imágenes: son partes de LA MISMA semana del mismo cuadrante (por ejemplo la parte de arriba y la de abajo de la hoja, que puede repetir alguna fila). Junta todas las personas en una sola lista, en el orden en que aparecen (primero la imagen 1), sin repetir a nadie. La cabecera con los días y la leyenda de colores puede salir solo en una de ellas: vale para todas.` : "La imagen es el cuadrante de turnos (planning) del turno de noche de una tienda."}
 
-Transcribe la semana del ${formatDayMonth(days[0]!)} (lunes) al ${formatDayMonth(days[6]!)} (domingo). Devuelve una fila por cada persona que aparezca, con lo que pone cada día de lunes (L) a domingo (D), aunque en la imagen las columnas estén en otro orden.
+Es una foto o captura de un Excel (puede estar en catalán) con una fila por persona y una columna por día, de lunes a domingo: DILLUNS/Lunes (L), DIMARTS/Martes (M), DIMECRES/Miércoles (X), DIJOUS/Jueves (J), DIVENDRES/Viernes (V), DISSABTE/Sábado (S), DIUMENGE/Domingo (D). Transcribe la semana del ${formatDayMonth(days[0]!)} (lunes) al ${formatDayMonth(days[6]!)} (domingo) de ${year}. Si la cabecera muestra fechas (p. ej. "5-oct"), el año es ${year}; devuelve en week_monday la fecha del lunes que veas.
 
-Traduce cada celda a uno de estos estados de la app:
+CÓMO ESTÁ HECHA LA HOJA
+- Cada persona ocupa un bloque de 3 filas: dos filas con horas de entrada/salida (p. ej. "21,50 | 24,00" y "1,00 | 6,50", es decir 21:30–24:00 y 01:00–06:30) y una tercera con las horas del día (p. ej. "8,00"). A la derecha hay una columna TOTAL con las horas de la semana.
+- A la izquierda puede haber una columna de sección cortada (p. ej. "POSICIO N…", "REPOSICIO NIT"): NO es parte del nombre. El nombre es el de la columna de empleado (p. ej. "ALEJANDRO GOMEZ"). Si está cortado, cópialo tal cual se ve.
+- Un día con horas escritas (cualesquiera: 21,50/24,00, 21,00/24,00, 26,50/29,00, 12,00/17,50…) y horas del día mayores que 0 = trabaja (${or("WORK")}), aunque el horario sea distinto del habitual o haga más horas (8,50, 13,00…).
+- Un día sin horas, con las casillas pintadas de un color = ausencia: el tipo lo dice el COLOR (las horas del día suelen salir 0,00).
+
+LEYENDA DE COLORES HABITUAL (si en la imagen hay leyenda, manda la de la imagen)
+- Verde (claro o pistacho) = DESCANS / descanso → ${or("OFF")}
+- Amarillo = FESTIU CALENDARI / festivo del calendario → ${named("festivo", "PAID_OFF", "OFF")}
+- Rojo OSCURO, granate = VACANCES / vacaciones → ${or("VACATION")}
+- Rojo VIVO, brillante = BAIXA / baja → ${or("SICK")}
+- Azul claro, celeste = RECUPERABLE → ${named("recuperable", "OFF")}
+- Naranja = PERMÍS RETRIBUÏT / permiso retribuido → ${or("PAID_OFF")}
+- Morado, lila = PERMÍS NO RETRIBUÏT → ${named("no retribuid", "ABSENT")}
+- Azul OSCURO, intenso = SUSPENSIÓ / suspensión → ${named("suspension", "ABSENT")}
+Distingue bien rojo oscuro (vacaciones) de rojo vivo (baja), y azul oscuro (suspensión) de azul claro (recuperable): compáralos con la leyenda si aparece y entre filas de la misma imagen.
+
+COMPRUEBA CADA FILA: la primera cifra de TOTAL son las horas trabajadas de la semana; debe cuadrar con la suma de las horas de los días que marcas como trabajo (p. ej. 48,00 = 6 noches de 8 h; 40,00 = 5; 0,00 = ninguna). Si no cuadra, vuelve a mirar esa fila.
+
+Estados de la app (usa SOLO estos códigos):
 ${statuses}
-
-Convenciones habituales: un horario (p. ej. "22-6", "21:30-06:30") o "T" significa que trabaja (WORK); "L", "F", "Libre", "Descanso" o una celda de libranza es fiesta (OFF); "V" o "Vac" vacaciones (VACATION); "B", "Baja" o "IT" baja (SICK); "R" o "FR" fiesta retribuida (PAID_OFF) si ese estado existe. Si una celda está vacía o no se entiende, usa "${UNKNOWN}" y explícalo en notes. Si hay una leyenda de colores en la imagen, úsala.
+Si una casilla está vacía, no se lee o su color no corresponde a ningún estado de la lista, usa "${UNKNOWN}" y explícalo en notes (persona y día).
 
 Empleados de la app (asigna employee_id solo si el nombre corresponde claramente a esa persona; si no, deja employee_id vacío):
 ${people}
 
-No inventes filas ni personas: transcribe solo lo que se ve.`;
+No inventes filas ni personas: transcribe solo lo que se ve. notes: dudas concretas, en español y breves (cadena vacía si no hay).`;
 }
 
 /** Convierte la respuesta de la IA en filas de la vista previa (estado por día y empleado asignado). */
