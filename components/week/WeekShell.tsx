@@ -171,7 +171,7 @@ export function WeekShell({
         <Segmented<WeekViewMode>
           aria-label="Vista"
           compact
-          className="min-w-0 flex-1"
+          className="mr-auto shrink-0"
           value={view}
           onChange={chooseView}
           options={[
