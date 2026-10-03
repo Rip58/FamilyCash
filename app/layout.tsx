@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { NoPageZoom } from "@/components/pwa/NoPageZoom";
 import { RegisterSW } from "@/components/pwa/RegisterSW";
 
 export const metadata: Metadata = {
@@ -15,6 +16,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // App solo para el móvil: sin zoom de página (iOS ampliaba al tocar campos y luego la pantalla y el menú
+  // se movían al hacer scroll). Las fotos tienen su propio zoom en el visor.
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f2f2f7" },
@@ -28,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         {children}
         <RegisterSW />
+        <NoPageZoom />
       </body>
     </html>
   );

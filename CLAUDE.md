@@ -80,3 +80,4 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 - Iconos de línea en `components/ui/icons.tsx` (`Icon`, `tint(color, pct)` = fondo pastel con `color-mix`). Nada de emojis para iconos de navegación/acciones nuevas.
 - Hoy: barra superior en una línea (contadores por estado con `statusAbbr`, ✓ validados, botones nota / agrupar / cierre), filas de 44px (zona táctil 44px, círculo visual 32px), cabeceras pastel (`GroupCard`). Vista sin departamentos en orden del Excel (`rotaOrder`, localStorage `hoy:sinDepartamentos`).
 - `Segmented` acepta `compact` (44px en total).
+- Sin zoom de página: viewport `maximumScale: 1` + `userScalable: false` (evita el zoom de iOS al tocar campos < 16px), `touch-action: manipulation` en html/body y `components/pwa/NoPageZoom.tsx` (bloquea el pellizco, que Safari permite igualmente). El zoom de fotos lo hace `PhotoViewer` por su cuenta.
