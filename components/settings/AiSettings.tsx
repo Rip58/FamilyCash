@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { saveAiProvider } from "@/app/actions/settings";
+import { useState } from "react";
+import { saveAiModel, saveAiProvider } from "@/app/actions/settings";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/components/ui/cn";
 import type { AiProvider } from "@/lib/ai-import-format";
@@ -12,8 +13,90 @@ interface ProviderInfo {
   label: string;
   envVar: string;
   configured: boolean;
-  model: string;
   free?: boolean;
+  /** Modelo si no se elige ninguno. */
+  defaultModel: string;
+  /** Modelo elegido en Ajustes (null = el de por defecto). */
+  chosenModel: string | null;
+  /** Modelos que permite la clave (null = no se pudo pedir la lista). */
+  models: { id: string; label: string }[] | null;
+}
+
+const OTHER = "__otro__";
+
+/** Elegir el modelo de una IA: lista de los que permite la clave + "otro" para escribirlo a mano. */
+function ModelPicker({ p }: { p: ProviderInfo }) {
+  const { pending, run } = useRun();
+  const [chosen, setChosen] = useSynced(p.chosenModel);
+  const known = p.models ?? [];
+  const inList = !chosen || known.some((m) => m.id === chosen);
+  const [typing, setTyping] = useState(!inList);
+  const [text, setText] = useState(chosen ?? "");
+  const save = (model: string | null) => {
+    setChosen(model);
+    run(() => saveAiModel({ provider: p.id, model }), { msg: model ? `Modelo: ${model}` : "Modelo por defecto" });
+  };
+  return (
+    <div className="mt-2 flex flex-col gap-2">
+      <label className="flex flex-col gap-1">
+        <span className="text-[13px] text-muted">Modelo de {p.label.split(" (")[0]}</span>
+        <select
+          aria-label={`Modelo de ${p.label}`}
+          disabled={pending}
+          value={typing ? OTHER : (chosen ?? "")}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === OTHER) {
+              setTyping(true);
+              return;
+            }
+            setTyping(false);
+            save(v || null);
+          }}
+          className="min-h-11 w-full rounded-control bg-surface-2 px-3 text-[16px] outline-none focus:ring-2 focus:ring-accent"
+        >
+          <option value="">Por defecto ({p.defaultModel})</option>
+          {known.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.label === m.id ? m.id : `${m.label} · ${m.id}`}
+            </option>
+          ))}
+          <option value={OTHER}>Otro (escribir el nombre)…</option>
+        </select>
+      </label>
+      {typing && (
+        <div className="flex gap-2">
+          <input
+            aria-label="Nombre del modelo"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="p. ej. gemini-2.5-pro"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            className="min-h-11 min-w-0 flex-1 rounded-control bg-surface-2 px-3 text-[16px] outline-none focus:ring-2 focus:ring-accent"
+          />
+          <button
+            type="button"
+            disabled={pending || !text.trim()}
+            onClick={() => save(text.trim())}
+            className="min-h-11 shrink-0 rounded-control bg-accent px-4 text-[15px] font-semibold text-accent-fg disabled:opacity-40"
+          >
+            Usar
+          </button>
+        </div>
+      )}
+      {p.configured && p.models === null && (
+        <p className="text-[12px] text-muted">No se pudo pedir la lista de modelos a la IA: puedes escribir el nombre a mano.</p>
+      )}
+      {p.id === "gemini" && (
+        <p className="text-[12px] text-muted">
+          Flash: rápido y con más usos gratis al día. Pro: lee mejor tablas y colores, pero el plan gratuito permite pocos
+          usos por minuto/día.
+        </p>
+      )}
+    </div>
+  );
 }
 
 /** Ajustes → Importar con IA: qué IA lee las imágenes del cuadrante y si su clave está puesta en Vercel. */
@@ -31,7 +114,7 @@ export function AiSettings({ current, providers }: { current: AiProvider; provid
         <div role="radiogroup" aria-label="IA" className="flex flex-col gap-2">
           {providers.map((p) => {
             const selected = value === p.id;
-            return (
+            const card = (
               <button
                 key={p.id}
                 type="button"
@@ -59,7 +142,7 @@ export function AiSettings({ current, providers }: { current: AiProvider; provid
                 <span className="min-w-0 flex-1">
                   <span className="block text-[16px] font-semibold">{p.label}</span>
                   <span className="block text-[13px] text-muted">
-                    Modelo: {p.model}
+                    Modelo: {p.chosenModel ?? p.defaultModel}
                     {p.free && <span className="font-semibold text-success"> · Gratis</span>}
                   </span>
                 </span>
@@ -72,6 +155,14 @@ export function AiSettings({ current, providers }: { current: AiProvider; provid
                   {p.configured ? "✓ Clave puesta" : "Falta la clave"}
                 </span>
               </button>
+            );
+            return selected ? (
+              <div key={p.id} className="flex flex-col">
+                {card}
+                <ModelPicker p={p} />
+              </div>
+            ) : (
+              card
             );
           })}
         </div>

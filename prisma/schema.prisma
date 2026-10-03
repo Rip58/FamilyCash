@@ -17,6 +17,7 @@ model Settings {            // fila única id=1
   daysOffPerWeek  Int     @default(2)
   passwordHash    String?                // si existe, sustituye a APP_PASSWORD
   aiProvider      String  @default("claude") // IA para importar el cuadrante desde imagen: claude | openai | gemini
+  aiModels        Json    @default("{}")     // modelo elegido por IA: { "gemini": "gemini-2.5-pro", ... } (vacío = el de por defecto)
 }
 
 model Department {          // Droguería, Botellería, ...

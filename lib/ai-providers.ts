@@ -20,8 +20,70 @@ export function providerConfigured(p: AiProvider): boolean {
   return p === "claude" ? !!process.env.ANTHROPIC_API_KEY : !!process.env.OPENAI_API_KEY;
 }
 
-export function providerModel(p: AiProvider): string {
+/** Modelo por defecto (variable de entorno o el de la app). */
+export function defaultModel(p: AiProvider): string {
   return p === "claude" ? CLAUDE_MODEL : p === "gemini" ? GEMINI_MODEL : OPENAI_MODEL;
+}
+
+/** Modelo a usar: el elegido en Ajustes → Importar con IA o, si no hay, el de por defecto. */
+export function providerModel(p: AiProvider, chosen?: Partial<Record<string, string>> | null): string {
+  return chosen?.[p]?.trim() || defaultModel(p);
+}
+
+export interface ModelOption {
+  id: string;
+  label: string;
+}
+
+/**
+ * Modelos que la clave puede usar, pedidos a la propia IA (así la lista está siempre al día).
+ * null si no hay clave o no responde; la pantalla deja escribir el nombre a mano.
+ */
+export async function listModels(p: AiProvider): Promise<ModelOption[] | null> {
+  if (!providerConfigured(p)) return null;
+  const signal = AbortSignal.timeout(6000);
+  try {
+    if (p === "gemini") {
+      const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", {
+        headers: { "x-goog-api-key": geminiKey() },
+        signal,
+        next: { revalidate: 3600 },
+      });
+      if (!res.ok) return null;
+      const body = (await res.json()) as {
+        models?: { name: string; displayName?: string; supportedGenerationMethods?: string[] }[];
+      };
+      return (body.models ?? [])
+        .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
+        .map((m) => ({ id: m.name.replace(/^models\//, ""), label: m.displayName ?? m.name }))
+        .filter((m) => m.id.startsWith("gemini") && !/(embedding|tts|image|live|audio|aqa|robotics|computer)/i.test(m.id))
+        .sort((a, b) => b.id.localeCompare(a.id, "en", { numeric: true }));
+    }
+    if (p === "openai") {
+      const res = await fetch("https://api.openai.com/v1/models", {
+        headers: { authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+        signal,
+        next: { revalidate: 3600 },
+      });
+      if (!res.ok) return null;
+      const body = (await res.json()) as { data?: { id: string }[] };
+      return (body.data ?? [])
+        .map((m) => m.id)
+        .filter((id) => /^(gpt-|o\d)/.test(id) && !/(audio|realtime|tts|transcribe|search|image|instruct|codex)/i.test(id))
+        .sort((a, b) => b.localeCompare(a, "en", { numeric: true }))
+        .map((id) => ({ id, label: id }));
+    }
+    const res = await fetch("https://api.anthropic.com/v1/models?limit=100", {
+      headers: { "x-api-key": process.env.ANTHROPIC_API_KEY ?? "", "anthropic-version": "2023-06-01" },
+      signal,
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { data?: { id: string; display_name?: string }[] };
+    return (body.data ?? []).map((m) => ({ id: m.id, label: m.display_name ?? m.id }));
+  } catch {
+    return null;
+  }
 }
 
 /** Error con mensaje para mostrar al usuario (en español). */
@@ -36,6 +98,7 @@ export interface ImageInput {
 /** Lee las imágenes (partes de la misma semana) con la IA elegida y devuelve la salida validada con `schema`. */
 export async function extractWithAi<S extends z.ZodType>(
   provider: AiProvider,
+  model: string,
   images: ImageInput[],
   prompt: string,
   schema: S,
@@ -47,15 +110,17 @@ export async function extractWithAi<S extends z.ZodType>(
       `Falta la clave de ${name}: añade ${env} en Vercel → Settings → Environment Variables y vuelve a publicar.`,
     );
   }
-  if (provider === "gemini") return extractWithGemini(images, prompt, schema);
-  return provider === "claude" ? extractWithClaude(images, prompt, schema) : extractWithOpenAI(images, prompt, schema);
+  if (provider === "gemini") return extractWithGemini(model, images, prompt, schema);
+  return provider === "claude"
+    ? extractWithClaude(model, images, prompt, schema)
+    : extractWithOpenAI(model, images, prompt, schema);
 }
 
-async function extractWithClaude<S extends z.ZodType>(images: ImageInput[], prompt: string, schema: S): Promise<z.infer<S>> {
+async function extractWithClaude<S extends z.ZodType>(model: string, images: ImageInput[], prompt: string, schema: S): Promise<z.infer<S>> {
   const client = new Anthropic({ timeout: 110_000, maxRetries: 1 });
   try {
     const response = await client.beta.messages.parse({
-      model: CLAUDE_MODEL,
+      model,
       max_tokens: 16000,
       // Si el modelo rechaza la petición, la API la reintenta en otro modelo recomendado.
       betas: ["server-side-fallback-2026-07-01"],
@@ -103,7 +168,7 @@ function strictJsonSchema(node: unknown): unknown {
   return out;
 }
 
-async function extractWithOpenAI<S extends z.ZodType>(images: ImageInput[], prompt: string, schema: S): Promise<z.infer<S>> {
+async function extractWithOpenAI<S extends z.ZodType>(model: string, images: ImageInput[], prompt: string, schema: S): Promise<z.infer<S>> {
   let res: Response;
   try {
     res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -111,7 +176,7 @@ async function extractWithOpenAI<S extends z.ZodType>(images: ImageInput[], prom
       headers: { "content-type": "application/json", authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
       signal: AbortSignal.timeout(110_000),
       body: JSON.stringify({
-        model: OPENAI_MODEL,
+        model,
         messages: [
           {
             role: "user",
@@ -154,10 +219,10 @@ async function extractWithOpenAI<S extends z.ZodType>(images: ImageInput[], prom
   return parsed.data;
 }
 
-async function extractWithGemini<S extends z.ZodType>(images: ImageInput[], prompt: string, schema: S): Promise<z.infer<S>> {
+async function extractWithGemini<S extends z.ZodType>(model: string, images: ImageInput[], prompt: string, schema: S): Promise<z.infer<S>> {
   let res: Response;
   try {
-    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`, {
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": geminiKey() },
       signal: AbortSignal.timeout(110_000),

@@ -52,13 +52,14 @@ export async function POST(req: Request) {
         ? fakeOutput(employees.filter((e) => e.active).slice(0, 4).map((e) => e.name))
         : await extractWithAi(
             provider,
+            providerModel(provider, settings.aiModels),
             images,
             importPrompt({ weekStart, statusTypes, employees, imageCount: images.length }),
             schema,
           );
     const result: ImportResult = {
       provider,
-      model: providerModel(provider),
+      model: providerModel(provider, settings.aiModels),
       detectedWeekStart: isDateStr(out.week_monday) ? weekStartOf(out.week_monday) : null,
       rows: toImportRows(out, employees, statusTypes),
       notes: out.notes.trim() || null,

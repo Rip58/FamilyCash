@@ -300,6 +300,29 @@ export async function saveAiProvider(provider: z.input<typeof aiProviderSchema>)
   return done();
 }
 
+const aiModelSchema = z.object({
+  provider: aiProviderSchema,
+  // Nombre del modelo tal y como lo da la IA (p. ej. "gemini-2.5-pro"); null = el de por defecto.
+  model: z
+    .string()
+    .trim()
+    .max(100)
+    .regex(/^[\w.\-:/@]+$/, "Nombre de modelo no válido.")
+    .nullable(),
+});
+
+export async function saveAiModel(input: z.input<typeof aiModelSchema>): Promise<ActionResult> {
+  const p = aiModelSchema.safeParse(input);
+  if (!p.success) return fail(zodError(p.error));
+  const row = await db.settings.findUnique({ where: { id: 1 }, select: { aiModels: true } });
+  const current = row?.aiModels && typeof row.aiModels === "object" && !Array.isArray(row.aiModels) ? { ...row.aiModels } : {};
+  const next: Record<string, string> = {};
+  for (const [k, v] of Object.entries(current)) if (typeof v === "string" && k !== p.data.provider) next[k] = v;
+  if (p.data.model) next[p.data.provider] = p.data.model;
+  await db.settings.upsert({ where: { id: 1 }, update: { aiModels: next }, create: { id: 1, aiModels: next } });
+  return done();
+}
+
 // ----------------------------------------------------------------- Seguridad
 
 const passwordSchema = z

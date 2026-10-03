@@ -28,7 +28,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
       key={week}
       weekStart={week}
       daysOffPerWeek={settings.daysOffPerWeek}
-      provider={{ id: provider, label: aiProviderLabel(provider), model: providerModel(provider), configured: providerConfigured(provider) }}
+      provider={{ id: provider, label: aiProviderLabel(provider), model: providerModel(provider, settings.aiModels), configured: providerConfigured(provider) }}
       employees={employees.map((e, i) => ({
         id: e.id,
         name: e.name,

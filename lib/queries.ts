@@ -25,6 +25,8 @@ export interface SettingsData {
   dayRolloverHour: number;
   daysOffPerWeek: number;
   aiProvider: string;
+  /** Modelo elegido para cada IA (sin clave = el de por defecto). */
+  aiModels: Partial<Record<string, string>>;
 }
 
 /**
@@ -34,7 +36,7 @@ export interface SettingsData {
  */
 export const REF_TAG = "ref";
 /** Súbelo si una migración cambia estos datos, para no servir la caché anterior tras el despliegue. */
-const REF_CACHE_VERSION = "ref-v4";
+const REF_CACHE_VERSION = "ref-v5";
 const refCache = <T>(fn: () => Promise<T>, key: string) =>
   unstable_cache(fn, [REF_CACHE_VERSION, key], { tags: [REF_TAG], revalidate: 300 });
 
@@ -42,9 +44,13 @@ const refCache = <T>(fn: () => Promise<T>, key: string) =>
 export const getSettings = refCache(async (): Promise<SettingsData> => {
   // Lectura primero: evita una escritura (upsert) en cada carga de página.
   const s = (await db.settings.findUnique({ where: { id: 1 } })) ?? (await db.settings.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } }));
-  const { passwordHash: _omit, ...rest } = s;
+  const { passwordHash: _omit, aiModels, ...rest } = s;
   void _omit;
-  return rest;
+  const models: Partial<Record<string, string>> = {};
+  if (aiModels && typeof aiModels === "object" && !Array.isArray(aiModels)) {
+    for (const [k, v] of Object.entries(aiModels)) if (typeof v === "string" && v) models[k] = v;
+  }
+  return { ...rest, aiModels: models };
 }, "settings");
 
 export const getStatusTypes = refCache(
