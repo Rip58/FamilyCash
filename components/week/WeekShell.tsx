@@ -152,9 +152,16 @@ export function WeekShell({
         <Link href={prevHref} aria-label="Semana anterior" className={navBtn}>
           ‹
         </Link>
-        <h1 className="min-w-0 flex-1 text-center text-[17px] font-semibold tracking-tight" aria-live="polite">
-          Semana {isoWeekNumber(weekStart)} <span className="text-muted">·</span> {formatWeekRange(weekStart)}
-        </h1>
+        <div className="flex min-w-0 flex-1 flex-col items-center">
+          <h1 className="truncate text-center text-[17px] font-semibold tracking-tight" aria-live="polite">
+            Semana {isoWeekNumber(weekStart)} <span className="text-muted">·</span> {formatWeekRange(weekStart)}
+          </h1>
+          {!isCurrentWeek && (
+            <Link href={weekHref(null, view)} className="text-[12px] font-medium text-accent">
+              Volver a esta semana
+            </Link>
+          )}
+        </div>
         <Link href={nextHref} aria-label="Semana siguiente" className={navBtn}>
           ›
         </Link>
@@ -172,11 +179,13 @@ export function WeekShell({
             { value: "personas", label: "Personas" },
           ]}
         />
-        {!isCurrentWeek && (
-          <Link href={weekHref(null, view)} className="flex h-11 shrink-0 items-center px-0.5">
-            <span className="flex h-8 items-center rounded-full bg-accent px-3 text-[13px] font-semibold text-accent-fg">Hoy</span>
-          </Link>
-        )}
+        <Link
+          href={`/semana/importar?semana=${weekStart}`}
+          aria-label="Cargar la semana desde una imagen (IA)"
+          className={iconBtn}
+        >
+          <Icon name="sparkles" className="h-5 w-5" />
+        </Link>
         {view === "personas" && (
           <button
             type="button"
