@@ -16,10 +16,14 @@ export function NoPageZoom() {
     document.addEventListener("gesturestart", block, opts);
     document.addEventListener("gesturechange", block, opts);
     document.addEventListener("touchmove", pinch, opts);
+    // Safari en iOS solo aplica :active (la respuesta al pulsar) si la página escucha touchstart.
+    const noop = () => {};
+    document.addEventListener("touchstart", noop, { passive: true });
     return () => {
       document.removeEventListener("gesturestart", block);
       document.removeEventListener("gesturechange", block);
       document.removeEventListener("touchmove", pinch);
+      document.removeEventListener("touchstart", noop);
     };
   }, []);
   return null;

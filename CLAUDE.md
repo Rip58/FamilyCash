@@ -86,3 +86,11 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 - Hoy: barra superior en una línea (contadores por estado con `statusAbbr`, ✓ validados, botones nota / agrupar / cierre), filas de 44px (zona táctil 44px, círculo visual 32px), cabeceras pastel (`GroupCard`). Vista sin departamentos en orden del Excel (`rotaOrder`, localStorage `hoy:sinDepartamentos`).
 - `Segmented` acepta `compact` (44px en total).
 - Sin zoom de página: viewport `maximumScale: 1` + `userScalable: false` (evita el zoom de iOS al tocar campos < 16px), `touch-action: manipulation` en html/body y `components/pwa/NoPageZoom.tsx` (bloquea el pellizco, que Safari permite igualmente). El zoom de fotos lo hace `PhotoViewer` por su cuenta.
+
+## Notas técnicas (animaciones)
+- Skills de Emil Kowalski (MIT) instaladas en `.claude/skills/` (animate, improve-animations, review-animations, find-animation-opportunities, animation-vocabulary, emil-design-eng): úsalas para cualquier animación nueva. No se instaló `animate-expo` (es para React Native; esto es una PWA web).
+- Curvas en `globals.css` (`@theme`): `ease-out` = cubic-bezier(0.23, 1, 0.32, 1) (sustituye a la de serie), `ease-in-out` = (0.77, 0, 0.175, 1), `ease-drawer` = (0.32, 0.72, 0, 1). Nada de `ease-in`, ni `transition-all`, ni `scale(0)`; solo `transform`/`opacity`; UI < 300 ms.
+- `press` (utilidad CSS): encoge a 0,96 al pulsar (160 ms) — en ✓/✗ de Hoy, botones de icono, casillas de Semana y `PrimaryButton`. iOS necesita un `touchstart` en la página para `:active` (lo pone `NoPageZoom`).
+- Hojas (`BottomSheet`): 300 ms con `ease-drawer`, entran y salen por abajo; el desmontaje espera 300 ms. Avisos (`toast`): `.toast-pop` con `@starting-style` y `data-leaving` (transiciones, interrumpibles).
+- Sin animación a propósito: cambio de pestaña y navegación (se usan cientos de veces). `prefers-reduced-motion` reduce todo a casi 0 (regla global).
+

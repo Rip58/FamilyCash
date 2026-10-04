@@ -26,8 +26,9 @@ interface EmployeeRowProps {
 }
 
 /** Zona táctil de 44px con un círculo visual más pequeño (filas compactas, como en Semana). */
-const hit = "flex h-11 w-10 shrink-0 items-center justify-center active:opacity-60 [touch-action:manipulation]";
-const dot = "flex h-8 w-8 items-center justify-center rounded-full text-[15px] font-bold";
+const hit = "press flex h-11 w-10 shrink-0 items-center justify-center [touch-action:manipulation]";
+const dot =
+  "flex h-8 w-8 items-center justify-center rounded-full text-[15px] font-bold transition-colors duration-150 ease-out";
 
 export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, onMove, showStatus, hasReports, attendance, groupId = null, absence }: EmployeeRowProps) {
   const { employee, day } = member;

@@ -54,7 +54,7 @@ function CellButton({
       type="button"
       aria-label={label}
       onClick={onTap}
-      className="relative flex h-11 w-[34px] select-none items-center justify-center [touch-action:manipulation]"
+      className="press relative flex h-11 w-[34px] select-none items-center justify-center [touch-action:manipulation]"
     >
       <span
         className={cn(

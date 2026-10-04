@@ -60,7 +60,7 @@ const subscribeNever = () => () => {};
 // Lista sin departamentos (orden del Excel): se recuerda en este móvil.
 const FLAT_KEY = "hoy:sinDepartamentos";
 const iconBtn =
-  "flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-surface text-accent active:opacity-70 [touch-action:manipulation]";
+  "press flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-surface text-accent [touch-action:manipulation]";
 const currentMadridHour = () => madridParts(new Date()).hour;
 
 interface OptimisticAction {

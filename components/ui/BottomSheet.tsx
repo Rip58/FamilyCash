@@ -43,7 +43,7 @@ export function BottomSheet({ open, onClose, title, children, draggable = true, 
     const t = setTimeout(() => {
       setEntered(false);
       setMounted(false);
-    }, 200);
+    }, 300); // = duración de la salida (duration-300)
     return () => clearTimeout(t);
   }, [open]);
 
@@ -111,7 +111,7 @@ export function BottomSheet({ open, onClose, title, children, draggable = true, 
         aria-hidden="true"
         data-testid="sheet-backdrop"
         onClick={onClose}
-        className={cn("absolute inset-0 transition-opacity duration-200", visible ? "opacity-100" : "opacity-0")}
+        className={cn("absolute inset-0 transition-opacity duration-300 ease-drawer", visible ? "opacity-100" : "opacity-0")}
         style={{ backgroundColor: "var(--backdrop)" }}
       />
       <div
@@ -122,7 +122,7 @@ export function BottomSheet({ open, onClose, title, children, draggable = true, 
         tabIndex={-1}
         className={cn(
           "absolute inset-x-0 bottom-0 mx-auto flex max-h-[92dvh] w-full max-w-xl flex-col rounded-t-[20px] bg-surface outline-none",
-          !dragging && "transition-transform duration-200",
+          !dragging && "transition-transform duration-300 ease-drawer",
           className,
         )}
         style={{ transform: visible ? `translateY(${dragY}px)` : "translateY(100%)" }}

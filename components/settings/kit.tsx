@@ -94,7 +94,7 @@ export function PrimaryButton({ className, ...rest }: React.ButtonHTMLAttributes
     <button
       type="button"
       className={cn(
-        "min-h-11 rounded-control bg-accent px-4 text-[16px] font-semibold text-accent-fg disabled:opacity-40",
+        "press min-h-11 rounded-control bg-accent px-4 text-[16px] font-semibold text-accent-fg disabled:opacity-40",
         className,
       )}
       {...rest}
@@ -207,8 +207,8 @@ export function Toggle({
       >
         <span
           className={cn(
-            "absolute top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow transition-all duration-150",
-            checked ? "left-[22px]" : "left-[2px]",
+            "absolute left-[2px] top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow transition-transform duration-200 ease-out",
+            checked && "translate-x-[20px]",
           )}
         />
       </button>

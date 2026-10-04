@@ -17,15 +17,25 @@ export function notify(text: string, kind: "ok" | "error" = "ok") {
 /** Aviso discreto en la parte inferior (encima de la barra de pestañas). */
 export function Toaster() {
   const [toast, setToast] = useState<ToastMsg | null>(null);
+  const [leaving, setLeaving] = useState(false);
   useEffect(() => {
-    const l = (t: ToastMsg) => setToast(t);
+    const l = (t: ToastMsg) => {
+      setLeaving(false);
+      setToast(t);
+    };
     listeners.add(l);
     return () => void listeners.delete(l);
   }, []);
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), toast.kind === "error" ? 4000 : 1400);
-    return () => clearTimeout(t);
+    const shown = toast.kind === "error" ? 4000 : 1400;
+    // Sale con su transición (150 ms) y luego se desmonta.
+    const out = setTimeout(() => setLeaving(true), shown);
+    const gone = setTimeout(() => setToast(null), shown + 160);
+    return () => {
+      clearTimeout(out);
+      clearTimeout(gone);
+    };
   }, [toast]);
   if (!toast) return null;
   return (
@@ -36,8 +46,10 @@ export function Toaster() {
       style={{ bottom: "calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 12px)" }}
     >
       <div
+        key={toast.id}
+        data-leaving={leaving ? "" : undefined}
         className={cn(
-          "rounded-full px-4 py-2 text-[14px] font-medium text-white shadow-lg",
+          "toast-pop rounded-full px-4 py-2 text-[14px] font-medium text-white shadow-lg",
           toast.kind === "ok" ? "bg-[#1c1c1e]/90" : "bg-danger",
         )}
       >

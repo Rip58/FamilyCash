@@ -142,7 +142,7 @@ export function WeekShell({
   };
 
   const iconBtn =
-    "flex h-11 w-10 shrink-0 items-center justify-center rounded-full text-accent active:bg-surface-2 [touch-action:manipulation]";
+    "press flex h-11 w-10 shrink-0 items-center justify-center rounded-full text-accent active:bg-surface-2 [touch-action:manipulation]";
   const navBtn =
     "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[26px] leading-none text-accent active:bg-surface-2";
 
