@@ -296,3 +296,25 @@ describe("propuesta de la empresa (Sergi Ben Amor): 40 h y 48 h", () => {
     expect(r.grossCents).toBe(186007 + 23820 + line("overtime"));
   });
 });
+
+describe("tabla oficial de la propuesta: cada periodo cuadra al céntimo", () => {
+  const cfg = { ...DEFAULT_PAYROLL, baseMonthlyCents: 156867, nightPlusPercent: 18.5762, ssPercent: 6.5, irpfPercent: 0 };
+  // [inicio, plus resp., brut 40 h, net 40 h, brut 48 h, net 48 h]
+  const rows: [string, number, number, number, number, number][] = [
+    ["2026-09-21", 0, 186007, 173917, 233647, 218460],
+    ["2026-12-01", 50000, 236007, 220667, 283647, 265210],
+    ["2027-04-01", 95000, 281007, 262742, 328647, 307285],
+    ["2027-10-01", 129361, 315368, 294869, 363008, 339412],
+  ];
+  const stats = (w48: number): MonthStats => ({
+    daysInMonth: 30, daysWorked: 22, daysOff: 8, vacationDays: 0, sickDays: 0, absentDays: 0,
+    holidaysWorked: 0, offDaysWorked: w48, extraMinutes: 0, weeks: 4, weeks48: w48,
+  });
+  it.each(rows)("periodo desde %s", (from, resp, b40, n40, b48, n48) => {
+    const c = { ...cfg, respPlusCents: resp, gross48Cents: b48 };
+    const r40 = calculatePay(c, stats(0), "NIGHT");
+    const r48 = calculatePay(c, stats(4), "NIGHT");
+    expect([r40.grossCents, r40.netCents, r48.grossCents, r48.netCents]).toEqual([b40, n40, b48, n48]);
+    void from;
+  });
+});
