@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addMonths, isMonthStr, monthDays, monthOf, payMonthOf, payPeriodDays } from "@/lib/dates";
 import {
-  DEFAULT_PAYROLL, type MonthStats, calculatePay, configForMonth, mergeStats, monthStatsFromSchedule, parseEuros, payForecast,
+  CONTRACT_DAYS_OFF, DEFAULT_PAYROLL, type MonthStats, calculatePay, configForMonth, mergeStats, monthStatsFromSchedule, parseEuros, payForecast,
   andorraIrpfAnnualCents, offDayOvertimeMinutes, overtimeRateCents, periodForMonth,
 } from "@/lib/payroll";
 import type { DayEntryLite, EmployeeLite, StatusTypeLite } from "@/lib/schedule";
@@ -316,5 +316,22 @@ describe("tabla oficial de la propuesta: cada periodo cuadra al céntimo", () =>
     const r48 = calculatePay(c, stats(4), "NIGHT");
     expect([r40.grossCents, r40.netCents, r48.grossCents, r48.netCents]).toEqual([b40, n40, b48, n48]);
     void from;
+  });
+});
+
+describe("octubre a 48 h (1 fiesta por semana) como en la app", () => {
+  it("2.336,47 + 1 h de cierre = 2.350,21 bruto · 2.197,45 neto, aunque la plantilla tenga 1 día libre/semana", () => {
+    const noFixed = { ...me, fixedDaysOff: [] };
+    // Una fiesta por semana (sábados) del 28 sep al 27 oct + 1 h de cierre el 1 oct.
+    const entries = ["2026-10-03", "2026-10-10", "2026-10-17", "2026-10-24"].map((d) => entry(d, "OFF"));
+    entries.push(entry("2026-10-01", "WORK", { extraMinutes: 60 }));
+    const f = payForecast("2026-10", noFixed, entries, statusTypes, CONTRACT_DAYS_OFF, "2026-10-04", 27);
+    expect(f.weeks.map((w) => w.nights)).toEqual([6, 6, 6, 6]);
+    const cfg = {
+      ...DEFAULT_PAYROLL, baseMonthlyCents: 156867, nightPlusPercent: 18.5762, ssPercent: 6.5, irpfPercent: 0, gross48Cents: 233647,
+    };
+    const r = calculatePay(cfg, f.stats, "NIGHT");
+    expect(r.earnings.find((l) => l.key === "week48")?.cents).toBe(47640);
+    expect([r.grossCents, r.netCents]).toEqual([235021, 219745]);
   });
 });

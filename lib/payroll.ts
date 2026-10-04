@@ -355,6 +355,13 @@ const pct = (n: number) => `${String(n).replace(".", ",")} %`;
 /** Horas ordinarias al mes con 40 h/semana (art. 76.2 LRL: mensual × 12 / 52 / 40). */
 export const MONTHLY_HOURS = (40 * 52) / 12;
 export const SHIFT_HOURS = 8;
+/**
+ * Tu contrato: 40 h = 5 noches por semana (2 libres). Es fijo para la nómina y NO depende de
+ * Ajustes → Turno → "días libres por semana" (eso es para avisos de la plantilla): si allí pone 1,
+ * las semanas de 6 noches siguen siendo semanas a 48 h con su plus.
+ */
+export const CONTRACT_NIGHTS = 5;
+export const CONTRACT_DAYS_OFF = 7 - CONTRACT_NIGHTS;
 
 /** Nocturnidad por hora (céntimos). */
 export function nightPlusPerHourCents(cfg: PayrollConfig): number {

@@ -10,7 +10,7 @@ import { cn } from "@/components/ui/cn";
 import { type MonthStr, formatMonth } from "@/lib/dates";
 import {
   type MonthStats, type PayForecast, type PayrollConfig, type PayrollPeriod, type ShiftKind, calculatePay, configForMonth, formatDateEs, formatEuros,
-  MONTHLY_HOURS, andorraIrpfAnnualCents, formatHours, mergeStats, offDayOvertimeMinutes, nightPlusPerHourCents, overtimeRateCents, parseEuros,
+  CONTRACT_NIGHTS, MONTHLY_HOURS, andorraIrpfAnnualCents, formatHours, mergeStats, offDayOvertimeMinutes, nightPlusPerHourCents, overtimeRateCents, parseEuros,
   periodForMonth,
 } from "@/lib/payroll";
 import type { PayrollMonth } from "@/lib/payroll-queries";
@@ -506,11 +506,9 @@ export function PayrollView({
   employeeName,
   initialView,
   forecast,
-  daysOffPerWeek,
 }: {
   /** Mes en curso en tiempo real (null si no has elegido quién eres). */
   forecast: PayForecast | null;
-  daysOffPerWeek: number;
   /** Más reciente primero; incluye meses futuros para la calculadora. */
   months: PayrollMonth[];
   current: MonthStr;
@@ -542,7 +540,7 @@ export function PayrollView({
         <LiveMonth
           month={current}
           forecast={forecast}
-          workingNights={7 - daysOffPerWeek}
+          workingNights={CONTRACT_NIGHTS}
           overrides={months.find((m) => m.month === current)?.overrides ?? {}}
           config={config}
           periods={periods}

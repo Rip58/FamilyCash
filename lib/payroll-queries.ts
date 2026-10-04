@@ -3,7 +3,7 @@ import { type MonthStr, addDays, fromDbDate, madridToday, addMonths, payMonthOf,
 import { db } from "./db";
 import {
   DEFAULT_PAYROLL, type MonthOverrides, type MonthStats, type NightPlusMode, type OvertimeMode, type PayrollConfig, type PayrollPeriod,
-  type PayForecast, mergeStats, monthStatsFromSchedule, payForecast,
+  CONTRACT_DAYS_OFF, type PayForecast, mergeStats, monthStatsFromSchedule, payForecast,
 } from "./payroll";
 import { getEmployees, getEntriesBetween, getSettings, getStatusTypes } from "./queries";
 
@@ -67,11 +67,11 @@ export async function loadPayrollMonths(
   const current = payMonthOf(today, cutoffDay);
   const forecast =
     me && current >= from && current <= to
-      ? payForecast(current, me, entries, statusTypes, settings.daysOffPerWeek, today, cutoffDay)
+      ? payForecast(current, me, entries, statusTypes, CONTRACT_DAYS_OFF, today, cutoffDay)
       : null;
   const list = months.map((month) => {
     const auto: MonthStats = me
-      ? monthStatsFromSchedule(month, me, entries, statusTypes, settings.daysOffPerWeek, today, cutoffDay)
+      ? monthStatsFromSchedule(month, me, entries, statusTypes, CONTRACT_DAYS_OFF, today, cutoffDay)
       : { daysInMonth: payPeriodDays(month, cutoffDay).length, daysWorked: 0, daysOff: 0, vacationDays: 0, sickDays: 0, absentDays: 0, holidaysWorked: 0, offDaysWorked: 0, extraMinutes: 0 };
     const s = byMonth.get(month);
     const overrides: MonthOverrides = s
