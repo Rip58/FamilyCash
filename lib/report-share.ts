@@ -22,12 +22,19 @@ export interface ShareMissing {
   color: string;
 }
 
+/** Ausencias previstas en el planning (vacaciones, baja…): normales, no son faltas. */
+export interface ShareAway {
+  label: string;
+  members: { name: string; reason: string | null }[];
+}
+
 export interface ShareModel {
   title: string;
   shift: string;
-  counts: { working: number; off: number; missing: number };
+  counts: { working: number; off: number; away: number; missing: number };
   working: ShareDepartment[];
   off: string[];
+  away: ShareAway[];
   missing: ShareMissing[];
   emptyDepartments: string[];
   times: string[];
@@ -78,10 +85,17 @@ export function buildShareModel(report: DayReport): ShareModel {
     working.push({ name: "Sin departamento", color: "#8e8e93", members: report.unassigned.map(member) });
   }
 
-  const off = report.absences.filter((g) => g.dayOff).flatMap((g) => g.members.map((m) => m.name));
-  const missing: ShareMissing[] = report.absences
+  // Faltan = les tocaba trabajar y no han venido. Fiesta y ausencias previstas (vacaciones, baja) son normales.
+  const off = report.absences
+    .filter((g) => g.dayOff)
+    .flatMap((g) => g.members.filter((m) => !m.noShow).map((m) => m.name));
+  const away: ShareAway[] = report.absences
     .filter((g) => !g.dayOff)
-    .flatMap((g) => g.members.map((m) => ({ name: m.name, label: g.label, reason: m.reason, color: g.color })));
+    .map((g) => ({ label: g.label, members: g.members.filter((m) => !m.noShow).map(({ name, reason }) => ({ name, reason })) }))
+    .filter((g) => g.members.length > 0);
+  const missing: ShareMissing[] = report.absences.flatMap((g) =>
+    g.members.filter((m) => m.noShow).map((m) => ({ name: m.name, label: g.label, reason: m.reason, color: g.color })),
+  );
 
   const times = [
     ...report.lateArrivals.map(
@@ -112,9 +126,15 @@ export function buildShareModel(report: DayReport): ShareModel {
   return {
     title: report.title,
     shift: `${report.shift.start}–${report.shift.end}`,
-    counts: { working: report.presentCount, off: off.length, missing: missing.length },
+    counts: {
+      working: report.presentCount,
+      off: off.length,
+      away: away.reduce((n, g) => n + g.members.length, 0),
+      missing: missing.length,
+    },
     working,
     off,
+    away,
     missing,
     emptyDepartments: report.emptyDepartments,
     times,
@@ -132,13 +152,18 @@ export function buildShareModel(report: DayReport): ShareModel {
   };
 }
 
-/** Texto para WhatsApp/iMessage: emojis, *negritas* y viñetas. Orden: trabajan → fiesta → faltan (🔴). */
+/** Texto para WhatsApp/iMessage: emojis, *negritas* y viñetas. Orden: trabajan → fiesta → vacaciones/bajas → faltan (🔴). */
 export function shareModelToText(m: ShareModel): string {
   const L: string[] = [];
   L.push(`🌙 *Informe de noche*`);
   L.push(`📅 ${m.title} · 🕘 ${m.shift}`);
   L.push(
-    [`✅ ${m.counts.working} trabajan`, m.counts.off > 0 && `🏖️ ${m.counts.off} fiesta`, m.counts.missing > 0 && `🔴 ${m.counts.missing} faltan`]
+    [
+      `✅ ${m.counts.working} trabajan`,
+      m.counts.off > 0 && `🏖️ ${m.counts.off} fiesta`,
+      m.counts.away > 0 && `🌴 ${m.counts.away} vacaciones/baja`,
+      m.counts.missing > 0 && `🔴 ${m.counts.missing} faltan`,
+    ]
       .filter(Boolean)
       .join(" · "),
   );
@@ -156,9 +181,16 @@ export function shareModelToText(m: ShareModel): string {
     L.push(`   ${m.off.join(", ")}`);
   }
 
+  if (m.away.length > 0) {
+    L.push("", `🌴 *VACACIONES Y BAJAS (${m.counts.away})*`);
+    for (const g of m.away) {
+      L.push(`   • ${g.label}: ${g.members.map((p) => (p.reason ? `${p.name} (${p.reason})` : p.name)).join(", ")}`);
+    }
+  }
+
   if (m.missing.length > 0 || m.emptyDepartments.length > 0) {
     L.push("", m.missing.length > 0 ? `🔴 *FALTAN (${m.missing.length})*` : "⚠️ *DEPARTAMENTOS VACÍOS*");
-    for (const p of m.missing) L.push(`🔴 ${p.name} — ${p.label}${p.reason ? ` (${p.reason})` : ""}`);
+    for (const p of m.missing) L.push(`🔴 ${p.name} — no ha venido${p.reason ? ` (${p.reason})` : ""}`);
     for (const d of m.emptyDepartments) L.push(`⚠️ Sin personal en *${d}*`);
   }
 

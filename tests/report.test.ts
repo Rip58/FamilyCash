@@ -129,12 +129,12 @@ describe("buildDayReport", () => {
     expect(t).toContain("🌙 *Informe de noche*\n📅 Lunes 28 sep");
     expect(t).toContain("Beto se va 2 h 30 min antes (sale a las 04:00) — Médico");
     expect(t).toContain("Eva se queda 1 h más");
-    expect(t).toContain("🔴 Dani — Baja laboral (Gripe)");
+    expect(t).toContain("🌴 *VACACIONES Y BAJAS (1)*\n   • Baja laboral: Dani (Gripe)");
+    expect(t).not.toContain("FALTAN");
     expect(t).toContain("Ana llega tarde a las 22:15 (+45 min) — Tren");
     // Orden: trabajan → fiesta → faltan.
-    const [work, miss] = [t.indexOf("*TRABAJAN"), t.indexOf("*FALTAN")];
-    expect(work).toBeGreaterThan(0);
-    expect(miss).toBeGreaterThan(work);
+    expect(t.indexOf("*TRABAJAN")).toBeGreaterThan(0);
+    expect(t.indexOf("*VACACIONES")).toBeGreaterThan(t.indexOf("*TRABAJAN"));
     expect(t).toMatch(/\*Droguería\* \(\d+\)\n   • Ana · ⏰ 22:15/);
     expect(t).toContain("• Carla · de Botellería");
     expect(t).toContain("Noche tranquila");
@@ -206,19 +206,25 @@ describe("exportación visual", () => {
     expect(colorEmoji("#8e8e93")).toBe("⬛");
     expect(colorEmoji("nada")).toBe("⬜");
   });
-  it("fiesta aparte de las faltas", () => {
-    const r = report();
-    const m = buildShareModel({
-      ...r,
-      absences: [
-        { statusId: "off", label: "Fiesta", color: "#888888", dayOff: true, members: [{ name: "Fran", reason: null }] },
-        ...r.absences,
-      ],
-    });
+  it("faltan = les tocaba trabajar y no han venido; fiesta, vacaciones y bajas aparte", () => {
+    const employees = [emp("Jorge"), emp("Mike"), emp("Fran"), emp("Dani"), emp("Ana")];
+    const entries = [
+      entry("Jorge", MON, WORK, { actualStatusTypeId: SICK.id }),
+      entry("Mike", MON, WORK, { actualStatusTypeId: OFF.id, reason: "No avisa" }),
+      entry("Fran", MON, OFF),
+      entry("Dani", MON, SICK, { reason: "Gripe" }),
+      entry("Ana", MON, WORK),
+    ];
+    const roster = getDayRoster({ date: MON, employees, entries, departments, statusTypes });
+    const m = buildShareModel(buildDayReport({ roster, dayNote: null, shift: DEFAULT_SHIFT, sections: [], departments }));
     expect(m.off).toEqual(["Fran"]);
-    expect(m.missing.map((x) => x.name)).toEqual(["Dani"]);
+    expect(m.away).toEqual([{ label: "Baja laboral", members: [{ name: "Dani", reason: "Gripe" }] }]);
+    expect(m.missing.map((x) => x.name).sort()).toEqual(["Jorge", "Mike"]);
+    expect(m.counts).toEqual({ working: 1, off: 1, away: 1, missing: 2 });
     const t = shareModelToText(m);
-    expect(t.indexOf("🏖️ *FIESTA (1)*")).toBeLessThan(t.indexOf("🔴 *FALTAN (1)*"));
-    expect(t).toContain("🏖️ 1 fiesta · 🔴 1 faltan");
+    expect(t).toContain("🔴 Mike — no ha venido (No avisa)");
+    const order = ["*TRABAJAN", "*FIESTA", "*VACACIONES Y BAJAS", "*FALTAN (2)*"].map((k) => t.indexOf(k));
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(order[0]).toBeGreaterThan(0);
   });
 });

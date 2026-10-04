@@ -1,4 +1,4 @@
-// Imagen PNG del informe (canvas, solo cliente). Mismo contenido y orden que el texto: trabajan → fiesta → faltan (en rojo).
+// Imagen PNG del informe (canvas, solo cliente). Mismo contenido y orden que el texto: trabajan → fiesta → vacaciones/bajas → faltan (en rojo).
 import type { ShareModel } from "./report-share";
 
 const W = 1080;
@@ -16,6 +16,8 @@ const C = {
   blueBg: "#e5f1ff",
   red: "#d70015",
   redBg: "#ffe5e7",
+  purple: "#8944ab",
+  purpleBg: "#f4e8fa",
   amber: "#b25000",
   amberBg: "#fff1dc",
 };
@@ -153,17 +155,18 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
   const chips: [string, string, string][] = [
     [`${m.counts.working} trabajan`, C.green, C.greenBg],
     [`${m.counts.off} fiesta`, C.blue, C.blueBg],
+    [`${m.counts.away} vac./baja`, C.purple, C.purpleBg],
     [`${m.counts.missing} faltan`, C.red, C.redBg],
   ];
   const gap = 16;
-  const cw = (inner - gap * 2) / 3;
+  const cw = (inner - gap * (chips.length - 1)) / chips.length;
   chips.forEach(([label, color, bg], i) => {
     const x = PAD + i * (cw + gap);
     if (draw) {
       ctx.fillStyle = bg;
       roundRect(ctx, x, y, cw, 88, 22);
       ctx.fill();
-      font(ctx, 32, 700);
+      font(ctx, 28, 700);
       ctx.fillStyle = color;
       const tw = ctx.measureText(label).width;
       ctx.fillText(label, x + (cw - tw) / 2, y + 56);
@@ -212,9 +215,17 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
     });
   }
 
+  if (m.away.length > 0) {
+    card(`Vacaciones y bajas (${m.counts.away})`, C.purple, C.purpleBg, () => {
+      for (const g of m.away) {
+        bullet(`${g.label}: ${g.members.map((p) => (p.reason ? `${p.name} (${p.reason})` : p.name)).join(", ")}`, C.fg, C.purple);
+      }
+    });
+  }
+
   if (m.missing.length > 0 || m.emptyDepartments.length > 0) {
     card(m.missing.length > 0 ? `Faltan (${m.missing.length})` : "Departamentos vacíos", C.red, C.redBg, () => {
-      for (const p of m.missing) bullet(`${p.name} — ${p.label}${p.reason ? ` (${p.reason})` : ""}`, C.red, C.red);
+      for (const p of m.missing) bullet(`${p.name} — no ha venido${p.reason ? ` (${p.reason})` : ""}`, C.red, C.red);
       for (const d of m.emptyDepartments) bullet(`Sin personal en ${d}`, C.red, C.red);
     });
   }
