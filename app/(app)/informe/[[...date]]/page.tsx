@@ -4,6 +4,7 @@ import { DayReportView } from "@/components/report/DayReportView";
 import { ReportAdd } from "@/components/report/ReportAdd";
 import { ReportTabs } from "@/components/report/ReportTabs";
 import { ShareButton } from "@/components/report/ShareButton";
+import { buildShareModel } from "@/lib/report-share";
 import { WeekSummaryView } from "@/components/report/WeekSummaryView";
 import { WeekTasks } from "@/components/report/WeekTasks";
 import {
@@ -100,7 +101,9 @@ export default async function Page({
         <DayReportView report={report} />
       </>
     );
-    if (!report.isEmpty) share = <ShareButton text={reportToText(report)} title={`Informe de noche · ${report.title}`} />;
+    if (!report.isEmpty) share = (
+        <ShareButton text={reportToText(report)} model={buildShareModel(report)} fileName={`informe-noche-${date}.png`} />
+      );
   } else {
     const days = weekDays(date);
     const [entries, nightNotes, dayNotes, olderTasks] = await Promise.all([

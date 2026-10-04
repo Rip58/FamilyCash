@@ -96,3 +96,7 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 - Hojas: se cierran por distancia (100 px) o por velocidad (> 0,11 px/ms) y hacia arriba tienen resistencia (`lib/gesture.ts`, test `tests/gesture.test.ts`). ✓ de Hoy: `.pop-in` (@starting-style, 150 ms) solo al validar en el momento (estado `justValidated` en `EmployeeRow`), no al cargar. Casillas de Semana: transición de color/borde 150 ms, sin movimiento.
 - Sin animación a propósito: cambio de pestaña y navegación (se usan cientos de veces). `prefers-reduced-motion` reduce todo a casi 0 (regla global).
 
+
+## Notas técnicas (compartir informe)
+- Informe → Compartir abre una hoja: "Compartir imagen" (PNG en canvas, `lib/report-image.ts`, faltas en rojo), "Compartir texto" y "Copiar texto". La imagen se genera al ABRIR la hoja: iOS pierde el permiso de `navigator.share` si hay un `await` largo tras el toque. No pasar `title` a `share` (iMessage lo duplica).
+- Contenido común en `lib/report-share.ts` (sin zod): `buildShareModel` (orden: trabajan por departamento → fiesta (`AbsenceGroup.dayOff`, OFF/PAID_OFF) → faltan + departamentos vacíos → horarios → horas extra → notas → avisos) y `shareModelToText` (emojis + *negritas*; `colorEmoji` = cuadrado del color del departamento). `reportToText` lo usa.

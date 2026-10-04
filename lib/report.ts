@@ -7,9 +7,10 @@
  * con turno 21:30–06:30, "00:30" = 180 y "06:30" = 540.
  */
 import { type DateStr, formatDayLong, formatWeekRange, isoWeekNumber, weekDays } from "./dates";
-import { totalOvertime, formatOvertime } from "./overtime";
-import { type ReportView, reportsToTextLines } from "./report-format";
-import type { DayRoster, RosterMember, StatusTypeLite, WeekGrid } from "./schedule";
+import { totalOvertime } from "./overtime";
+import { type ReportView } from "./report-format";
+import { buildShareModel, shareModelToText } from "./report-share";
+import { type DayRoster, type RosterMember, type StatusTypeLite, type WeekGrid, isDayOffStatus } from "./schedule";
 
 export interface ShiftConfig {
   shiftStart: string;
@@ -122,6 +123,8 @@ export interface AbsenceGroup {
   statusId: string;
   label: string;
   color: string;
+  /** Fiesta (OFF / PAID_OFF): no es una falta. */
+  dayOff: boolean;
   members: { name: string; reason: string | null }[];
 }
 
@@ -293,6 +296,7 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
     statusId: g.status.id,
     label: g.status.label,
     color: g.status.color,
+    dayOff: isDayOffStatus(g.status),
     members: g.members.map((m) => ({ name: m.employee.name, reason: m.day.reason })),
   }));
   const absentCount = absences.reduce((n, g) => n + g.members.length, 0);
@@ -451,53 +455,7 @@ export function buildWeekSummary(input: BuildWeekSummaryInput): WeekSummary {
 
 // ---- Texto para compartir (WhatsApp) -------------------------------------
 
-/** Texto plano con *negritas* estilo WhatsApp. */
+/** Texto con emojis y *negritas* estilo WhatsApp (ver `lib/report-share.ts`). */
 export function reportToText(report: DayReport): string {
-  const L: string[] = [];
-  L.push(`*Informe de noche · ${report.title}*`);
-  L.push(`Turno ${report.shift.start}–${report.shift.end} · ${report.presentCount} trabajan`);
-
-  const mark = (n: NightNoteView) => (n.isTask ? (n.done ? "✅ " : "☐ Tarea: ") : "");
-  const general = [
-    ...(report.note ? [report.note] : []),
-    ...report.nightNotes.filter((n) => !n.name && !n.department).map((n) => `${mark(n)}${n.text}`),
-  ];
-  const personal = [
-    ...report.employeeNotes.map((n) => ({ name: n.name, text: n.note })),
-    ...report.nightNotes.filter((n) => n.name || n.department).map((n) => ({ name: noteWho(n), text: `${mark(n)}${n.text}` })),
-  ];
-  if (general.length > 0 || personal.length > 0) {
-    L.push("", "*Notas de la noche*");
-    for (const t of general) L.push(`• ${t}`);
-    for (const n of personal) L.push(`• ${n.name}: ${n.text}`);
-  }
-
-  if (report.hasIncidents) {
-    L.push("", "*Incidencias*");
-    for (const name of report.emptyDepartments) L.push(`• Sin personal en ${name}`);
-    for (const l of report.lateArrivals) {
-      L.push(`• ${l.name}: llega tarde a las ${l.arrivedAt} (+${formatDuration(l.minutes)})${l.reason ? ` — ${l.reason}` : ""}`);
-    }
-    for (const d of report.leaveDeviations) {
-      const what = d.kind === "stayed" ? `se queda ${formatDuration(d.minutes)} más` : `se va ${formatDuration(d.minutes)} antes`;
-      L.push(`• ${d.name}: ${what} (sale a las ${d.leftAt})${d.reason ? ` — ${d.reason}` : ""}`);
-    }
-    for (const g of report.absences) {
-      L.push(`• *${g.label}*: ${g.members.map((m) => (m.reason ? `${m.name} (${m.reason})` : m.name)).join(", ")}`);
-    }
-  } else if (!report.isEmpty) {
-    L.push("", "Sin incidencias.");
-  }
-
-  if (report.overtime.items.length > 0) {
-    L.push("", `*Horas extra* (total ${formatOvertime(report.overtime.totalMinutes)})`);
-    for (const o of report.overtime.items) {
-      L.push(`• ${o.name}: ${o.minutes > 0 ? formatOvertime(o.minutes, true) : "sin tiempo"}${o.note ? ` — ${o.note}` : ""}`);
-    }
-  }
-
-  L.push(...reportsToTextLines(report.reports));
-
-  return L.join("\n");
+  return shareModelToText(buildShareModel(report));
 }
-

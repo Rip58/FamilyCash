@@ -1,3 +1,4 @@
+import { buildShareModel, colorEmoji, shareModelToText } from "@/lib/report-share";
 import { describe, expect, it } from "vitest";
 import {
   type DayEntryLite, type DepartmentLite, type EmployeeLite, type StatusTypeLite,
@@ -90,7 +91,7 @@ describe("buildDayReport", () => {
       { id: "n1", employeeId: null, name: null, text: "Han llegado todos a la hora" },
       { id: "n2", employeeId: "x", name: "Ana", text: "Muy bien con el inventario" },
     ] };
-    expect(reportToText(withNotes)).toContain("*Notas de la noche*\n• Han llegado todos a la hora\n• Ana: Muy bien con el inventario");
+    expect(reportToText(withNotes)).toContain("📝 *NOTAS DE LA NOCHE*\n   • Han llegado todos a la hora\n   • Ana: Muy bien con el inventario");
   });
   it("tareas y departamento en las notas", () => {
     expect(noteWho({ name: "Ana", department: "Droguería" })).toBe("Ana · Droguería");
@@ -100,12 +101,12 @@ describe("buildDayReport", () => {
       { id: "t1", employeeId: "x", name: "Ana", department: null, isTask: true, done: false, text: "Apuntar horas extra en el Excel" },
       { id: "t2", employeeId: null, name: null, department: "Droguería", isTask: true, done: true, text: "Pedir cajas" },
     ] });
-    expect(t).toContain("• Ana: ☐ Tarea: Apuntar horas extra en el Excel");
+    expect(t).toContain("• Ana: ☐ Apuntar horas extra en el Excel");
     expect(t).toContain("• Droguería: ✅ Pedir cajas");
   });
   it("notas de empleados", () => {
     expect(r.employeeNotes).toEqual([{ employeeId: expect.any(String), name: "Beto", note: "Rápido" }]);
-    expect(reportToText(r)).toContain("*Notas de la noche*\n• Noche tranquila\n• Beto: Rápido");
+    expect(reportToText(r)).toContain("📝 *NOTAS DE LA NOCHE*\n   • Noche tranquila\n   • Beto: Rápido");
   });
   it("incidencias", () => {
     expect(r.lateArrivals).toEqual([{ name: "Ana", arrivedAt: "22:15", minutes: 45, reason: "Tren" }]);
@@ -125,13 +126,17 @@ describe("buildDayReport", () => {
   });
   it("texto para compartir", () => {
     const t = reportToText(r);
-    expect(t).toContain("*Informe de noche · Lunes 28 sep*");
-    // Sin listado de departamentos/personas: el informe se centra en incidencias, horas extra y notas.
-    expect(t).not.toContain("turno completo");
-    expect(t).toContain("Beto: se va 2 h 30 min antes (sale a las 04:00) — Médico");
-    expect(t).toContain("Eva: se queda 1 h más");
-    expect(t).toContain("*Baja laboral*: Dani (Gripe)");
-    expect(t).toContain("Ana: llega tarde a las 22:15 (+45 min) — Tren");
+    expect(t).toContain("🌙 *Informe de noche*\n📅 Lunes 28 sep");
+    expect(t).toContain("Beto se va 2 h 30 min antes (sale a las 04:00) — Médico");
+    expect(t).toContain("Eva se queda 1 h más");
+    expect(t).toContain("🔴 Dani — Baja laboral (Gripe)");
+    expect(t).toContain("Ana llega tarde a las 22:15 (+45 min) — Tren");
+    // Orden: trabajan → fiesta → faltan.
+    const [work, miss] = [t.indexOf("*TRABAJAN"), t.indexOf("*FALTAN")];
+    expect(work).toBeGreaterThan(0);
+    expect(miss).toBeGreaterThan(work);
+    expect(t).toMatch(/\*Droguería\* \(\d+\)\n   • Ana · ⏰ 22:15/);
+    expect(t).toContain("• Carla · de Botellería");
     expect(t).toContain("Noche tranquila");
   });
 });
@@ -150,7 +155,7 @@ describe("horas extra en informes", () => {
     expect(r.overtime.totalMinutes).toBe(90);
     expect(r.overtime.items.map((i) => i.name)).toEqual(["Ana", "Beto"]);
     const t = reportToText(r);
-    expect(t).toContain("*Horas extra* (total 1 h 30 min)");
+    expect(t).toContain("⏱️ *HORAS EXTRA* (total 1 h 30 min)");
     expect(t).toContain("• Ana: +1 h — Camión");
     expect(t).toContain("• Beto: +30 min");
   });
@@ -158,7 +163,7 @@ describe("horas extra en informes", () => {
     const roster = getDayRoster({ date: MON, employees, entries: [], departments, statusTypes });
     const r = buildDayReport({ roster, dayNote: null, shift: DEFAULT_SHIFT, sections: [], departments });
     expect(r.overtime.items).toEqual([]);
-    expect(reportToText(r)).not.toContain("Horas extra");
+    expect(reportToText(r)).not.toContain("HORAS EXTRA");
   });
   it("suma semanal por empleado ignora días que no trabaja", () => {
     const grid = getWeekGrid({ date: MON, employees, entries, departments, statusTypes, daysOffPerWeek: 2 });
@@ -189,5 +194,31 @@ describe("buildWeekSummary", () => {
     expect(s.emptyDays.map((d) => d.date)).toContain(MON);
     expect(s.emptyDays.find((d) => d.date === MON)!.departments).toEqual(["Botellería"]);
     expect(s.range).toBe("28 sep – 4 oct");
+  });
+});
+
+describe("exportación visual", () => {
+  it("color de departamento → emoji", () => {
+    expect(colorEmoji("#ff3b30")).toBe("🟥");
+    expect(colorEmoji("#34c759")).toBe("🟩");
+    expect(colorEmoji("#007aff")).toBe("🟦");
+    expect(colorEmoji("#ffcc00")).toBe("🟨");
+    expect(colorEmoji("#8e8e93")).toBe("⬛");
+    expect(colorEmoji("nada")).toBe("⬜");
+  });
+  it("fiesta aparte de las faltas", () => {
+    const r = report();
+    const m = buildShareModel({
+      ...r,
+      absences: [
+        { statusId: "off", label: "Fiesta", color: "#888888", dayOff: true, members: [{ name: "Fran", reason: null }] },
+        ...r.absences,
+      ],
+    });
+    expect(m.off).toEqual(["Fran"]);
+    expect(m.missing.map((x) => x.name)).toEqual(["Dani"]);
+    const t = shareModelToText(m);
+    expect(t.indexOf("🏖️ *FIESTA (1)*")).toBeLessThan(t.indexOf("🔴 *FALTAN (1)*"));
+    expect(t).toContain("🏖️ 1 fiesta · 🔴 1 faltan");
   });
 });
