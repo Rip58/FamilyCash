@@ -59,6 +59,8 @@ function CellButton({
       <span
         className={cn(
           "flex h-8 w-[30px] items-center justify-center rounded-[8px] border text-[13px] font-semibold",
+          // Al cambiar el estado: solo color y borde, sin movimiento (son datos que se están leyendo).
+          "transition-[background-color,border-color,color] duration-150 ease-out",
           status.isWorking ? "text-muted" : "text-fg",
         )}
         style={{

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { formatOvertime } from "@/lib/overtime";
 import { leftKind, segmentName, type ShiftTimes } from "@/lib/segments";
 import type { DepartmentLite, RosterMember } from "@/lib/schedule";
@@ -32,6 +33,14 @@ const dot =
 
 export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, onMove, showStatus, hasReports, attendance, groupId = null, absence }: EmployeeRowProps) {
   const { employee, day } = member;
+  // ✓ verde: solo se anima cuando se valida ahora (no al cargar la página con gente ya validada).
+  const [wasPresent, setWasPresent] = useState(day.present);
+  const [justValidated, setJustValidated] = useState(false);
+  if (wasPresent !== day.present) {
+    setWasPresent(day.present);
+    setJustValidated(day.present);
+  }
+  const okDot = `${dot} bg-success text-white${justValidated ? " pop-in" : ""}`;
   const press = useLongPress(onMove, onOpen);
   const habitual = employee.defaultDepartmentId ? departments.get(employee.defaultDepartmentId) : undefined;
   const moved = day.departmentId !== employee.defaultDepartmentId;
@@ -112,7 +121,7 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
               aria-label={`${day.status.label} de ${name} validada. Toca para deshacer`}
               className={hit}
             >
-              <span className={`${dot} bg-success text-white`}>✓</span>
+              <span className={okDot}>✓</span>
             </button>
           ) : (
             <button
@@ -130,7 +139,7 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
         <span className="flex shrink-0 items-center pr-1.5">
           {day.present ? (
             <button type="button" onClick={attendance.onUndo} aria-label={`${name} ha venido. Toca para deshacer`} className={hit}>
-              <span className={`${dot} bg-success text-white`}>✓</span>
+              <span className={okDot}>✓</span>
             </button>
           ) : (
             <>

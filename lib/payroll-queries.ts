@@ -5,7 +5,7 @@ import {
   DEFAULT_PAYROLL, type MonthOverrides, type MonthStats, type NightPlusMode, type OvertimeMode, type PayrollConfig, type PayrollPeriod,
   CONTRACT_DAYS_OFF, type PayForecast, mergeStats, monthStatsFromSchedule, payForecast,
 } from "./payroll";
-import { getEmployees, getEntriesBetween, getSettings, getStatusTypes } from "./queries";
+import { getEmployees, getEntriesBetween, getStatusTypes } from "./queries";
 
 export async function getPayrollConfig(): Promise<PayrollConfig> {
   const row = await db.payrollSettings.findUnique({ where: { id: 1 } });
@@ -53,10 +53,9 @@ export async function loadPayrollMonths(
   for (let m = from; m <= to; m = addMonths(m, 1)) months.push(m);
   const first = payPeriodDays(from, cutoffDay)[0]!;
   const last = payPeriodDays(to, cutoffDay).at(-1)!;
-  const [employees, statusTypes, settings, entries, slips] = await Promise.all([
+  const [employees, statusTypes, entries, slips] = await Promise.all([
     getEmployees(),
     getStatusTypes(),
-    getSettings(),
     // 6 días antes: la semana del primer domingo del periodo empieza antes.
     employeeId ? getEntriesBetween(addDays(first, -6), last) : Promise.resolve([]),
     db.payslip.findMany({ where: { month: { gte: from, lte: to } } }),

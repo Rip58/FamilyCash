@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { sheetDragOffset, shouldDismissSheet } from "@/lib/gesture";
 import { createPortal } from "react-dom";
 import { cn } from "./cn";
 
@@ -28,6 +29,7 @@ export function BottomSheet({ open, onClose, title, children, draggable = true, 
   const [entered, setEntered] = useState(false);
   const [dragY, setDragY] = useState(0);
   const dragStart = useRef<number | null>(null);
+  const dragStartTime = useRef(0);
   const [dragging, setDragging] = useState(false);
 
   // Montar al abrir (ajuste de estado durante el render).
@@ -86,19 +88,22 @@ export function BottomSheet({ open, onClose, title, children, draggable = true, 
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     dragStart.current = e.clientY;
+    dragStartTime.current = performance.now();
     setDragging(true);
     e.currentTarget.setPointerCapture(e.pointerId);
   }, []);
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (dragStart.current === null) return;
-    setDragY(Math.max(0, e.clientY - dragStart.current));
+    setDragY(sheetDragOffset(e.clientY - dragStart.current));
   }, []);
   const onPointerUp = useCallback(() => {
     if (dragStart.current === null) return;
     dragStart.current = null;
     setDragging(false);
+    const elapsed = performance.now() - dragStartTime.current;
     setDragY((y) => {
-      if (y > 100) onClose();
+      // Se cierra si se baja lo bastante o con un gesto rápido hacia abajo; si no, vuelve arriba.
+      if (shouldDismissSheet(y, elapsed)) onClose();
       return 0;
     });
   }, [onClose]);
