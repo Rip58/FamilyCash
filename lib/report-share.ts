@@ -152,10 +152,10 @@ export function buildShareModel(report: DayReport): ShareModel {
   };
 }
 
-/** Texto para WhatsApp/iMessage: emojis, *negritas* y viñetas. Orden: trabajan → fiesta → vacaciones/bajas → faltan (🔴). */
+/** Texto para WhatsApp/iMessage: emojis, títulos en mayúsculas y una línea por departamento (sin *asteriscos*: iMessage los muestra tal cual). Orden: trabajan → fiesta → vacaciones/bajas → faltan (🔴). */
 export function shareModelToText(m: ShareModel): string {
   const L: string[] = [];
-  L.push(`🌙 *Informe de noche*`);
+  L.push("🌙 INFORME DE NOCHE");
   L.push(`📅 ${m.title} · 🕘 ${m.shift}`);
   L.push(
     [
@@ -169,49 +169,49 @@ export function shareModelToText(m: ShareModel): string {
   );
 
   if (m.working.length > 0) {
-    L.push("", `✅ *TRABAJAN (${m.counts.working})*`);
+    L.push("", `✅ TRABAJAN (${m.counts.working})`);
     for (const d of m.working) {
-      L.push(`${colorEmoji(d.color)} *${d.name}* (${d.members.length})`);
-      for (const p of d.members) L.push(`   • ${p.name}${p.tags.length > 0 ? ` · ${p.tags.join(" · ")}` : ""}`);
+      const names = d.members.map((p) => (p.tags.length > 0 ? `${p.name} (${p.tags.join(", ")})` : p.name));
+      L.push(`${colorEmoji(d.color)} ${d.name}: ${names.join(", ")}`);
     }
   }
 
   if (m.off.length > 0) {
-    L.push("", `🏖️ *FIESTA (${m.off.length})*`);
-    L.push(`   ${m.off.join(", ")}`);
+    L.push("", `🏖️ FIESTA (${m.off.length})`);
+    L.push(m.off.join(", "));
   }
 
   if (m.away.length > 0) {
-    L.push("", `🌴 *VACACIONES Y BAJAS (${m.counts.away})*`);
+    L.push("", `🌴 VACACIONES Y BAJAS (${m.counts.away})`);
     for (const g of m.away) {
-      L.push(`   • ${g.label}: ${g.members.map((p) => (p.reason ? `${p.name} (${p.reason})` : p.name)).join(", ")}`);
+      L.push(`• ${g.label}: ${g.members.map((p) => (p.reason ? `${p.name} (${p.reason})` : p.name)).join(", ")}`);
     }
   }
 
   if (m.missing.length > 0 || m.emptyDepartments.length > 0) {
-    L.push("", m.missing.length > 0 ? `🔴 *FALTAN (${m.missing.length})*` : "⚠️ *DEPARTAMENTOS VACÍOS*");
+    L.push("", m.missing.length > 0 ? `🔴 FALTAN (${m.missing.length})` : "⚠️ DEPARTAMENTOS VACÍOS");
     for (const p of m.missing) L.push(`🔴 ${p.name} — no ha venido${p.reason ? ` (${p.reason})` : ""}`);
-    for (const d of m.emptyDepartments) L.push(`⚠️ Sin personal en *${d}*`);
+    for (const d of m.emptyDepartments) L.push(`⚠️ Sin personal en ${d}`);
   }
 
   if (m.times.length > 0) {
-    L.push("", "⏰ *HORARIOS*");
-    for (const t of m.times) L.push(`   • ${t}`);
+    L.push("", "⏰ HORARIOS");
+    for (const t of m.times) L.push(`• ${t}`);
   }
 
   if (m.overtime) {
-    L.push("", `⏱️ *HORAS EXTRA* (total ${m.overtime.total})`);
-    for (const t of m.overtime.items) L.push(`   • ${t}`);
+    L.push("", `⏱️ HORAS EXTRA (total ${m.overtime.total})`);
+    for (const t of m.overtime.items) L.push(`• ${t}`);
   }
 
   if (m.notes.length > 0) {
-    L.push("", "📝 *NOTAS DE LA NOCHE*");
-    for (const t of m.notes) L.push(`   • ${t}`);
+    L.push("", "📝 NOTAS DE LA NOCHE");
+    for (const t of m.notes) L.push(`• ${t}`);
   }
 
   if (m.reports.length > 0) {
-    L.push("", "📷 *AVISOS CON FOTO*");
-    for (const t of m.reports) L.push(`   • ${t}`);
+    L.push("", "📷 AVISOS CON FOTO");
+    for (const t of m.reports) L.push(`• ${t}`);
   }
 
   if (m.missing.length === 0 && m.emptyDepartments.length === 0 && m.times.length === 0) {

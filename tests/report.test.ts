@@ -91,7 +91,7 @@ describe("buildDayReport", () => {
       { id: "n1", employeeId: null, name: null, text: "Han llegado todos a la hora" },
       { id: "n2", employeeId: "x", name: "Ana", text: "Muy bien con el inventario" },
     ] };
-    expect(reportToText(withNotes)).toContain("📝 *NOTAS DE LA NOCHE*\n   • Han llegado todos a la hora\n   • Ana: Muy bien con el inventario");
+    expect(reportToText(withNotes)).toContain("📝 NOTAS DE LA NOCHE\n• Han llegado todos a la hora\n• Ana: Muy bien con el inventario");
   });
   it("tareas y departamento en las notas", () => {
     expect(noteWho({ name: "Ana", department: "Droguería" })).toBe("Ana · Droguería");
@@ -106,7 +106,7 @@ describe("buildDayReport", () => {
   });
   it("notas de empleados", () => {
     expect(r.employeeNotes).toEqual([{ employeeId: expect.any(String), name: "Beto", note: "Rápido" }]);
-    expect(reportToText(r)).toContain("📝 *NOTAS DE LA NOCHE*\n   • Noche tranquila\n   • Beto: Rápido");
+    expect(reportToText(r)).toContain("📝 NOTAS DE LA NOCHE\n• Noche tranquila\n• Beto: Rápido");
   });
   it("incidencias", () => {
     expect(r.lateArrivals).toEqual([{ name: "Ana", arrivedAt: "22:15", minutes: 45, reason: "Tren" }]);
@@ -126,17 +126,18 @@ describe("buildDayReport", () => {
   });
   it("texto para compartir", () => {
     const t = reportToText(r);
-    expect(t).toContain("🌙 *Informe de noche*\n📅 Lunes 28 sep");
+    expect(t).toContain("🌙 INFORME DE NOCHE\n📅 Lunes 28 sep");
     expect(t).toContain("Beto se va 2 h 30 min antes (sale a las 04:00) — Médico");
     expect(t).toContain("Eva se queda 1 h más");
-    expect(t).toContain("🌴 *VACACIONES Y BAJAS (1)*\n   • Baja laboral: Dani (Gripe)");
+    expect(t).toContain("🌴 VACACIONES Y BAJAS (1)\n• Baja laboral: Dani (Gripe)");
     expect(t).not.toContain("FALTAN");
     expect(t).toContain("Ana llega tarde a las 22:15 (+45 min) — Tren");
     // Orden: trabajan → fiesta → faltan.
-    expect(t.indexOf("*TRABAJAN")).toBeGreaterThan(0);
-    expect(t.indexOf("*VACACIONES")).toBeGreaterThan(t.indexOf("*TRABAJAN"));
-    expect(t).toMatch(/\*Droguería\* \(\d+\)\n   • Ana · ⏰ 22:15/);
-    expect(t).toContain("• Carla · de Botellería");
+    expect(t.indexOf("TRABAJAN")).toBeGreaterThan(0);
+    expect(t.indexOf("VACACIONES")).toBeGreaterThan(t.indexOf("TRABAJAN"));
+    expect(t).toMatch(/Droguería: Ana \(⏰ 22:15\)/);
+    expect(t).not.toContain("*");
+    expect(t).toContain("Carla (de Botellería)");
     expect(t).toContain("Noche tranquila");
   });
 });
@@ -155,7 +156,7 @@ describe("horas extra en informes", () => {
     expect(r.overtime.totalMinutes).toBe(90);
     expect(r.overtime.items.map((i) => i.name)).toEqual(["Ana", "Beto"]);
     const t = reportToText(r);
-    expect(t).toContain("⏱️ *HORAS EXTRA* (total 1 h 30 min)");
+    expect(t).toContain("⏱️ HORAS EXTRA (total 1 h 30 min)");
     expect(t).toContain("• Ana: +1 h — Camión");
     expect(t).toContain("• Beto: +30 min");
   });
@@ -223,7 +224,7 @@ describe("exportación visual", () => {
     expect(m.counts).toEqual({ working: 1, off: 1, away: 1, missing: 2 });
     const t = shareModelToText(m);
     expect(t).toContain("🔴 Mike — no ha venido (No avisa)");
-    const order = ["*TRABAJAN", "*FIESTA", "*VACACIONES Y BAJAS", "*FALTAN (2)*"].map((k) => t.indexOf(k));
+    const order = ["TRABAJAN", "FIESTA", "VACACIONES Y BAJAS", "FALTAN (2)"].map((k) => t.indexOf(k));
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(order[0]).toBeGreaterThan(0);
   });
