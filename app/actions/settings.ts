@@ -131,6 +131,7 @@ const departmentSchema = z.object({
   color,
   targetStaff: z.number().int().min(0).max(99),
   active: z.boolean(),
+  secondary: z.boolean().optional(),
 });
 
 export async function saveDepartment(input: z.input<typeof departmentSchema>): Promise<ActionResult<{ id: string }>> {

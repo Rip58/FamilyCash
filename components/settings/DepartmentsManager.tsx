@@ -19,6 +19,7 @@ export interface DeptRow {
   color: string;
   targetStaff: number;
   active: boolean;
+  secondary: boolean;
 }
 export interface EmpRow {
   id: string;
@@ -73,6 +74,7 @@ export function DepartmentsManager({ departments, employees }: { departments: De
                       <span className="block text-[13px] text-muted">
                         {list.length} empleado{list.length === 1 ? "" : "s"} · {d.targetStaff} plaza
                         {d.targetStaff === 1 ? "" : "s"}
+                        {d.secondary && " · secundario"}
                       </span>
                     </span>
                   </button>
@@ -302,6 +304,15 @@ function EditDepartment({ dept: initial, count, onClose }: { dept: DeptRow; coun
         <Stepper label="Plazas previstas" value={dept.targetStaff} onChange={(v) => save({ targetStaff: v })} />
       </Field>
       <Toggle label="Activo" checked={dept.active} onChange={(v) => save({ active: v })} disabled={pending} />
+      <Toggle
+        label="Secundario (tareas de todos)"
+        checked={dept.secondary}
+        onChange={(v) => save({ secondary: v })}
+        disabled={pending}
+      />
+      <p className="-mt-1 mb-1 text-[13px] text-muted">
+        Comodín, palets… Si nadie lo tiene asignado no sale en Hoy ni cuenta como «sin personal».
+      </p>
       <div className="mt-2">
         {count === 0 ? (
           <ConfirmButton

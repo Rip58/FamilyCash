@@ -29,6 +29,8 @@ export interface DepartmentLite {
   sortOrder: number;
   targetStaff: number;
   active?: boolean;
+  /** Secundario (comodín, palets…): si nadie lo cubre no es "sin personal". */
+  secondary?: boolean;
 }
 
 export interface EmployeeLite {
@@ -247,8 +249,9 @@ export function getDayRoster(input: DayRosterInput): DayRoster {
       covering,
       staffed,
       targetStaff: department.targetStaff,
-      isEmpty: staffed === 0,
-      isUnderStaffed: staffed > 0 && staffed < department.targetStaff,
+      // Los secundarios (tareas de todos) nunca dan aviso de vacío o de faltar gente.
+      isEmpty: staffed === 0 && !department.secondary,
+      isUnderStaffed: !department.secondary && staffed > 0 && staffed < department.targetStaff,
     };
   });
 

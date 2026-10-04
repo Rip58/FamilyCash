@@ -13,6 +13,7 @@ export default async function Page() {
         name: d.name,
         color: d.color,
         targetStaff: d.targetStaff,
+        secondary: d.secondary ?? false,
         active: d.active ?? true,
       }))}
       employees={employees

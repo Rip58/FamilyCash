@@ -26,6 +26,7 @@ model Department {          // Droguería, Botellería, ...
   color       String  @default("#64748b")
   sortOrder   Int     @default(0)
   targetStaff Int     @default(0)          // plazas previstas (Droguería 4, Botellería 1)
+  secondary   Boolean @default(false)      // tareas de todos (comodín, palets…): vacío no es "sin personal" y no se muestra en Hoy
   active      Boolean @default(true)
   employees   Employee[]
   sections    Section[]

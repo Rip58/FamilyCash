@@ -264,6 +264,8 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
   const groups = [
     ...roster.departments
       .filter((d) => d.present.length > 0 || d.covering.length > 0 || d.isEmpty)
+      // Los que se han quedado sin nadie, arriba (son los que hay que resolver).
+      .sort((a, b) => Number(b.isEmpty) - Number(a.isEmpty))
       .map((d) => ({
         id: d.department.id,
         name: d.department.name,

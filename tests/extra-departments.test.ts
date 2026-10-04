@@ -66,3 +66,14 @@ describe("varios departamentos en una noche", () => {
     expect([moved.departmentId, moved.extraDepartmentIds]).toEqual(["bot", []]);
   });
 });
+
+describe("departamentos secundarios (comodín, palets…)", () => {
+  it("vacío no cuenta como sin personal ni falta gente", () => {
+    const deps = [dep("drog", 2), { ...dep("comodin", 1), secondary: true }];
+    const r = getDayRoster({ date: MON, employees: [emp("Ana", "drog")], entries: [], departments: deps, statusTypes });
+    const c = r.departments.find((d) => d.department.id === "comodin")!;
+    expect([c.isEmpty, c.isUnderStaffed, c.staffed]).toEqual([false, false, 0]);
+    // el normal sí avisa
+    expect(r.departments.find((d) => d.department.id === "drog")!.isUnderStaffed).toBe(true);
+  });
+});
