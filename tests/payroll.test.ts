@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addMonths, isMonthStr, monthDays, monthOf, payMonthOf, payPeriodDays } from "@/lib/dates";
 import {
-  DEFAULT_PAYROLL, type MonthStats, calculatePay, configForMonth, mergeStats, monthProgress, monthStatsFromSchedule, parseEuros, projectMonth,
+  DEFAULT_PAYROLL, type MonthStats, calculatePay, configForMonth, mergeStats, monthStatsFromSchedule, parseEuros, payForecast,
   andorraIrpfAnnualCents, offDayOvertimeMinutes, overtimeRateCents, periodForMonth,
 } from "@/lib/payroll";
 import type { DayEntryLite, EmployeeLite, StatusTypeLite } from "@/lib/schedule";
@@ -183,33 +183,44 @@ describe("Andorra: horas extra por ley, mes parcial e IRPF", () => {
   });
 });
 
-describe("mes en curso en tiempo real", () => {
-  // Octubre 2026 (1 = jueves), fiestas fijas sábado y domingo; hoy = jueves 15.
-  const entries = [entry("2026-10-10", "WORK", { extraMinutes: 120 }), entry("2026-10-20", "VACATION")];
-  const p = monthProgress("2026-10", me, entries, statusTypes, 2, "2026-10-15");
+describe("previsión de la nómina con el calendario de Semana", () => {
+  // Nómina de octubre con cierre el 27: 28 sep – 27 oct. Hoy = miércoles 7 oct. Sin fiestas fijas (como en el Excel).
+  const noFixed = { ...me, fixedDaysOff: [] };
+  const entries = [
+    entry("2026-10-03", "OFF"), // semana 28 sep–4 oct: 6 noches
+    entry("2026-10-06", "WORK", { extraMinutes: 60 }), // 1 h de cierre
+    entry("2026-10-10", "OFF"),
+    entry("2026-10-11", "OFF"),
+    entry("2026-10-17", "OFF"),
+    entry("2026-10-18", "OFF"),
+    // 19–25 oct y 26 oct en adelante: sin planning
+  ];
+  const f = payForecast("2026-10", noFixed, entries, statusTypes, 2, "2026-10-07", 27);
 
-  it("separa lo que ya ha pasado del planning del resto", () => {
-    expect(p.daysLeft).toBe(16);
-    expect(p.soFar).toMatchObject({ daysWorked: 12, daysOff: 3, vacationDays: 0, extraMinutes: 120, offDaysWorked: 1 });
-    expect(p.plannedOffLeft).toBe(5); // 17, 18, 24, 25, 31
-    expect(p.awayLeft).toBe(1);
-    expect(p.planned).toMatchObject({ daysWorked: 22, daysOff: 8, vacationDays: 1, offDaysWorked: 1 });
+  it("semanas lunes–domingo con su estado, noches, horas y extra", () => {
+    expect([f.from, f.to]).toEqual(["2026-09-28", "2026-10-27"]);
+    expect(f.weeks.map((w) => [w.monday, w.nights, w.hours, w.extraHours, w.state])).toEqual([
+      ["2026-09-28", 6, 48, 8, "cerrada"],
+      ["2026-10-05", 5, 40, 0, "en-curso"],
+      ["2026-10-12", 5, 40, 0, "planificada"],
+      // sin planning: semana normal (5 noches), no 7
+      ["2026-10-19", 5, 40, 0, "estimada"],
+    ]);
+    expect(f.tail).toEqual({ from: "2026-10-26", to: "2026-10-27", nights: 2 });
   });
 
-  it("como el planning: no cambia nada", () => {
-    expect(projectMonth(p, 5)).toEqual(p.planned);
+  it("totales del mes: noches, fiestas, horas y horas extra (noches de más + cierre)", () => {
+    expect([f.nights, f.offs, f.away]).toEqual([23, 7, 0]);
+    expect(f.hours).toBe(23 * 8 + 1);
+    expect(f.extraHours).toBe(9);
+    expect(f.estimatedDays).toBe(9);
+    expect(f.stats).toMatchObject({ daysInMonth: 30, daysWorked: 23, daysOff: 7, offDaysWorked: 1, extraMinutes: 60 });
   });
 
-  it("menos fiestas que el planning = noches de más y 8 h extra cada una", () => {
-    const r = projectMonth(p, 3, 180);
-    expect(r).toMatchObject({ daysWorked: 24, daysOff: 6, offDaysWorked: 3, extraMinutes: 300 });
-    expect(offDayOvertimeMinutes(r)).toBe(3 * 8 * 60);
-  });
-
-  it("más fiestas: no baja de las fiestas trabajadas ya cerradas ni pasa de los días libres que quedan", () => {
-    expect(projectMonth(p, 9).offDaysWorked).toBe(1);
-    expect(projectMonth(p, 99).daysOff).toBe(3 + 15);
-    expect(projectMonth(p, -3).daysOff).toBe(3);
+  it("con fiestas fijas, una semana sin planning usa esas fiestas", () => {
+    const g = payForecast("2026-10", me, [], statusTypes, 2, "2026-10-07", 27);
+    expect(g.weeks.every((w) => w.nights === 5)).toBe(true);
+    expect(g.extraHours).toBe(0);
   });
 });
 

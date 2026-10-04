@@ -9,7 +9,7 @@ import { Segmented } from "@/components/ui/Segmented";
 import { cn } from "@/components/ui/cn";
 import { type MonthStr, formatMonth } from "@/lib/dates";
 import {
-  type MonthProgress, type MonthStats, type PayrollConfig, type PayrollPeriod, type ShiftKind, calculatePay, configForMonth, formatDateEs, formatEuros,
+  type MonthStats, type PayForecast, type PayrollConfig, type PayrollPeriod, type ShiftKind, calculatePay, configForMonth, formatDateEs, formatEuros,
   MONTHLY_HOURS, andorraIrpfAnnualCents, formatHours, mergeStats, offDayOvertimeMinutes, nightPlusPerHourCents, overtimeRateCents, parseEuros,
   periodForMonth,
 } from "@/lib/payroll";
@@ -500,10 +500,12 @@ export function PayrollView({
   config,
   employeeName,
   initialView,
-  progress,
+  forecast,
+  daysOffPerWeek,
 }: {
   /** Mes en curso en tiempo real (null si no has elegido quién eres). */
-  progress: MonthProgress | null;
+  forecast: PayForecast | null;
+  daysOffPerWeek: number;
   /** Más reciente primero; incluye meses futuros para la calculadora. */
   months: PayrollMonth[];
   current: MonthStr;
@@ -531,10 +533,11 @@ export function PayrollView({
           para rellenar los meses con lo apuntado en Hoy y Semana.
         </p>
       )}
-      {progress && view === "registro" && (
+      {forecast && view === "registro" && (
         <LiveMonth
           month={current}
-          progress={progress}
+          forecast={forecast}
+          workingNights={7 - daysOffPerWeek}
           overrides={months.find((m) => m.month === current)?.overrides ?? {}}
           config={config}
           periods={periods}

@@ -146,22 +146,51 @@ export function monthStatsFromSchedule(
   return s;
 }
 
-/** El mes en curso: lo que ya ha pasado (hasta hoy incluido) y lo que dice el planning para el resto. */
-export interface MonthProgress {
-  today: DateStr;
-  /** Días del mes que quedan después de hoy. */
-  daysLeft: number;
-  /** Solo días ≤ hoy; fiestas trabajadas de las semanas ya cerradas. */
-  soFar: MonthStats;
-  /** Todo el mes según el planning de Semana (fiestas trabajadas de todas las semanas del mes). */
-  planned: MonthStats;
-  /** Fiestas (libranzas) que el planning pone en los días que quedan. */
-  plannedOffLeft: number;
-  /** Días que quedan con vacaciones, baja o falta en el planning (no se tocan al estimar). */
-  awayLeft: number;
+/** Una semana (lunes–domingo) de la previsión de la nómina. */
+export interface ForecastWeek {
+  monday: DateStr;
+  sunday: DateStr;
+  nights: number;
+  offs: number;
+  /** Vacaciones, baja, faltas… */
+  away: number;
+  /** Horas de la semana: noches × 8. */
+  hours: number;
+  /** Horas extra por noches de más (más de las del contrato): 8 h cada una. */
+  extraHours: number;
+  /** cerrada = ya pasó · en-curso = incluye hoy · planificada = futura con planning en Semana ·
+   *  estimada = futura sin planning (se cuenta como una semana normal). */
+  state: "cerrada" | "en-curso" | "planificada" | "estimada";
 }
 
-export function monthProgress(
+/** Previsión de la nómina de un mes (periodo de cierre a cierre) con el calendario de Semana. */
+export interface PayForecast {
+  from: DateStr;
+  to: DateStr;
+  /** Semanas cuyo domingo cae en el periodo (sus horas extra van en esta nómina). */
+  weeks: ForecastWeek[];
+  /** Días del final del periodo cuya semana termina después (sus horas extra van en la nómina siguiente). */
+  tail: { from: DateStr; to: DateStr; nights: number } | null;
+  /** Días del periodo: trabajados, fiestas, fuera (vacaciones/baja/faltas). */
+  nights: number;
+  offs: number;
+  away: number;
+  /** Horas trabajadas en el periodo (noches × 8 + horas de cierre). */
+  hours: number;
+  /** Horas extra de la nómina: noches de más × 8 + horas de cierre. */
+  extraHours: number;
+  closingMinutes: number;
+  /** Días del periodo sin planning (estimados como semana normal). */
+  estimatedDays: number;
+  stats: MonthStats;
+}
+
+/**
+ * Previsión de la nómina de `month` con lo que hay en Semana (y lo validado en Hoy). Las semanas futuras sin
+ * nada en el planning se cuentan como una semana normal (lunes–viernes trabaja, fines de semana fiesta, o sus
+ * fiestas fijas) para no inflar las horas extra.
+ */
+export function payForecast(
   month: MonthStr,
   employee: EmployeeLite,
   entries: DayEntryLite[],
@@ -169,53 +198,98 @@ export function monthProgress(
   daysOffPerWeek: number,
   today: DateStr,
   cutoffDay?: number | null,
-): MonthProgress {
+): PayForecast {
   const days = payPeriodDays(month, cutoffDay);
-  const left = days.filter((d) => d > today);
+  const from = days[0]!;
+  const to = days.at(-1)!;
   const mine = entries.filter((e) => e.employeeId === employee.id);
-  const planned = monthStatsFromSchedule(month, employee, mine, statusTypes, daysOffPerWeek, undefined, cutoffDay);
-  // Lo que el planning pone después de hoy; "hasta hoy" = el mes menos eso.
-  const leftStats = { daysWorked: 0, daysOff: 0, vacationDays: 0, sickDays: 0, absentDays: 0, extraMinutes: 0 };
   const byDate = new Map(mine.map((e) => [e.date, e]));
-  for (const d of left) {
-    const day = getEffectiveDay(employee, d, byDate.get(d), statusTypes);
-    if (day.isWorking) {
-      leftStats.daysWorked++;
-      leftStats.extraMinutes += day.extraMinutes ?? 0;
-    } else if (day.isDayOff) leftStats.daysOff++;
-    else if (day.status.code === "VACATION") leftStats.vacationDays++;
-    else if (day.status.code === "SICK") leftStats.sickDays++;
-    else leftStats.absentDays++;
-  }
-  const closed = monthStatsFromSchedule(month, employee, mine, statusTypes, daysOffPerWeek, today, cutoffDay);
-  const soFar: MonthStats = {
-    ...planned,
-    daysWorked: planned.daysWorked - leftStats.daysWorked,
-    daysOff: planned.daysOff - leftStats.daysOff,
-    vacationDays: planned.vacationDays - leftStats.vacationDays,
-    sickDays: planned.sickDays - leftStats.sickDays,
-    absentDays: planned.absentDays - leftStats.absentDays,
-    extraMinutes: planned.extraMinutes - leftStats.extraMinutes,
-    offDaysWorked: closed.offDaysWorked,
+  const workingNights = 7 - daysOffPerWeek;
+  const weekPlanned = (monday: DateStr) => {
+    for (let i = 0; i < 7; i++) if (byDate.has(addDays(monday, i))) return true;
+    return false;
   };
-  const awayLeft = leftStats.vacationDays + leftStats.sickDays + leftStats.absentDays;
-  return { today, daysLeft: left.length, soFar, planned, plannedOffLeft: leftStats.daysOff, awayLeft };
-}
+  type Kind = "work" | "off" | "vacation" | "sick" | "absent";
+  /** Qué pasa ese día; en semanas futuras sin planning, el patrón normal. */
+  const kindOf = (d: DateStr, estimated: boolean): { kind: Kind; extra: number } => {
+    if (estimated && employee.fixedDaysOff.length === 0) {
+      return { kind: weekdayIndex(d) >= workingNights ? "off" : "work", extra: 0 };
+    }
+    const day = getEffectiveDay(employee, d, byDate.get(d), statusTypes);
+    if (day.isWorking) return { kind: "work", extra: day.extraMinutes ?? 0 };
+    if (day.isDayOff) return { kind: "off", extra: 0 };
+    if (day.status.code === "VACATION") return { kind: "vacation", extra: 0 };
+    if (day.status.code === "SICK") return { kind: "sick", extra: 0 };
+    return { kind: "absent", extra: 0 };
+  };
+  const mondayOf = (d: DateStr) => addDays(d, -weekdayIndex(d));
+  const isEstimated = (monday: DateStr) => monday > today && !weekPlanned(monday);
 
-/**
- * Proyección del mes: el planning, cambiando las fiestas de los días que quedan por las estimadas.
- * Cada fiesta de menos respecto al planning es una noche más trabajada (+8 h extra); cada una de más, al revés
- * (sin bajar de las fiestas trabajadas de las semanas ya cerradas).
- */
-export function projectMonth(p: MonthProgress, offLeft: number, extraLeftMinutes = 0): MonthStats {
-  const off = Math.min(Math.max(offLeft, 0), p.daysLeft - p.awayLeft);
-  const delta = p.plannedOffLeft - off;
+  const weeks: ForecastWeek[] = days
+    .filter((d) => weekdayIndex(d) === 6)
+    .map((sunday) => {
+      const monday = addDays(sunday, -6);
+      const estimated = isEstimated(monday);
+      let nights = 0;
+      let offs = 0;
+      let away = 0;
+      for (let i = 0; i < 7; i++) {
+        const k = kindOf(addDays(monday, i), estimated).kind;
+        if (k === "work") nights++;
+        else if (k === "off") offs++;
+        else away++;
+      }
+      const state: ForecastWeek["state"] =
+        sunday < today ? "cerrada" : monday <= today ? "en-curso" : estimated ? "estimada" : "planificada";
+      return { monday, sunday, nights, offs, away, hours: nights * 8, extraHours: Math.max(nights - workingNights, 0) * 8, state };
+    });
+
+  const stats: MonthStats = {
+    daysInMonth: days.length,
+    daysWorked: 0,
+    daysOff: 0,
+    vacationDays: 0,
+    sickDays: 0,
+    absentDays: 0,
+    holidaysWorked: 0,
+    offDaysWorked: weeks.reduce((n, w) => n + w.extraHours / 8, 0),
+    extraMinutes: 0,
+  };
+  let estimatedDays = 0;
+  for (const d of days) {
+    const estimated = isEstimated(mondayOf(d));
+    if (estimated) estimatedDays++;
+    const { kind, extra } = kindOf(d, estimated);
+    if (kind === "work") {
+      stats.daysWorked++;
+      stats.extraMinutes += extra;
+    } else if (kind === "off") stats.daysOff++;
+    else if (kind === "vacation") stats.vacationDays++;
+    else if (kind === "sick") stats.sickDays++;
+    else stats.absentDays++;
+  }
+  const lastSunday = weeks.at(-1)?.sunday;
+  const tailDays = days.filter((d) => !lastSunday || d > lastSunday);
+  const tail = tailDays.length
+    ? {
+        from: tailDays[0]!,
+        to: tailDays.at(-1)!,
+        nights: tailDays.filter((d) => kindOf(d, isEstimated(mondayOf(d))).kind === "work").length,
+      }
+    : null;
   return {
-    ...p.planned,
-    daysOff: p.planned.daysOff - delta,
-    daysWorked: p.planned.daysWorked + delta,
-    offDaysWorked: Math.max(p.planned.offDaysWorked + delta, p.soFar.offDaysWorked),
-    extraMinutes: p.planned.extraMinutes + extraLeftMinutes,
+    from,
+    to,
+    weeks,
+    tail,
+    nights: stats.daysWorked,
+    offs: stats.daysOff,
+    away: stats.vacationDays + stats.sickDays + stats.absentDays,
+    hours: stats.daysWorked * 8 + stats.extraMinutes / 60,
+    extraHours: stats.offDaysWorked * 8 + stats.extraMinutes / 60,
+    closingMinutes: stats.extraMinutes,
+    estimatedDays,
+    stats,
   };
 }
 

@@ -3,7 +3,7 @@ import { type MonthStr, addDays, fromDbDate, madridToday, addMonths, payMonthOf,
 import { db } from "./db";
 import {
   DEFAULT_PAYROLL, type MonthOverrides, type MonthStats, type NightPlusMode, type OvertimeMode, type PayrollConfig, type PayrollPeriod,
-  type MonthProgress, mergeStats, monthProgress, monthStatsFromSchedule,
+  type PayForecast, mergeStats, monthStatsFromSchedule, payForecast,
 } from "./payroll";
 import { getEmployees, getEntriesBetween, getSettings, getStatusTypes } from "./queries";
 
@@ -39,7 +39,7 @@ export interface PayrollMonth {
 
 /**
  * Meses [from..to] (ambos incluidos) con datos automáticos del cuadrante + lo escrito a mano, y el mes en curso
- * en tiempo real (`progress`: hasta hoy + planning del resto) si hay empleado elegido.
+ * en tiempo real (`forecast`: previsión con el calendario de Semana) si hay empleado elegido.
  */
 export async function loadPayrollMonths(
   from: MonthStr,
@@ -47,7 +47,7 @@ export async function loadPayrollMonths(
   employeeId: string | null,
   /** Día de cierre de la nómina (PayrollSettings.cutoffDay). */
   cutoffDay: number | null = null,
-): Promise<{ months: PayrollMonth[]; progress: MonthProgress | null }> {
+): Promise<{ months: PayrollMonth[]; forecast: PayForecast | null }> {
   const months: MonthStr[] = [];
   for (let m = from; m <= to; m = addMonths(m, 1)) months.push(m);
   const first = payPeriodDays(from, cutoffDay)[0]!;
@@ -64,9 +64,9 @@ export async function loadPayrollMonths(
   const byMonth = new Map(slips.map((s) => [s.month, s]));
   const today = madridToday();
   const current = payMonthOf(today, cutoffDay);
-  const progress =
+  const forecast =
     me && current >= from && current <= to
-      ? monthProgress(current, me, entries, statusTypes, settings.daysOffPerWeek, today, cutoffDay)
+      ? payForecast(current, me, entries, statusTypes, settings.daysOffPerWeek, today, cutoffDay)
       : null;
   const list = months.map((month) => {
     const auto: MonthStats = me
@@ -90,5 +90,5 @@ export async function loadPayrollMonths(
       note: s?.note ?? null,
     };
   });
-  return { months: list, progress };
+  return { months: list, forecast };
 }
