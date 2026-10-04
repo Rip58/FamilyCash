@@ -278,6 +278,7 @@ model PayrollPeriod {       // salario por tramos de fechas (propuestas, subidas
   to            DateTime? @db.Date          // null = indefinido
   baseCents     Int                         // salario bruto mensual (jornada base)
   respPlusCents Int       @default(0)       // plus de responsabilidad
+  gross48Cents  Int?                        // "salari brut 48 h" de la propuesta (mes entero a 48 h/semana)
   @@index([from])
 }
 

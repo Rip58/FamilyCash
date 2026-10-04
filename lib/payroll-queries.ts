@@ -23,6 +23,7 @@ export async function getPayrollPeriods(): Promise<PayrollPeriod[]> {
     to: r.to ? fromDbDate(r.to) : null,
     baseCents: r.baseCents,
     respPlusCents: r.respPlusCents,
+    gross48Cents: r.gross48Cents,
   }));
 }
 

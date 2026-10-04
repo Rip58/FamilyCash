@@ -39,7 +39,7 @@ describe("resumen del mes desde el cuadrante", () => {
     ], statusTypes);
     expect(s).toEqual({
       daysInMonth: 30, daysWorked: 19, daysOff: 8, vacationDays: 1, sickDays: 1, absentDays: 1,
-      holidaysWorked: 0, offDaysWorked: 0, extraMinutes: 90,
+      holidaysWorked: 0, offDaysWorked: 0, extraMinutes: 90, weeks: 4, weeks48: 0,
     });
   });
   it("los días trabajados se deducen de los demás", () => {
@@ -257,5 +257,42 @@ describe("cierre de nómina el 27", () => {
     const sat = [entry("2026-10-31", "WORK")];
     expect(monthStatsFromSchedule("2026-10", me, sat, statusTypes, 2, undefined, 27).offDaysWorked).toBe(0);
     expect(monthStatsFromSchedule("2026-11", me, sat, statusTypes, 2, undefined, 27).offDaysWorked).toBe(1);
+  });
+});
+
+describe("propuesta de la empresa (Sergi Ben Amor): 40 h y 48 h", () => {
+  // Salari brut 40 h = base 1.568,67 + nocturnidad 18,5762 % (291,40) = 1.860,07; brut 48 h = 2.336,47.
+  const cfg = {
+    ...DEFAULT_PAYROLL, baseMonthlyCents: 156867, nightPlusPercent: 18.5762, ssPercent: 6.5, irpfPercent: 0,
+  };
+  const periods = [
+    { id: "a", from: "2026-09-21", to: "2026-11-30", baseCents: 156867, respPlusCents: 0, gross48Cents: 233647 },
+    { id: "b", from: "2026-12-01", to: "2027-03-31", baseCents: 156867, respPlusCents: 50000, gross48Cents: 283647 },
+    { id: "d", from: "2027-10-01", to: null, baseCents: 156867, respPlusCents: 129361, gross48Cents: 363008 },
+  ];
+  const month = (weeks: number, weeks48: number, extra = 0): MonthStats => ({
+    daysInMonth: 30, daysWorked: 22 + weeks48, daysOff: 8 - weeks48, vacationDays: 0, sickDays: 0, absentDays: 0,
+    holidaysWorked: 0, offDaysWorked: weeks48, extraMinutes: extra, weeks, weeks48,
+  });
+  const pay = (m: string, s: MonthStats) => calculatePay(configForMonth(cfg, periods, m), s, "NIGHT");
+
+  it("mes a 40 h: 1.860,07 bruto · 1.739,17 neto", () => {
+    expect([pay("2026-10", month(4, 0)).grossCents, pay("2026-10", month(4, 0)).netCents]).toEqual([186007, 173917]);
+  });
+  it("mes entero a 48 h: 2.336,47 bruto · 2.184,60 neto (sea de 4 o 5 semanas)", () => {
+    expect([pay("2026-10", month(4, 4)).grossCents, pay("2026-10", month(4, 4)).netCents]).toEqual([233647, 218460]);
+    expect(pay("2026-11", month(5, 5)).grossCents).toBe(233647);
+    expect(pay("2026-12", month(4, 4)).grossCents).toBe(283647);
+    expect(pay("2027-10", month(4, 4)).grossCents).toBe(363008);
+  });
+  it("la hora extra de la empresa: 476,40 € / (8 h × 52/12) = 13,74 €/h", () => {
+    expect(Math.round(overtimeRateCents(configForMonth(cfg, periods, "2026-10"), "NIGHT"))).toBe(1374);
+  });
+  it("semanas sueltas a 48 h: la parte proporcional; las horas de cierre aparte", () => {
+    const r = pay("2026-10", month(4, 2, 120));
+    const line = (k: string) => r.earnings.find((l) => l.key === k)?.cents ?? 0;
+    expect(line("week48")).toBe(23820); // 476,40 × 2/4
+    expect(line("overtime")).toBe(Math.round(2 * (47640 / (8 * 52 / 12))));
+    expect(r.grossCents).toBe(186007 + 23820 + line("overtime"));
   });
 });

@@ -52,6 +52,7 @@ const periodSchema = z
     to: dateStr.nullable(),
     baseCents: cents,
     respPlusCents: cents,
+    gross48Cents: cents.nullable().optional(),
   })
   .refine((p) => p.to === null || p.to >= p.from, "La fecha final es anterior a la inicial.");
 

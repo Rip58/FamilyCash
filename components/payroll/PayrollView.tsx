@@ -406,7 +406,12 @@ function CalculatorBody({ data, months, config, periods, setMonth }: CalcProps &
             onChange={(v) => setS((x) => ({ ...x, contractDays: Math.max(v, 1) }))}
             max={s.daysInMonth}
           />
-          <Counter label="Fiestas trabajadas" value={s.offDaysWorked} onChange={set("offDaysWorked")} max={14} />
+          <Counter
+            label="Fiestas trabajadas"
+            value={s.offDaysWorked}
+            onChange={(v) => setS((x) => ({ ...x, offDaysWorked: v, weeks48: v }))}
+            max={14}
+          />
           <Counter label="Vacaciones" value={s.vacationDays} onChange={set("vacationDays")} max={maxOf("vacationDays")} />
           <Counter label="Baja" value={s.sickDays} onChange={set("sickDays")} max={maxOf("sickDays")} />
           <Counter label="Faltas" value={s.absentDays} onChange={set("absentDays")} max={maxOf("absentDays")} />

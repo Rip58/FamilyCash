@@ -53,7 +53,9 @@ export function LiveMonth({
   const stats = mergeStats(f.stats, { contractDays: overrides.contractDays ?? null });
   const pay = calculatePay(cfg, stats, "NIGHT");
   const rate = overtimeRateCents(cfg, "NIGHT");
-  const extraCents = Math.round(rate * f.extraHours);
+  const line = (k: string) => pay.earnings.find((l) => l.key === k);
+  const w48 = line("week48");
+  const extraLines = [line("over40"), line("overtime")].filter((l) => !!l);
   const contractHours = workingNights * 8;
 
   return (
@@ -135,10 +137,21 @@ export function LiveMonth({
             Horas de cierre de turno (apuntadas en Hoy): <b className="tabular-nums">{formatHours(f.closingMinutes)} h</b>
           </p>
         )}
-        {f.extraHours > 0 && cfg.baseMonthlyCents > 0 && (
+        {cfg.baseMonthlyCents > 0 && w48 && (
           <p className="py-1 text-[13px]">
-            Horas extra: <b className="tabular-nums">{formatHours(f.extraHours * 60)} h × {formatEuros(Math.round(rate))}</b> ≈{" "}
-            <b className="tabular-nums text-accent">{formatEuros(extraCents)}</b>
+            Jornada de 48 h ({w48.detail}): <b className="tabular-nums text-accent">+{formatEuros(w48.cents)}</b>
+          </p>
+        )}
+        {cfg.baseMonthlyCents > 0 &&
+          extraLines.map((l) => (
+            <p key={l.key} className="py-1 text-[13px]">
+              {l.label} ({l.detail}): <b className="tabular-nums text-accent">+{formatEuros(l.cents)}</b>
+            </p>
+          ))}
+        {cfg.baseMonthlyCents > 0 && !cfg.gross48Cents && f.extraHours > 0 && (
+          <p className="py-1 text-[12px] text-muted">
+            Precio hora extra {formatEuros(Math.round(rate))}. Para que cuadre con tu empresa, pon el «salario bruto 48 h» de
+            cada periodo en Ajustes → Nómina.
           </p>
         )}
         {f.estimatedDays > 0 && (

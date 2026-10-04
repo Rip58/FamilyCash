@@ -75,6 +75,16 @@ function PeriodEditor({ initial, onDone }: { initial: PeriodDraft; onDone: () =>
       <Field label="Plus de responsabilidad">
         <EuroInput label="Plus de responsabilidad" cents={p.respPlusCents} onCommit={(v) => setP((x) => ({ ...x, respPlusCents: v }))} />
       </Field>
+      <Field
+        label="Salario bruto 48 h (opcional)"
+        hint="El «salari brut 48 hs» de la propuesta: lo que cobras un mes entero a 48 h/semana. Con él, el plus de 48 h y la hora extra se calculan como la empresa."
+      >
+        <EuroInput
+          label="Salario bruto 48 h"
+          cents={p.gross48Cents ?? 0}
+          onCommit={(v) => setP((x) => ({ ...x, gross48Cents: v || null }))}
+        />
+      </Field>
       <PrimaryButton
         className="mt-2 w-full"
         disabled={pending || !p.from}
@@ -114,6 +124,7 @@ function Periods({ periods }: { periods: PayrollPeriod[] }) {
                   <span className="block text-[13px] text-muted">
                     {formatEuros(p.baseCents)}
                     {p.respPlusCents > 0 && ` + resp. ${formatEuros(p.respPlusCents)}`}
+                    {p.gross48Cents ? ` · 48 h: ${formatEuros(p.gross48Cents)}` : ""}
                   </span>
                 </span>
                 <span aria-hidden className="text-muted">›</span>

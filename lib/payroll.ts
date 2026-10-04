@@ -32,6 +32,8 @@ export interface PayrollConfig {
   holidayWorkedCents: number;
   ssPercent: number;
   irpfPercent: number;
+  /** Sueldo bruto de un mes entero a 48 h (del periodo); si está, el plus de 48 h y la hora extra salen de él. */
+  gross48Cents?: number | null;
 }
 
 export const DEFAULT_PAYROLL: PayrollConfig = {
@@ -58,6 +60,8 @@ export interface PayrollPeriod {
   to: DateStr | null;
   baseCents: number;
   respPlusCents: number;
+  /** "Salari brut 48 h" de la propuesta de la empresa (sueldo de un mes entero a 48 h/semana); null = no se sabe. */
+  gross48Cents?: number | null;
 }
 
 /** Periodo que aplica a un mes: el último que ha empezado antes de fin de mes y no ha terminado antes de que empiece. */
@@ -74,7 +78,9 @@ export function periodForMonth(periods: PayrollPeriod[], month: MonthStr): Payro
 /** Config con el salario del periodo del mes (si lo hay). */
 export function configForMonth(cfg: PayrollConfig, periods: PayrollPeriod[], month: MonthStr): PayrollConfig {
   const p = periodForMonth(periods, month);
-  return p ? { ...cfg, baseMonthlyCents: p.baseCents, respPlusCents: p.respPlusCents } : cfg;
+  return p
+    ? { ...cfg, baseMonthlyCents: p.baseCents, respPlusCents: p.respPlusCents, gross48Cents: p.gross48Cents ?? null }
+    : cfg;
 }
 
 /** Datos del mes (días por tipo y horas extra). */
@@ -92,10 +98,13 @@ export interface MonthStats {
   /** Días de fiesta trabajados (noches por encima de 5 en una semana): cada uno son 8 h extra. */
   offDaysWorked: number;
   extraMinutes: number;
+  /** Semanas (lunes–domingo) que cuentan en esta nómina y cuántas de ellas a 48 h (6 noches o más). */
+  weeks?: number;
+  weeks48?: number;
 }
 
 /** Valores escritos a mano (null = automático). Los días trabajados nunca se escriben: se deducen. */
-export type MonthOverrides = Partial<Record<keyof Omit<MonthStats, "daysInMonth" | "daysWorked">, number | null>>;
+export type MonthOverrides = Partial<Record<keyof Omit<MonthStats, "daysInMonth" | "daysWorked" | "weeks" | "weeks48">, number | null>>;
 
 /** Cuenta el mes del empleado con el "día efectivo" de lib/schedule. */
 export function monthStatsFromSchedule(
@@ -132,7 +141,10 @@ export function monthStatsFromSchedule(
       if (getEffectiveDay(employee, addDays(sunday, -i), byDate.get(addDays(sunday, -i)), statusTypes).isWorking) worked++;
     }
     s.offDaysWorked += Math.max(worked - workingNights, 0);
+    if (worked > workingNights) s.weeks48 = (s.weeks48 ?? 0) + 1;
   }
+  s.weeks = days.filter((d) => weekdayIndex(d) === 6).length;
+  s.weeks48 ??= 0;
   for (const d of days) {
     const day = getEffectiveDay(employee, d, byDate.get(d), statusTypes);
     if (day.isWorking) {
@@ -254,6 +266,8 @@ export function payForecast(
     holidaysWorked: 0,
     offDaysWorked: weeks.reduce((n, w) => n + w.extraHours / 8, 0),
     extraMinutes: 0,
+    weeks: weeks.length,
+    weeks48: weeks.filter((w) => w.nights > workingNights).length,
   };
   let estimatedDays = 0;
   for (const d of days) {
@@ -315,6 +329,9 @@ export function mergeStats(auto: MonthStats, o: MonthOverrides): MonthStats {
     holidaysWorked: pick("holidaysWorked"),
     offDaysWorked: pick("offDaysWorked"),
     extraMinutes: pick("extraMinutes"),
+    weeks: auto.weeks,
+    // Si se escriben a mano las fiestas trabajadas, cada una cuenta como una semana a 48 h.
+    weeks48: o.offDaysWorked != null ? o.offDaysWorked : auto.weeks48,
   };
 }
 
@@ -346,8 +363,25 @@ export function nightPlusPerHourCents(cfg: PayrollConfig): number {
     : (cfg.baseMonthlyCents * cfg.nightPlusPercent) / 100 / MONTHLY_HOURS;
 }
 
+/** Semanas por mes de media (52/12): un mes entero a 48 h son 8 h × 52/12 = 34,67 h más. */
+export const WEEKS_PER_MONTH = 52 / 12;
+
+/**
+ * Lo que la empresa paga de más al mes por hacer 48 h/semana en vez de 40: "brut 48 h" − (base + resp. +
+ * nocturnidad completa). Con la propuesta de 2026: 2.336,47 − 1.860,07 = 476,40 €. null si no hay dato.
+ */
+export function week48SupplementCents(cfg: PayrollConfig): number | null {
+  if (!cfg.gross48Cents) return null;
+  const night = cfg.nightPlusMode === "PERCENT" ? (cfg.baseMonthlyCents * cfg.nightPlusPercent) / 100 : 0;
+  const s = cfg.gross48Cents - cfg.baseMonthlyCents - cfg.respPlusCents - night;
+  return s > 0 ? s : null;
+}
+
 /** Precio de la hora extra (céntimos, sin redondear). */
 export function overtimeRateCents(cfg: PayrollConfig, shift: ShiftKind): number {
+  // Con el sueldo de 48 h de la empresa, su precio: plus de 48 h / (8 h × 52/12) (476,40 € → 13,74 €/h).
+  const s48 = week48SupplementCents(cfg);
+  if (s48 !== null) return s48 / (SHIFT_HOURS * WEEKS_PER_MONTH);
   if (cfg.overtimeMode === "FIXED") return cfg.overtimeHourCents;
   const fixedHour = (cfg.baseMonthlyCents + cfg.respPlusCents) / MONTHLY_HOURS;
   return fixedHour * (1 + cfg.overtimeSurchargePercent / 100) + (shift === "NIGHT" ? nightPlusPerHourCents(cfg) : 0);
@@ -406,12 +440,25 @@ export function calculatePay(cfg: PayrollConfig, stats: MonthStats, shift: Shift
     }
   }
   const rate = overtimeRateCents(cfg, shift);
-  const offMinutes = offDayOvertimeMinutes(stats);
+  const s48 = week48SupplementCents(cfg);
+  let extraNights = stats.offDaysWorked;
+  if (s48 !== null) {
+    // Como la empresa: un mes entero a 48 h cobra el sueldo de 48 h; si solo algunas semanas, la parte proporcional.
+    const weeks = stats.weeks && stats.weeks > 0 ? stats.weeks : WEEKS_PER_MONTH;
+    const w48 = Math.min(stats.weeks48 ?? stats.offDaysWorked, stats.offDaysWorked, weeks);
+    add(
+      "week48",
+      "Jornada 48 h",
+      (s48 * f * w48) / weeks,
+      w48 >= weeks ? "todo el mes" : `${w48} de ${Math.round(weeks * 100) / 100} semanas`,
+    );
+    extraNights -= w48;
+  }
   add(
     "over40",
-    "Horas extra (fiestas trabajadas)",
-    (rate * offMinutes) / 60,
-    `${stats.offDaysWorked} × 8 h × ${formatEuros(round(rate))}`,
+    s48 !== null ? "Horas extra (noches de más)" : "Horas extra (fiestas trabajadas)",
+    (rate * extraNights * SHIFT_HOURS * 60) / 60,
+    `${extraNights} × 8 h × ${formatEuros(round(rate))}`,
   );
   add(
     "overtime",
