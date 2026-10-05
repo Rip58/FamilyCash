@@ -165,3 +165,25 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .animate-peek { animation: none; }
 }
+
+/* Menú desplegable (ActionMenu): aparece desde su esquina superior derecha. */
+.menu-pop {
+  transform-origin: top right;
+  transition-property: opacity, scale;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+}
+@starting-style {
+  .menu-pop {
+    opacity: 0;
+    scale: 0.95;
+  }
+}
+
+/* Deslizar de lado sin barra visible (contadores de Hoy). */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

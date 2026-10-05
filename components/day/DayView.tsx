@@ -5,7 +5,8 @@ import { ReportCard } from "@/components/reports/ReportCard";
 import { ReportComposer } from "@/components/reports/ReportComposer";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/components/ui/cn";
-import { Icon, tint } from "@/components/ui/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
+import { tint } from "@/components/ui/icons";
 import {
   addSegment as addSegmentAction,
   deleteSegment as deleteSegmentAction,
@@ -59,8 +60,6 @@ interface DayViewProps {
 const subscribeNever = () => () => {};
 // Lista sin departamentos (orden del Excel): se recuerda en este móvil.
 const FLAT_KEY = "hoy:sinDepartamentos";
-const iconBtn =
-  "press flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-surface text-accent [touch-action:manipulation]";
 const currentMadridHour = () => madridParts(new Date()).hour;
 
 interface OptimisticAction {
@@ -299,16 +298,17 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
   return (
     <div className="flex flex-col gap-2 pb-6">
       <div className="flex items-center gap-1">
-        <p className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5" aria-label="Resumen del día">
+        {/* Contadores en una sola línea (si no caben, se deslizan de lado). */}
+        <p className="no-scrollbar flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto whitespace-nowrap" aria-label="Resumen del día">
           {roster.countsByStatus.map(({ status, count }) => (
             <span
               key={status.id}
               title={status.label}
               aria-label={`${count} ${status.label.toLowerCase()}`}
-              className="inline-flex h-7 items-center gap-1 rounded-full px-1.5 text-[13px] font-semibold tabular-nums"
+              className="inline-flex h-7 shrink-0 items-center gap-[3px] rounded-full px-1.5 text-[12px] font-semibold tabular-nums"
               style={{ backgroundColor: tint(status.color, 18) }}
             >
-              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: status.color }} aria-hidden />
+              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: status.color }} aria-hidden />
               {count}
               <span className="font-medium text-muted">{statusAbbr(status)}</span>
             </span>
@@ -317,7 +317,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
             <span
               aria-label={`Pasar lista: ${validated} de ${everyone.length} validados; ${confirmed} de ${expected.length} han venido`}
               className={cn(
-                "inline-flex h-7 items-center rounded-full px-1.5 text-[13px] font-semibold tabular-nums",
+                "inline-flex h-7 shrink-0 items-center rounded-full px-1.5 text-[12px] font-semibold tabular-nums",
                 allValidated ? "bg-success/20 text-success" : "text-muted",
               )}
             >
@@ -325,27 +325,25 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
             </span>
           )}
         </p>
-        <button type="button" onClick={() => setNoteOpen(true)} aria-label="Nota del día" className={cn(iconBtn, "w-10")}>
-          <Icon name="note" className="h-5 w-5" />
-        </button>
-        <button
-          type="button"
-          onClick={toggleFlat}
-          aria-pressed={flat}
-          aria-label={flat ? "Agrupar por departamentos" : "Ver sin departamentos (orden del Excel)"}
-          className={cn(iconBtn, "w-10")}
-        >
-          <Icon name={flat ? "group" : "list"} className="h-5 w-5" />
-        </button>
-        <button
-          type="button"
-          onClick={() => setCloseSheet((s) => ({ open: true, n: s.n + 1 }))}
-          aria-label="Cierre de turno · Horas extra"
-          className={cn(iconBtn, "gap-1 px-2.5 text-[14px] font-semibold", closeHighlight && "bg-accent text-accent-fg")}
-        >
-          <Icon name="clockMoon" className="h-5 w-5" />
-          {nightExtra > 0 ? <span className="tabular-nums">{formatOvertime(nightExtra, true)}</span> : "Cierre"}
-        </button>
+        <ActionMenu
+          label="Opciones del día"
+          badge={closeHighlight || nightExtra > 0}
+          items={[
+            { icon: "note", label: "Nota del día", onSelect: () => setNoteOpen(true) },
+            {
+              icon: flat ? "group" : "list",
+              label: flat ? "Agrupar por departamentos" : "Ver sin departamentos",
+              onSelect: toggleFlat,
+            },
+            {
+              icon: "clockMoon",
+              label: "Cierre de turno",
+              hint: nightExtra > 0 ? formatOvertime(nightExtra, true) : undefined,
+              highlight: closeHighlight,
+              onSelect: () => setCloseSheet((s) => ({ open: true, n: s.n + 1 })),
+            },
+          ]}
+        />
       </div>
 
       {mismatches.length > 0 && (
