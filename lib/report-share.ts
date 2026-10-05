@@ -85,16 +85,17 @@ export function buildShareModel(report: DayReport): ShareModel {
     working.push({ name: "Sin departamento", color: "#8e8e93", members: report.unassigned.map(member) });
   }
 
-  // Faltan = les tocaba trabajar y no han venido. Fiesta y ausencias previstas (vacaciones, baja) son normales.
+  // Faltan = les tocaba trabajar y no han venido, o tienen «Falta» (ABSENT). Fiesta, vacaciones y bajas son normales.
   const off = report.absences
     .filter((g) => g.dayOff)
     .flatMap((g) => g.members.filter((m) => !m.noShow).map((m) => m.name));
+  const isMissing = (g: DayReport["absences"][number], m: { noShow: boolean }) => g.absent || m.noShow;
   const away: ShareAway[] = report.absences
     .filter((g) => !g.dayOff)
-    .map((g) => ({ label: g.label, members: g.members.filter((m) => !m.noShow).map(({ name, reason }) => ({ name, reason })) }))
+    .map((g) => ({ label: g.label, members: g.members.filter((m) => !isMissing(g, m)).map(({ name, reason }) => ({ name, reason })) }))
     .filter((g) => g.members.length > 0);
   const missing: ShareMissing[] = report.absences.flatMap((g) =>
-    g.members.filter((m) => m.noShow).map((m) => ({ name: m.name, label: g.label, reason: m.reason, color: g.color })),
+    g.members.filter((m) => isMissing(g, m)).map((m) => ({ name: m.name, label: g.label, reason: m.reason, color: g.color })),
   );
 
   const times = [
@@ -184,14 +185,13 @@ export function shareModelToText(m: ShareModel): string {
   if (m.away.length > 0) {
     L.push("", `🌴 VACACIONES Y BAJAS (${m.counts.away})`);
     for (const g of m.away) {
-      L.push(`• ${g.label}: ${g.members.map((p) => (p.reason ? `${p.name} (${p.reason})` : p.name)).join(", ")}`);
+      L.push(`${g.label}: ${g.members.map((p) => (p.reason ? `${p.name} (${p.reason})` : p.name)).join(", ")}`);
     }
   }
 
-  if (m.missing.length > 0 || m.emptyDepartments.length > 0) {
-    L.push("", m.missing.length > 0 ? `🔴 FALTAN (${m.missing.length})` : "⚠️ DEPARTAMENTOS VACÍOS");
-    for (const p of m.missing) L.push(`🔴 ${p.name} — no ha venido${p.reason ? ` (${p.reason})` : ""}`);
-    for (const d of m.emptyDepartments) L.push(`⚠️ Sin personal en ${d}`);
+  if (m.missing.length > 0) {
+    L.push("", `🔴 FALTAN (${m.missing.length})`);
+    L.push(m.missing.map((p) => (p.reason ? `${p.name} (${p.reason})` : p.name)).join(", "));
   }
 
   if (m.times.length > 0) {
@@ -214,7 +214,7 @@ export function shareModelToText(m: ShareModel): string {
     for (const t of m.reports) L.push(`• ${t}`);
   }
 
-  if (m.missing.length === 0 && m.emptyDepartments.length === 0 && m.times.length === 0) {
+  if (m.missing.length === 0 && m.times.length === 0) {
     L.push("", "👍 Sin incidencias");
   }
 

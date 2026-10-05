@@ -15,7 +15,8 @@ const st = (code: string, label: string, isWorking: boolean, sortOrder: number):
 const WORK = st("WORK", "Trabaja", true, 0);
 const OFF = st("OFF", "Fiesta", false, 1);
 const SICK = st("SICK", "Baja laboral", false, 3);
-const statusTypes = [WORK, OFF, SICK];
+const ABSENT = st("ABSENT", "Falta", false, 5);
+const statusTypes = [WORK, OFF, SICK, ABSENT];
 
 const dep = (id: string, name: string, sortOrder: number, targetStaff: number): DepartmentLite => ({
   id, name, color: "#123456", sortOrder, targetStaff,
@@ -129,7 +130,7 @@ describe("buildDayReport", () => {
     expect(t).toContain("🌙 INFORME DE NOCHE\n📅 Lunes 28 sep");
     expect(t).toContain("Beto se va 2 h 30 min antes (sale a las 04:00) — Médico");
     expect(t).toContain("Eva se queda 1 h más");
-    expect(t).toContain("🌴 VACACIONES Y BAJAS (1)\n• Baja laboral: Dani (Gripe)");
+    expect(t).toContain("🌴 VACACIONES Y BAJAS (1)\nBaja laboral: Dani (Gripe)");
     expect(t).not.toContain("FALTAN");
     expect(t).toContain("Ana llega tarde a las 22:15 (+45 min) — Tren");
     // Orden: trabajan → fiesta → faltan.
@@ -208,10 +209,11 @@ describe("exportación visual", () => {
     expect(colorEmoji("nada")).toBe("⬜");
   });
   it("faltan = les tocaba trabajar y no han venido; fiesta, vacaciones y bajas aparte", () => {
-    const employees = [emp("Jorge"), emp("Mike"), emp("Fran"), emp("Dani"), emp("Ana")];
+    const employees = [emp("Jorge"), emp("Mike"), emp("Mikael"), emp("Fran"), emp("Dani"), emp("Ana")];
     const entries = [
       entry("Jorge", MON, WORK, { actualStatusTypeId: SICK.id }),
       entry("Mike", MON, WORK, { actualStatusTypeId: OFF.id, reason: "No avisa" }),
+      entry("Mikael", MON, ABSENT),
       entry("Fran", MON, OFF),
       entry("Dani", MON, SICK, { reason: "Gripe" }),
       entry("Ana", MON, WORK),
@@ -220,11 +222,12 @@ describe("exportación visual", () => {
     const m = buildShareModel(buildDayReport({ roster, dayNote: null, shift: DEFAULT_SHIFT, sections: [], departments }));
     expect(m.off).toEqual(["Fran"]);
     expect(m.away).toEqual([{ label: "Baja laboral", members: [{ name: "Dani", reason: "Gripe" }] }]);
-    expect(m.missing.map((x) => x.name).sort()).toEqual(["Jorge", "Mike"]);
-    expect(m.counts).toEqual({ working: 1, off: 1, away: 1, missing: 2 });
+    expect(m.missing.map((x) => x.name).sort()).toEqual(["Jorge", "Mikael", "Mike"]);
+    expect(m.counts).toEqual({ working: 1, off: 1, away: 1, missing: 3 });
     const t = shareModelToText(m);
-    expect(t).toContain("🔴 Mike — no ha venido (No avisa)");
-    const order = ["TRABAJAN", "FIESTA", "VACACIONES Y BAJAS", "FALTAN (2)"].map((k) => t.indexOf(k));
+    expect(t).toContain("Mike (No avisa)");
+    expect(t).toContain("Baja laboral: Dani (Gripe)");
+    const order = ["TRABAJAN", "FIESTA", "VACACIONES Y BAJAS", "FALTAN (3)"].map((k) => t.indexOf(k));
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(order[0]).toBeGreaterThan(0);
   });

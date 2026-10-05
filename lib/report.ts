@@ -125,6 +125,8 @@ export interface AbsenceGroup {
   color: string;
   /** Fiesta (OFF / PAID_OFF): no es una falta. */
   dayOff: boolean;
+  /** Estado «Falta» (ABSENT): siempre es una falta, aunque venga del planning. */
+  absent: boolean;
   /** `noShow`: el planning decía que trabajaba y no ha venido (falta de verdad). */
   members: { name: string; reason: string | null; noShow: boolean }[];
 }
@@ -298,6 +300,7 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
     label: g.status.label,
     color: g.status.color,
     dayOff: isDayOffStatus(g.status),
+    absent: g.status.code === "ABSENT",
     members: g.members.map((m) => ({ name: m.employee.name, reason: m.day.reason, noShow: m.day.planned?.isWorking === true })),
   }));
   const absentCount = absences.reduce((n, g) => n + g.members.length, 0);
