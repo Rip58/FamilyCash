@@ -1,11 +1,14 @@
 import { ReportCard } from "@/components/reports/ReportCard";
-import { Card, Tag } from "@/components/ui";
+import { Card } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
 import { formatOvertime } from "@/lib/overtime";
 import { formatDuration, noteWho, type DayReport } from "@/lib/report";
+import { buildShareModel } from "@/lib/report-share";
 import { DeleteNoteButton, TaskCheck } from "./ReportAdd";
 
 export function DayReportView({ report }: { report: DayReport }) {
+  // Misma agrupación que la imagen que se comparte: fiesta, vacaciones/bajas y faltas (en rojo), con comas.
+  const share = buildShareModel(report);
   if (report.isEmpty) {
     return (
       <Card>
@@ -88,21 +91,30 @@ export function DayReportView({ report }: { report: DayReport }) {
                 </ul>
               </div>
             )}
-            {report.absences.map((g) => (
-              <div key={g.statusId}>
-                <h3 className="flex items-center gap-2 text-[13px] font-semibold text-muted">
-                  <Tag color={g.color}>{g.label}</Tag> {g.members.length}
-                </h3>
-                <ul className="mt-1 space-y-1">
-                  {g.members.map((m) => (
-                    <li key={m.name}>
-                      <b>{m.name}</b>
-                      {m.reason && <span className="text-muted"> — {m.reason}</span>}
-                    </li>
-                  ))}
-                </ul>
+            {share.off.length > 0 && (
+              <div>
+                <h3 className="text-[13px] font-semibold text-accent">Fiesta · {share.off.length}</h3>
+                <p>{share.off.join(", ")}</p>
               </div>
-            ))}
+            )}
+            {share.away.length > 0 && (
+              <div>
+                <h3 className="text-[13px] font-semibold text-[#8944ab] dark:text-[#c58ae6]">Vacaciones y bajas · {share.counts.away}</h3>
+                {share.away.map((g) => (
+                  <p key={g.label}>
+                    <b>{g.label}:</b> {g.members.map((m) => (m.reason ? `${m.name} (${m.reason})` : m.name)).join(", ")}
+                  </p>
+                ))}
+              </div>
+            )}
+            {share.missing.length > 0 && (
+              <div>
+                <h3 className="text-[13px] font-semibold text-danger">Faltan · {share.missing.length}</h3>
+                <p className="font-semibold text-danger">
+                  {share.missing.map((m) => (m.reason ? `${m.name} (${m.reason})` : m.name)).join(", ")}
+                </p>
+              </div>
+            )}
           </div>
         )}
       </Card>
