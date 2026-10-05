@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { sheetDragOffset, shouldDismissSheet } from "@/lib/gesture";
-import { nudgeFixedLayout } from "@/lib/viewport-fix";
 import { createPortal } from "react-dom";
 import { cn } from "./cn";
 
@@ -84,7 +83,6 @@ export function BottomSheet({ open, onClose, title, children, draggable = true, 
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = overflow;
       previous?.focus?.();
-      nudgeFixedLayout(); // iOS: que la barra de pestañas vuelva abajo (p. ej. tras la hoja de compartir)
     };
   }, [open, onClose]);
 
