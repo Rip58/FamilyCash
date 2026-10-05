@@ -101,3 +101,13 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 - Informe → Compartir abre una hoja: "Compartir imagen" (PNG en canvas, `lib/report-image.ts`, faltas en rojo), "Compartir texto" y "Copiar texto". La imagen se genera al ABRIR la hoja: iOS pierde el permiso de `navigator.share` si hay un `await` largo tras el toque. No pasar `title` a `share` (iMessage lo duplica).
 - Contenido común en `lib/report-share.ts` (sin zod): `buildShareModel` (orden: trabajan por departamento → fiesta (`AbsenceGroup.dayOff`, OFF/PAID_OFF) → vacaciones y bajas previstas → faltan (`noShow`: el planning decía trabaja y no ha venido) + departamentos vacíos → horarios → horas extra → notas → avisos) y `shareModelToText` (emojis, títulos en mayúsculas, una línea por departamento y SIN asteriscos: iMessage los muestra tal cual y un texto largo se mete bajo su barra flotante; `colorEmoji` = cuadrado del color del departamento). `reportToText` lo usa.
 - iOS (PWA instalada) puede dejar la barra de pestañas a media pantalla al volver de la hoja de compartir: `nudgeFixedLayout` (`lib/viewport-fix.ts`, scroll 1 px y vuelta) SOLO tras `navigator.share` en `ShareButton`. NO llamarlo en eventos frecuentes (visualViewport resize, focus, focusout, cierre de hojas): iOS los dispara al hacer scroll y la barra «hace la loca».
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
