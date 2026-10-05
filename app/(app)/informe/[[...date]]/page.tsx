@@ -5,6 +5,7 @@ import { ReportAdd } from "@/components/report/ReportAdd";
 import { ReportTabs } from "@/components/report/ReportTabs";
 import { ShareButton } from "@/components/report/ShareButton";
 import { Icon } from "@/components/ui/icons";
+import { reportIconBtn } from "@/components/report/header-button";
 import { buildShareModel } from "@/lib/report-share";
 import { WeekSummaryView } from "@/components/report/WeekSummaryView";
 import { WeekTasks } from "@/components/report/WeekTasks";
@@ -76,6 +77,7 @@ export default async function Page({
   let title: string;
   let subtitle: string;
   let share: React.ReactNode = null;
+  let addNote: React.ReactNode = null;
 
   if (view === "dia") {
     const [entries, dayNote, reports, nightNotes] = await Promise.all([
@@ -92,13 +94,15 @@ export default async function Page({
       .filter((e) => e.active)
       .map((e) => ({ id: e.id, name: e.name }))
       .sort((a, b) => a.name.localeCompare(b.name, "es"));
+    addNote = (
+      <ReportAdd
+        date={date}
+        employees={people}
+        departments={departments.filter((d) => d.active !== false).map((d) => ({ id: d.id, name: d.name }))}
+      />
+    );
     body = (
       <>
-        <ReportAdd
-          date={date}
-          employees={people}
-          departments={departments.filter((d) => d.active !== false).map((d) => ({ id: d.id, name: d.name }))}
-        />
         <DayReportView report={report} />
       </>
     );
@@ -150,23 +154,21 @@ export default async function Page({
           ‹
         </NavButton>
         <div className="min-w-0 flex-1 text-center">
-          <div className="truncate text-[22px] font-bold tracking-tight">{title}</div>
+          <div className="truncate text-[19px] font-bold tracking-tight">{title}</div>
           <div className="truncate text-[13px] text-muted">{subtitle}</div>
         </div>
         <NavButton href={`/informe/${addDays(date, step)}${q}`} label={view === "semana" ? "Semana siguiente" : "Día siguiente"}>
           ›
         </NavButton>
       </div>
+      {/* Una sola línea: Día/Semana + nota + historial de empleado + compartir. */}
       <div className="flex items-center gap-2">
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <ReportTabs date={date} view={view} />
         </div>
-        <Link
-          href="/informe/empleado"
-          aria-label="Historial de un empleado"
-          className="press flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface text-accent"
-        >
-          <Icon name="search" className="h-5 w-5" />
+        {addNote}
+        <Link href="/informe/empleado" aria-label="Historial de un empleado" className={reportIconBtn}>
+          <Icon name="search" className="h-[22px] w-[22px]" strokeWidth={2.2} />
         </Link>
         {share}
       </div>

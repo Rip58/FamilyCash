@@ -11,6 +11,7 @@ export function ReportTabs({ date, view }: { date: string; view: View }) {
   return (
     <Segmented<View>
       aria-label="Vista del informe"
+      compact
       value={view}
       options={[
         { value: "dia", label: "Día" },

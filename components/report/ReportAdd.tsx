@@ -5,6 +5,8 @@ import { addNightNote, deleteNightNote, setNoteDone } from "@/app/actions/notes"
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Segmented } from "@/components/ui/Segmented";
 import { cn } from "@/components/ui/cn";
+import { Icon } from "@/components/ui/icons";
+import { reportIconBtn } from "./header-button";
 import type { DateStr } from "@/lib/dates";
 
 const fieldClass =
@@ -12,7 +14,7 @@ const fieldClass =
 
 type Opt = { id: string; name: string };
 
-/** Botón "+ Nota de la noche": varias notas por noche (informativas o tareas), generales o de un empleado. */
+/** Botón (icono de nota) "Nota de la noche": varias notas por noche (informativas o tareas), generales o de un empleado. */
 export function ReportAdd({ date, employees, departments }: { date: DateStr; employees: Opt[]; departments: Opt[] }) {
   const [open, setOpen] = useState(false);
   const [n, setN] = useState(0);
@@ -24,9 +26,10 @@ export function ReportAdd({ date, employees, departments }: { date: DateStr; emp
           setN((x) => x + 1);
           setOpen(true);
         }}
-        className="flex min-h-12 w-full items-center justify-center rounded-card bg-surface px-3 text-[16px] font-semibold text-accent active:opacity-70"
+        aria-label="Añadir nota de la noche"
+        className={reportIconBtn}
       >
-        + Nota de la noche
+        <Icon name="note" className="h-[22px] w-[22px]" strokeWidth={2.2} />
       </button>
       <BottomSheet open={open} onClose={() => setOpen(false)} title="Nota de la noche">
         {open && (

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
+import { Icon } from "@/components/ui/icons";
 import { notify } from "@/components/ui/toast";
 import { renderReportImage } from "@/lib/report-image";
 import type { ShareModel } from "@/lib/report-share";
@@ -94,12 +95,10 @@ export function ShareButton({ text, model, fileName }: { text: string; model: Sh
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="press inline-flex min-h-11 items-center gap-2 rounded-full bg-accent px-4 text-[15px] font-semibold text-accent-fg"
+        aria-label="Compartir informe"
+        className="press flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-accent-fg [touch-action:manipulation]"
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
-        </svg>
-        Compartir
+        <Icon name="share" className="h-[22px] w-[22px]" strokeWidth={2.2} />
       </button>
       <BottomSheet open={open} onClose={() => setOpen(false)} title="Compartir informe">
         <div className="space-y-3 pb-2">
