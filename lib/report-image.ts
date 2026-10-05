@@ -74,6 +74,46 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
     }
   };
 
+  /**
+   * Línea compacta: [cuadrado de color] + **etiqueta** y a continuación el texto (nombres separados por comas),
+   * que sigue en las líneas de abajo si no cabe.
+   */
+  const inline = (label: string, rest: string, swatch: string | null, color = C.fg) => {
+    const size = 28;
+    const lh = Math.round(size * 1.35);
+    let x0 = PAD + 28;
+    if (swatch) {
+      if (draw) {
+        ctx.fillStyle = swatch;
+        roundRect(ctx, x0, y + 6, 26, 26, 7);
+        ctx.fill();
+      }
+      x0 += 40;
+    }
+    const maxX = W - PAD - 28;
+    font(ctx, size, 700);
+    if (draw) {
+      ctx.fillStyle = C.fg;
+      ctx.fillText(label, x0, y + size);
+    }
+    let x = x0 + ctx.measureText(label).width + 12;
+    font(ctx, size, 400);
+    const space = ctx.measureText(" ").width;
+    for (const word of rest.split(/ +/).filter(Boolean)) {
+      const w = ctx.measureText(word).width;
+      if (x + w > maxX && x > x0) {
+        x = x0;
+        y += lh;
+      }
+      if (draw) {
+        ctx.fillStyle = color;
+        ctx.fillText(word, x, y + size);
+      }
+      x += w + space;
+    }
+    y += lh + 8;
+  };
+
   /** Tarjeta con cabecera de color; `body` dibuja dentro y avanza `y`. */
   const card = (title: string, color: string, bg: string, body: () => void) => {
     const top = y;
@@ -135,15 +175,6 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
   const bullet = (s: string, color = C.fg, dot = C.muted) => {
     y += bulletAt(PAD + 32, inner - 64, s, color, dot);
   };
-  /** Lista en dos columnas (listas largas de nombres). */
-  const bullets2 = (items: string[], color: string, dot: string) => {
-    const colW = (inner - 64) / 2;
-    for (let i = 0; i < items.length; i += 2) {
-      const a = bulletAt(PAD + 32, colW - 12, items[i]!, color, dot);
-      const b = items[i + 1] !== undefined ? bulletAt(PAD + 32 + colW, colW - 12, items[i + 1]!, color, dot) : 0;
-      y += Math.max(a, b);
-    }
-  };
 
   // Cabecera
   text("🌙 Informe de noche", PAD, 52, 800, C.fg);
@@ -176,41 +207,17 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
 
   if (m.working.length > 0) {
     card(`Trabajan (${m.counts.working})`, C.green, C.greenBg, () => {
-      m.working.forEach((d, i) => {
-        if (i > 0) {
-          if (draw) {
-            ctx.fillStyle = C.line;
-            ctx.fillRect(PAD + 28, y, inner - 56, 2);
-          }
-          y += 16;
-        }
-        const x = PAD + 28;
-        if (draw) {
-          ctx.fillStyle = d.color;
-          roundRect(ctx, x, y + 4, 28, 28, 8);
-          ctx.fill();
-        }
-        font(ctx, 30, 700);
-        if (draw) {
-          ctx.fillStyle = C.fg;
-          ctx.fillText(d.name, x + 44, y + 29);
-          const nw = ctx.measureText(d.name).width;
-          font(ctx, 26, 500);
-          ctx.fillStyle = C.muted;
-          ctx.fillText(` · ${d.members.length}`, x + 44 + nw, y + 29);
-        }
-        y += 48;
-        const names = d.members.map((p) => (p.tags.length > 0 ? `${p.name} · ${p.tags.join(" · ")}` : p.name));
-        if (names.length >= 6) bullets2(names, C.fg, d.color);
-        else for (const n of names) bullet(n, C.fg, d.color);
-        y += 6;
-      });
+      for (const d of m.working) {
+        // El detalle va pegado al nombre (espacio duro) para que no se parta en dos líneas.
+        const names = d.members.map((p) => (p.tags.length > 0 ? `${p.name}\u00a0(${p.tags.join(",\u00a0").replace(/ /g, "\u00a0")})` : p.name));
+        inline(d.members.length > 1 ? `${d.name} (${d.members.length})` : d.name, names.join(", "), d.color);
+      }
     });
   }
 
   if (m.off.length > 0) {
     card(`Fiesta (${m.off.length})`, C.blue, C.blueBg, () => {
-      text(m.off.join(", "), PAD + 32, 28, 400, C.fg, inner - 64);
+      text(m.off.join(", "), PAD + 28, 28, 400, C.fg, inner - 56);
       y += 6;
     });
   }
@@ -218,15 +225,15 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
   if (m.away.length > 0) {
     card(`Vacaciones y bajas (${m.counts.away})`, C.purple, C.purpleBg, () => {
       for (const g of m.away) {
-        bullet(`${g.label}: ${g.members.map((p) => (p.reason ? `${p.name} (${p.reason})` : p.name)).join(", ")}`, C.fg, C.purple);
+        inline(`${g.label}:`, g.members.map((p) => (p.reason ? `${p.name} (${p.reason})` : p.name)).join(", "), null);
       }
     });
   }
 
-  if (m.missing.length > 0 || m.emptyDepartments.length > 0) {
-    card(m.missing.length > 0 ? `Faltan (${m.missing.length})` : "Departamentos vacíos", C.red, C.redBg, () => {
-      for (const p of m.missing) bullet(`${p.name} — no ha venido${p.reason ? ` (${p.reason})` : ""}`, C.red, C.red);
-      for (const d of m.emptyDepartments) bullet(`Sin personal en ${d}`, C.red, C.red);
+  if (m.missing.length > 0) {
+    card(`Faltan (${m.missing.length})`, C.red, C.redBg, () => {
+      text(m.missing.map((p) => (p.reason ? `${p.name} (${p.reason})` : p.name)).join(", "), PAD + 28, 28, 600, C.red, inner - 56);
+      y += 6;
     });
   }
 
