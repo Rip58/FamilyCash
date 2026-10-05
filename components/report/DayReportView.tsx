@@ -9,6 +9,8 @@ import { DeleteNoteButton, TaskCheck } from "./ReportAdd";
 export function DayReportView({ report }: { report: DayReport }) {
   // Misma agrupación que la imagen que se comparte: fiesta, vacaciones/bajas y faltas (en rojo), con comas.
   const share = buildShareModel(report);
+  const hasPeopleIncidents =
+    report.lateArrivals.length > 0 || report.leaveDeviations.length > 0 || report.absences.some((g) => g.members.length > 0);
   if (report.isEmpty) {
     return (
       <Card>
@@ -50,17 +52,12 @@ export function DayReportView({ report }: { report: DayReport }) {
         </Card>
       )}
 
-      <Card title="Incidencias" tone={report.emptyDepartments.length > 0 ? "danger" : "default"}>
-        {!report.hasIncidents ? (
+      {/* Solo personas (como la imagen compartida): los departamentos sin nadie no salen. */}
+      <Card title="Incidencias" tone={share.missing.length > 0 ? "danger" : "default"}>
+        {!hasPeopleIncidents ? (
           <p className="text-[15px] text-muted">Sin incidencias esta noche.</p>
         ) : (
           <div className="space-y-4 text-[15px]">
-            {report.emptyDepartments.length > 0 && (
-              <div>
-                <h3 className="text-[13px] font-semibold text-danger">Sin personal</h3>
-                <p>{report.emptyDepartments.join(", ")}</p>
-              </div>
-            )}
             {report.lateArrivals.length > 0 && (
               <div>
                 <h3 className="text-[13px] font-semibold text-muted">Llegadas tarde</h3>

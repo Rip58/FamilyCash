@@ -4,6 +4,7 @@ import { DayReportView } from "@/components/report/DayReportView";
 import { ReportAdd } from "@/components/report/ReportAdd";
 import { ReportTabs } from "@/components/report/ReportTabs";
 import { ShareButton } from "@/components/report/ShareButton";
+import { Icon } from "@/components/ui/icons";
 import { buildShareModel } from "@/lib/report-share";
 import { WeekSummaryView } from "@/components/report/WeekSummaryView";
 import { WeekTasks } from "@/components/report/WeekTasks";
@@ -160,6 +161,13 @@ export default async function Page({
         <div className="flex-1">
           <ReportTabs date={date} view={view} />
         </div>
+        <Link
+          href="/informe/empleado"
+          aria-label="Historial de un empleado"
+          className="press flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface text-accent"
+        >
+          <Icon name="search" className="h-5 w-5" />
+        </Link>
         {share}
       </div>
       {body}

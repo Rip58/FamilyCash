@@ -111,3 +111,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+## Notas técnicas (historial de empleado)
+- Informe → lupa → `/informe/empleado?id=` (ruta estática: gana al `[[...date]]`; tiene su `loading.tsx`). `EmployeePicker` (buscar por nombre, sin acentos) y `EmployeeHistoryView` (noches desplegables `<details>`, las 3 primeras abiertas; búsqueda dentro; Compartir/Copiar texto con `historyToText`).
+- Lógica pura sin zod en `lib/employee-history.ts` (`groupHistory`, `historyCounts`, `KIND_META`); apuntes de cada noche en `lib/employee-history-entry.ts` (`entryHistoryItems` con el día de `getEffectiveDay`: falta = tocaba trabajar y no vino o «Falta»; fiesta sin motivo no sale); consultas en `lib/employee-history-queries.ts` (DayEntry, NightNote, Report, EmployeeNote de la ficha, LeaveRequest). Si añades otra tabla con apuntes sobre empleados, súmala ahí. Tests: `tests/employee-history.test.ts`.
+- Informe (en la app y al compartir): solo personas; los departamentos vacíos no salen.

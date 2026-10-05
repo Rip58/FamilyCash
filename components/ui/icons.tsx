@@ -99,6 +99,13 @@ const PATHS = {
   close: <path d="M6 6l12 12M18 6 6 18" />,
   plus: <path d="M12 5v14M5 12h14" />,
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
+  /** Buscar. */
+  search: (
+    <>
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="m15.5 15.5 5 5" />
+    </>
+  ),
   /** Nota. */
   note: (
     <>
