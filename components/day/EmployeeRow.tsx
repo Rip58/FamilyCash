@@ -26,10 +26,10 @@ interface EmployeeRowProps {
   attendance?: { onPresent: () => void; onAbsent: () => void; onUndo: () => void };
 }
 
-/** Zona táctil de 44px con un círculo visual más pequeño (filas compactas, como en Semana). */
-const hit = "press flex h-11 w-10 shrink-0 items-center justify-center [touch-action:manipulation]";
+/** Filas compactas (33px, como pidió el usuario): botón de 33×44px con un círculo visual de 24px. */
+const hit = "press flex h-[33px] w-11 shrink-0 items-center justify-center [touch-action:manipulation]";
 const dot =
-  "flex h-8 w-8 items-center justify-center rounded-full text-[15px] font-bold transition-colors duration-150 ease-out";
+  "flex h-6 w-6 items-center justify-center rounded-full text-[13px] font-bold transition-colors duration-150 ease-out";
 
 export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, onMove, showStatus, hasReports, attendance, groupId = null, absence }: EmployeeRowProps) {
   const { employee, day } = member;
@@ -58,12 +58,12 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
       <button
         type="button"
         {...press}
-        className="flex min-h-11 min-w-0 flex-1 select-none items-center gap-2 py-1 pl-3.5 pr-1 text-left [-webkit-touch-callout:none] active:bg-surface-2"
+        className="flex min-h-[33px] min-w-0 flex-1 select-none items-center gap-2 py-0.5 pl-3.5 pr-1 text-left [-webkit-touch-callout:none] active:bg-surface-2"
       >
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] leading-tight">{employee.name}</span>
+          <span className="block truncate text-[14px] leading-tight">{employee.name}</span>
           {showStatus ? (
-            <span className="block truncate text-[12px] leading-tight text-muted">
+            <span className="block truncate text-[11px] leading-tight text-muted">
               {day.status.label}
               {day.reason ? ` · ${day.reason}` : ""}
             </span>
@@ -71,22 +71,22 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
             (sections.length > 0 || tonight.length > 0 || moved) && (
               <span className="flex flex-wrap items-center gap-x-1.5 leading-tight">
                 {tonight.map((d, i) => (
-                  <span key={d.id} className="inline-flex items-center gap-1 text-[12px] text-muted">
+                  <span key={d.id} className="inline-flex items-center gap-1 text-[11px] text-muted">
                     <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: d.color }} />
                     {covering && i === 0 ? `de ${d.name}` : groupId ? `+ ${d.name}` : d.name}
                   </span>
                 ))}
                 {sections.map((n, i) => (
-                  <span key={i} className="text-[12px] text-muted">
+                  <span key={i} className="text-[11px] text-muted">
                     {n}
                   </span>
                 ))}
-                {moved && habitual && !covering && <span className="text-[12px] text-warning">↪ de {habitual.name}</span>}
+                {moved && habitual && !covering && <span className="text-[11px] text-warning">↪ de {habitual.name}</span>}
               </span>
             )
           )}
         </span>
-        <span className="flex shrink-0 items-center gap-1.5 text-[12px] text-muted">
+        <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted">
           {day.arrivedAt && <span title="Llega tarde">⏰ {day.arrivedAt}</span>}
           {day.leftAt && (
             <span title={leftKind(day.leftAt, shift) === "more" ? "Se queda más" : "Se va antes"}>

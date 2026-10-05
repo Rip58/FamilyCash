@@ -560,10 +560,10 @@ function GroupCard({
   return (
     <Card flush tone={danger ? "danger" : "default"} aria-label={name}>
       <div
-        className="flex min-h-9 items-center justify-between gap-2 border-l-4 px-3"
+        className="flex min-h-7 items-center justify-between gap-2 border-l-4 px-3"
         style={{ backgroundColor: tint(color, 16), borderLeftColor: color ?? "#64748b" }}
       >
-        <h2 className="min-w-0 truncate text-[14px] font-semibold">{name}</h2>
+        <h2 className="min-w-0 truncate text-[13px] font-semibold">{name}</h2>
         <span className="flex shrink-0 items-center gap-2.5 text-[12px] font-semibold tabular-nums text-muted">{badges}</span>
       </div>
       <div className="divide-y divide-line">{children}</div>
