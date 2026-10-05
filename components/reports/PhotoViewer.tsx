@@ -1,5 +1,6 @@
 "use client";
 
+import { lockAppScroll } from "@/lib/viewport-fix";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { notify } from "@/components/ui/toast";
@@ -57,8 +58,7 @@ function Viewer({ photos, start, caption, onClose }: { photos: ReportPhotoView[]
   };
 
   useEffect(() => {
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlock = lockAppScroll();
     closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -70,7 +70,7 @@ function Viewer({ photos, start, caption, onClose }: { photos: ReportPhotoView[]
     document.addEventListener("keydown", onKey, true);
     return () => {
       document.removeEventListener("keydown", onKey, true);
-      document.body.style.overflow = prevOverflow;
+      unlock();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onClose]);

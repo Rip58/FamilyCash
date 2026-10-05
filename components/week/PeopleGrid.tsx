@@ -276,10 +276,13 @@ export function PeopleGrid({ data, flat = false }: { data: PeopleGridData; flat?
       if (!(e.target instanceof Element && e.target.closest("[data-peek-name]"))) setPeekId(null);
     };
     document.addEventListener("pointerdown", close);
-    window.addEventListener("scroll", () => setPeekId(null), { once: true, passive: true });
+    // El scroll es del contenedor de la app, no de window: en captura para oír cualquier scroll.
+    const onScroll = () => setPeekId(null);
+    document.addEventListener("scroll", onScroll, { capture: true, once: true, passive: true });
     return () => {
       clearTimeout(t);
       document.removeEventListener("pointerdown", close);
+      document.removeEventListener("scroll", onScroll, { capture: true });
     };
   }, [peekId]);
 

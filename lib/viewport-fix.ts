@@ -1,15 +1,31 @@
-// Solo cliente. iOS (sobre todo la PWA instalada) a veces deja los elementos `position: fixed` (la barra de pestañas)
-// a media pantalla al volver de la hoja de compartir o al cerrar el teclado: se queda con el tamaño de ventana viejo
-// hasta que algo le obliga a recolocarlos. Mover el scroll 1 px y volver lo fuerza sin que se note.
+// Solo cliente. El scroll de la app vive en `#app-scroll` (no en el documento): en iOS 26.0 (WebKit 297779), si el
+// documento hace scroll, tras cerrar el teclado o la hoja de compartir la barra de pestañas fija se queda a media
+// pantalla en todas las páginas. Ver `app/(app)/layout.tsx` y `.app-scroll` en globals.css.
 
-let pending = 0;
+let locks = 0;
 
-export function nudgeFixedLayout(): void {
-  if (typeof window === "undefined") return;
-  cancelAnimationFrame(pending);
-  pending = requestAnimationFrame(() => {
-    const y = window.scrollY;
-    window.scrollTo(window.scrollX, y > 0 ? y - 1 : y + 1);
-    requestAnimationFrame(() => window.scrollTo(window.scrollX, y));
-  });
+/** Contenedor que hace scroll en la app (o el documento fuera de `(app)`, p. ej. el login). */
+export function appScroller(): HTMLElement {
+  return document.getElementById("app-scroll") ?? document.documentElement;
+}
+
+/**
+ * Bloquea el scroll del fondo mientras hay una hoja o el visor de fotos abiertos. Con contador: varias hojas una
+ * encima de otra se pueden cerrar en cualquier orden sin dejar el scroll bloqueado. Devuelve la función que libera.
+ */
+export function lockAppScroll(): () => void {
+  locks++;
+  const apply = () => {
+    const v = locks > 0 ? "hidden" : "";
+    appScroller().style.overflowY = v;
+    document.body.style.overflow = v;
+  };
+  apply();
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    locks = Math.max(0, locks - 1);
+    apply();
+  };
 }

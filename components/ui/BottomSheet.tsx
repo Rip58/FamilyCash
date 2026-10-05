@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { sheetDragOffset, shouldDismissSheet } from "@/lib/gesture";
+import { lockAppScroll } from "@/lib/viewport-fix";
 import { createPortal } from "react-dom";
 import { cn } from "./cn";
 
@@ -53,8 +54,7 @@ export function BottomSheet({ open, onClose, title, children, draggable = true, 
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlock = lockAppScroll();
     panelRef.current?.focus();
 
     const onKey = (e: KeyboardEvent) => {
@@ -81,7 +81,7 @@ export function BottomSheet({ open, onClose, title, children, draggable = true, 
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = overflow;
+      unlock();
       previous?.focus?.();
     };
   }, [open, onClose]);

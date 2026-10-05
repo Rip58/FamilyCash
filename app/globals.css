@@ -93,6 +93,16 @@ body {
   }
 }
 
+/* Contenedor de scroll de la app (ver app/(app)/layout.tsx): el documento no hace scroll. */
+.app-scroll {
+  position: fixed;
+  inset: 0;
+  overflow-x: clip;
+  overflow-y: auto;
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
+}
+
 .app-main {
   padding-top: env(safe-area-inset-top);
   padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px);
