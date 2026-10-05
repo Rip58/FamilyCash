@@ -5,6 +5,7 @@ import { BottomSheet } from "@/components/ui/BottomSheet";
 import { notify } from "@/components/ui/toast";
 import { renderReportImage } from "@/lib/report-image";
 import type { ShareModel } from "@/lib/report-share";
+import { nudgeFixedLayout } from "@/lib/viewport-fix";
 
 async function copyText(text: string): Promise<boolean> {
   try {
@@ -56,7 +57,7 @@ export function ShareButton({ text, model, fileName }: { text: string; model: Sh
     if (!file || !url) return;
     if (typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
       try {
-        await navigator.share({ files: [file] });
+        await navigator.share({ files: [file] }).finally(nudgeFixedLayout);
         setOpen(false);
       } catch (e) {
         if (!isAbort(e)) notify("No se pudo compartir la imagen", "error");
@@ -73,7 +74,7 @@ export function ShareButton({ text, model, fileName }: { text: string; model: Sh
   async function shareText() {
     if (typeof navigator.share === "function") {
       try {
-        await navigator.share({ text });
+        await navigator.share({ text }).finally(nudgeFixedLayout);
         setOpen(false);
         return;
       } catch (e) {

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { FixedLayoutGuard } from "@/components/pwa/FixedLayoutGuard";
 import { NoPageZoom } from "@/components/pwa/NoPageZoom";
 import { RegisterSW } from "@/components/pwa/RegisterSW";
 
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
         <RegisterSW />
         <NoPageZoom />
+        <FixedLayoutGuard />
       </body>
     </html>
   );
