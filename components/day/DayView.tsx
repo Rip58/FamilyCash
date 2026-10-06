@@ -213,10 +213,9 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
       attendance={
         m.day.isWorking
           ? {
-              onPresent: () => {
-                setPresent(m.employee.id, true);
-                if (activeDepartments.length > 0) setMove({ id: m.employee.id, open: true, checkIn: true });
-              },
+              // Por la noche solo se valida: el puesto se organiza antes con ⇄.
+              onPresent: () => setPresent(m.employee.id, true),
+              onMove: activeDepartments.length > 0 ? () => openMove(m.employee.id) : undefined,
               onUndo: () => setPresent(m.employee.id, false),
               onAbsent: () => setAbsentSheet({ id: m.employee.id, open: true }),
             }

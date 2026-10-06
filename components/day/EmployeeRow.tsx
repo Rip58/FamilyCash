@@ -4,6 +4,7 @@ import { useState } from "react";
 import { formatOvertime } from "@/lib/overtime";
 import { leftKind, segmentName, type ShiftTimes } from "@/lib/segments";
 import type { DepartmentLite, RosterMember } from "@/lib/schedule";
+import { cn } from "@/components/ui/cn";
 import { tint } from "@/components/ui/icons";
 import { useLongPress } from "./useLongPress";
 
@@ -23,7 +24,7 @@ interface EmployeeRowProps {
   /** Burbuja de departamento en la que está la fila: no se repite ese nombre (null = lista sin grupos). */
   groupId?: string | null;
   /** Pasar lista: botones ✓/✗ (solo para quien está previsto que trabaje). */
-  attendance?: { onPresent: () => void; onAbsent: () => void; onUndo: () => void };
+  attendance?: { onPresent: () => void; onAbsent: () => void; onUndo: () => void; onMove?: () => void };
 }
 
 /** Filas compactas (33px, como pidió el usuario): botón de 33×44px con un círculo visual de 24px. */
@@ -41,6 +42,10 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
     setJustValidated(day.present);
   }
   const okDot = `${dot} bg-success text-white${justValidated ? " pop-in" : ""}`;
+  // Fuera de su puesto habitual (o cubre otro departamento): el ✓ va en azul en vez de verde.
+  const relocated = day.departmentId !== member.employee.defaultDepartmentId || day.extraDepartmentIds.length > 0;
+  const okDotWork = relocated ? `${dot} bg-accent text-accent-fg${justValidated ? " pop-in" : ""}` : okDot;
+  const pendingDotWork = relocated ? `${dot} bg-accent/15 text-accent` : `${dot} bg-success/15 text-success`;
   const press = useLongPress(onMove, onOpen);
   const habitual = employee.defaultDepartmentId ? departments.get(employee.defaultDepartmentId) : undefined;
   const moved = day.departmentId !== employee.defaultDepartmentId;
@@ -137,17 +142,33 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
       )}
       {attendance && (
         <span className="flex shrink-0 items-center pr-1.5">
+          {/* ⇄ cambiar de puesto (durante el día se organiza; por la noche solo se valida con ✓). */}
+          {attendance.onMove && (
+            <button type="button" onClick={attendance.onMove} aria-label={`Cambiar de puesto a ${name}`} className={hit}>
+              <span className={cn(dot, relocated ? "bg-accent/15 text-accent" : "bg-surface-2 text-muted")}>⇄</span>
+            </button>
+          )}
           {day.present ? (
-            <button type="button" onClick={attendance.onUndo} aria-label={`${name} ha venido. Toca para deshacer`} className={hit}>
-              <span className={okDot}>✓</span>
+            <button
+              type="button"
+              onClick={attendance.onUndo}
+              aria-label={`${name} ha venido${relocated ? " (fuera de su puesto habitual)" : ""}. Toca para deshacer`}
+              className={hit}
+            >
+              <span className={okDotWork}>✓</span>
             </button>
           ) : (
             <>
               <button type="button" onClick={attendance.onAbsent} aria-label={`${name} no ha venido`} className={hit}>
                 <span className={`${dot} bg-danger/12 text-danger`}>✗</span>
               </button>
-              <button type="button" onClick={attendance.onPresent} aria-label={`${name} ha venido`} className={hit}>
-                <span className={`${dot} bg-success/15 text-success`}>✓</span>
+              <button
+                type="button"
+                onClick={attendance.onPresent}
+                aria-label={`${name} ha venido${relocated ? " (fuera de su puesto habitual)" : ""}`}
+                className={hit}
+              >
+                <span className={pendingDotWork}>✓</span>
               </button>
             </>
           )}
