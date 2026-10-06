@@ -31,6 +31,7 @@ export const BACKUP_TABLES = [
   "payrollPeriod",
   "payslip",
   "nightNote",
+  "absence",
 ] as const;
 
 export type BackupTable = (typeof BACKUP_TABLES)[number];
@@ -69,6 +70,7 @@ export async function exportBackup(db: PrismaClient): Promise<BackupFile> {
     payrollPeriod: () => db.payrollPeriod.findMany(),
     payslip: () => db.payslip.findMany(),
     nightNote: () => db.nightNote.findMany(),
+    absence: () => db.absence.findMany(),
   };
   const tables = {} as Record<BackupTable, Row[]>;
   for (const t of BACKUP_TABLES) tables[t] = await read[t]();
@@ -123,6 +125,7 @@ export async function restoreBackup(db: PrismaClient, backup: BackupFile): Promi
     payrollPeriod: (tx) => tx.payrollPeriod.createMany({ data: t.payrollPeriod as any }),
     payslip: (tx) => tx.payslip.createMany({ data: t.payslip as any }),
     nightNote: (tx) => tx.nightNote.createMany({ data: t.nightNote as any }),
+    absence: (tx) => tx.absence.createMany({ data: (t.absence ?? []) as any }),
   };
   /* eslint-enable @typescript-eslint/no-explicit-any */
   const clear: Record<BackupTable, (tx: Prisma.TransactionClient) => Promise<unknown>> = {
@@ -148,6 +151,7 @@ export async function restoreBackup(db: PrismaClient, backup: BackupFile): Promi
     payrollPeriod: (tx) => tx.payrollPeriod.deleteMany(),
     payslip: (tx) => tx.payslip.deleteMany(),
     nightNote: (tx) => tx.nightNote.deleteMany(),
+    absence: (tx) => tx.absence.deleteMany(),
   };
   return db.$transaction(
     async (tx) => {

@@ -2,7 +2,7 @@
 import { db } from "./db";
 import { fromDbDate, madridParts } from "./dates";
 import { CATEGORY_META, isNoteCategory } from "./employee-file";
-import { entryHistoryItems } from "./employee-history-entry";
+import { absenceHistoryItem, entryHistoryItems, mergeAbsenceItems } from "./employee-history-entry";
 import { type HistoryItem, KIND_META } from "./employee-history";
 import { LEAVE_STATUS_LABEL, type LeaveStatus, type LeaveType, summarizeRequest } from "./leave";
 import { getEmployees, getSettings, getStatusTypes, toEntryLite } from "./queries";
@@ -19,14 +19,20 @@ export async function loadEmployeeHistory(employeeId: string): Promise<HistoryIt
     db.employeeNote.findMany({ where: { employeeId }, include: { photos: { select: { id: true } } }, orderBy: { occurredAt: "asc" } }),
     db.leaveRequest.findMany({ where: { employeeId }, orderBy: { createdAt: "asc" } }),
   ]);
+  const absences = await db.absence.findMany({ where: { employeeId }, orderBy: { date: "asc" } });
   const employee = employees.find((e) => e.id === employeeId);
   if (!employee) return [];
 
-  const items: HistoryItem[] = [];
+  const dayItems: HistoryItem[] = [];
   for (const row of entries) {
     const entry = toEntryLite(row);
-    items.push(...entryHistoryItems(getEffectiveDay(employee, entry.date, entry, statusTypes), settings));
+    dayItems.push(...entryHistoryItems(getEffectiveDay(employee, entry.date, entry, statusTypes), settings));
   }
+  // Faltas del registro: siguen saliendo aunque después el día se cambiara a fiesta.
+  const items = mergeAbsenceItems(
+    dayItems,
+    absences.map((a) => absenceHistoryItem({ ...a, date: fromDbDate(a.date) })),
+  );
   for (const n of nightNotes) {
     const task = n.kind === "TASK";
     items.push({

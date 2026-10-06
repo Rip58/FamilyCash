@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useOptimistic, useState, useTransition } from "react";
 import { setOvertime } from "@/app/actions/day";
+import { getAbsenceNotice, setAbsenceNotice } from "@/app/actions/absences";
 import { absenceSwapOptions, resolveAbsence, setCellStatus, setCellStatusRange } from "@/app/actions/week";
+import { NoticeToggle } from "@/components/day/NoticeToggle";
 import { OvertimeStepper } from "@/components/day/OvertimeStepper";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Segmented } from "@/components/ui/Segmented";
@@ -156,8 +158,31 @@ const QUICK_DAYS = [7, 15, 30];
  * Falta: cuando vuelve el empleado se decide caso por caso. Cambiar la falta por uno de sus días de fiesta
  * (esa semana o la siguiente), hacer 2 días de fiesta, o dejarla como falta.
  */
-function ResolveAbsence({ employeeId, date, onDone }: { employeeId: string; date: DateStr; onDone: () => void }) {
+function ResolveAbsence({
+  employeeId,
+  date,
+  statusTypeId,
+  onDone,
+}: {
+  employeeId: string;
+  date: DateStr;
+  /** Estado de la falta (para el registro). */
+  statusTypeId: string;
+  onDone: () => void;
+}) {
   const [step, setStep] = useState<"menu" | "swap">("menu");
+  const [notified, setNotified] = useState<boolean | null | undefined>(undefined);
+  useEffect(() => {
+    let alive = true;
+    getAbsenceNotice(employeeId, date).then((r) => alive && setNotified(r?.notified ?? null));
+    return () => {
+      alive = false;
+    };
+  }, [employeeId, date]);
+  const changeNotice = (v: boolean | null) => {
+    setNotified(v);
+    void setAbsenceNotice({ employeeId, date, notified: v, statusTypeId });
+  };
   const [options, setOptions] = useState<{ date: DateStr; label: string }[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -176,6 +201,7 @@ function ResolveAbsence({ employeeId, date, onDone }: { employeeId: string; date
   return (
     <div className="flex flex-col gap-2 rounded-control bg-danger/10 p-3" aria-label="Resolver falta">
       <span className="text-[14px] font-semibold text-danger">Resolver falta · cuando vuelva</span>
+      {notified !== undefined && <NoticeToggle value={notified} onChange={changeNotice} />}
       {step === "menu" ? (
         <>
           <button type="button" disabled={pending} onClick={openSwap} className={btn}>
@@ -228,6 +254,7 @@ function CellSheetBody({
   date,
   employeeId,
   absence,
+  absenceStatusId,
   pending,
   actual,
   onSave,
@@ -239,6 +266,8 @@ function CellSheetBody({
   employeeId: string;
   /** Es una falta (planning «Falta» o validada así en Hoy): ofrece resolverla. */
   absence: boolean;
+  /** Estado con el que se marcó la falta (lo de Hoy si no cuadra). */
+  absenceStatusId?: string;
   onClose: () => void;
   pending: string | null;
   actual: string | null;
@@ -269,7 +298,7 @@ function CellSheetBody({
           ⚠️ No cuadró: en Hoy se validó «{actual}». Aquí solo cambias el planning.
         </p>
       )}
-      {absence && <ResolveAbsence employeeId={employeeId} date={date} onDone={onClose} />}
+      {absence && <ResolveAbsence employeeId={employeeId} date={date} statusTypeId={absenceStatusId ?? initial.statusId} onDone={onClose} />}
       <Segmented
         wrap
         aria-label="Estado"
@@ -670,6 +699,7 @@ export function PeopleGrid({ data, flat = false }: { data: PeopleGridData; flat?
             date={sheet.target.date}
             employeeId={sheet.target.employeeId}
             absence={isAbsence(statusById.get(sheetValue.statusId)?.code, actualCodeByKey[sheetKey])}
+            absenceStatusId={statuses.find((s) => s.code === actualCodeByKey[sheetKey])?.id}
             onClose={() => setSheet({ ...sheet, open: false })}
             pending={pendingByKey[sheetKey] ?? null}
             actual={actualByKey[sheetKey] ?? null}

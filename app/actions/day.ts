@@ -12,7 +12,8 @@ import { db } from "@/lib/db";
 import { type DateStr, isDateStr, toDbDate } from "@/lib/dates";
 import { isValidOvertime } from "@/lib/overtime";
 import { getSettings } from "@/lib/queries";
-import { type DayEntryLite, type EmployeeLite, type StatusTypeLite } from "@/lib/schedule";
+import { syncAbsence } from "@/lib/absence-log";
+import { type DayEntryLite, type EmployeeLite, type StatusTypeLite, getEffectiveDay } from "@/lib/schedule";
 import {
   type EntryPatch,
   TIME_RE,
@@ -233,6 +234,16 @@ async function mutateScalar(employeeId: string, date: DateStr, patch: EntryPatch
         create: { employeeId, date: toDbDate(date), ...data },
         update: data,
       });
+      if (patch.kind === "status") {
+        // Registro de faltas: queda aunque luego se cambie el día (si «ha venido», era un error y se quita).
+        await syncAbsence(tx, {
+          employeeId,
+          date,
+          before: getEffectiveDay(ctx.employee, date, ctx.entry ?? null, ctx.statusTypes),
+          after: getEffectiveDay(ctx.employee, date, next, ctx.statusTypes),
+          source: "hoy",
+        });
+      }
       await pruneIfRedundant(tx, employeeId, date);
     });
   });

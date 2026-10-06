@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import type { StatusTypeLite } from "@/lib/schedule";
+import { NoticeToggle } from "./NoticeToggle";
 import { StatusButtons } from "./StatusButtons";
 
 interface AbsentSheetProps {
@@ -14,7 +15,9 @@ interface AbsentSheetProps {
   /** Estado actual (se marca como elegido). */
   current?: string | null;
   statusTypes: StatusTypeLite[];
-  onConfirm: (statusTypeId: string, reason: string | null) => void;
+  onConfirm: (statusTypeId: string, reason: string | null, notified: boolean | null) => void;
+  /** Pregunta «¿Ha avisado?» (cuando no ha venido a un día de trabajo). */
+  askNotice?: boolean;
   /** Si se indica, muestra arriba "Ha venido a trabajar" (para quien el planning daba ausente). */
   onCame?: () => void;
 }
@@ -23,8 +26,9 @@ interface AbsentSheetProps {
 const FIRST = ["OFF", "SICK"];
 
 /** Elegir el motivo de una ausencia: un toque lo guarda (cambia también la Semana). */
-export function AbsentSheet({ open, onClose, title, note, current, statusTypes, onConfirm, onCame }: AbsentSheetProps) {
+export function AbsentSheet({ open, onClose, title, note, current, statusTypes, onConfirm, onCame, askNotice }: AbsentSheetProps) {
   const [reason, setReason] = useState("");
+  const [notified, setNotified] = useState<boolean | null>(null);
   const options = statusTypes
     .filter((s) => !s.isWorking && (s.active !== false || s.id === current))
     .sort((a, b) => {
@@ -49,11 +53,12 @@ export function AbsentSheet({ open, onClose, title, note, current, statusTypes, 
             ✓ Ha venido a trabajar
           </button>
         )}
+        {askNotice && <NoticeToggle value={notified} onChange={setNotified} />}
         <StatusButtons
           statuses={options}
           value={current}
           onPick={(s) => {
-            onConfirm(s.id, reason.trim() || null);
+            onConfirm(s.id, reason.trim() || null, notified);
             onClose();
           }}
         />

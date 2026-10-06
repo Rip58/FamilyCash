@@ -35,6 +35,7 @@ import {
   getDayRoster,
 } from "@/lib/schedule";
 import { type EntryPatch, type ShiftTimes, applyEntryPatch } from "@/lib/segments";
+import { setAbsenceNotice } from "@/app/actions/absences";
 import { AbsentSheet } from "./AbsentSheet";
 import { DayNoteCard } from "./DayNoteCard";
 import { EmployeeRow } from "./EmployeeRow";
@@ -499,7 +500,14 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
           }
           current={absentSheet.change ? absentMember.day.status.id : null}
           statusTypes={statusTypes}
-          onConfirm={(statusTypeId, reason) => opsFor(absentSheet.id).setStatus(statusTypeId, reason)}
+          askNotice={(absentMember.day.planned ?? absentMember.day.status).isWorking}
+          onConfirm={(statusTypeId, reason, notified) => {
+            opsFor(absentSheet.id).setStatus(statusTypeId, reason);
+            // Registro de faltas: si avisó o no (queda en su historial aunque luego se cambie el día).
+            if (notified !== null && (absentMember.day.planned ?? absentMember.day.status).isWorking) {
+              void setAbsenceNotice({ employeeId: absentSheet.id, date, notified, statusTypeId });
+            }
+          }}
           onCame={
             absentSheet.change
               ? () => {

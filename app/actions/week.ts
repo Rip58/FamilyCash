@@ -5,7 +5,9 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { type DateStr, addDays, formatDayLong, isDateStr, toDbDate, weekDays, weekStart as weekStartOf } from "@/lib/dates";
 import { REF_TAG, getEmployees, getEntriesBetween, getStatusTypes } from "@/lib/queries";
-import { getEffectiveDay, isDayOffStatus } from "@/lib/schedule";
+import { type AbsenceResolution } from "@/lib/absence";
+import { syncAbsence } from "@/lib/absence-log";
+import { type DayEntryLite, type EmployeeLite, type StatusTypeLite, getEffectiveDay, isDayOffStatus } from "@/lib/schedule";
 import { MAX_RANGE_DAYS, planCopyWeek, planRepeatWeek, planSetCell, rangeDates, remainingMonthWeeks } from "@/lib/week";
 
 export type WeekActionResult = { ok: true; changed?: number } | { ok: false; error: string };
@@ -25,6 +27,39 @@ function revalidate() {
   revalidatePath("/semana", "layout");
   revalidatePath("/hoy", "layout");
   revalidatePath("/informe", "layout");
+}
+
+/**
+ * Registro de faltas tras cambiar el planning de un día: si pasa a ser falta se apunta; si deja de serlo
+ * (p. ej. se cambia a fiesta) se conserva y se anota cómo se resolvió.
+ */
+async function logPlanningChange(
+  tx: Parameters<typeof syncAbsence>[0],
+  employee: EmployeeLite,
+  date: DateStr,
+  existing: DayEntryLite | null,
+  next: { statusTypeId: string; reason: string | null; clearActual?: boolean },
+  statusTypes: StatusTypeLite[],
+  resolution?: { kind: AbsenceResolution; note: string },
+) {
+  const blank: DayEntryLite = {
+    employeeId: employee.id, date, statusTypeId: next.statusTypeId, departmentId: null, reason: null, note: null,
+    arrivedAt: null, leftAt: null, timeReason: null, segments: [],
+  };
+  const after: DayEntryLite = {
+    ...(existing ?? blank),
+    statusTypeId: next.statusTypeId,
+    reason: next.reason,
+    actualStatusTypeId: next.clearActual ? null : (existing?.actualStatusTypeId ?? null),
+  };
+  await syncAbsence(tx, {
+    employeeId: employee.id,
+    date,
+    before: getEffectiveDay(employee, date, existing, statusTypes),
+    after: getEffectiveDay(employee, date, after, statusTypes),
+    source: "semana",
+    resolution,
+  });
 }
 
 const fail = (e: unknown): WeekActionResult => {
@@ -82,6 +117,7 @@ export async function setCellStatus(
         },
       });
     }
+    await logPlanningChange(db, employee, input.date, existing, { statusTypeId: input.statusTypeId, reason: input.reason ?? null }, statusTypes);
     revalidate();
     return { ok: true };
   } catch (e) {
@@ -130,6 +166,10 @@ export async function setCellStatusRange(
           },
           create: { employeeId: employee.id, date: toDbDate(d), statusTypeId: plan.statusTypeId, reason: plan.reason },
         });
+      }
+      for (const d of dates) {
+        const existing = entries.find((e) => e.employeeId === employee.id && e.date === d) ?? null;
+        await logPlanningChange(tx, employee, d, existing, { statusTypeId: input.statusTypeId, reason: input.reason ?? null }, statusTypes);
       }
     });
     revalidate();
@@ -196,7 +236,12 @@ export async function resolveAbsence(input: z.input<typeof resolveSchema>): Prom
       { date, statusTypeId: off.id },
       ...(swapDate ? [{ date: swapDate, statusTypeId: work.id }] : []),
     ];
+    const swapNote = swapDate ? `cambiada por su fiesta del ${formatDayLong(swapDate).toLowerCase()}` : "hace 2 días de fiesta";
     await db.$transaction(async (tx) => {
+      await logPlanningChange(tx, employee, date, entryOf(date), { statusTypeId: off.id, reason: entryOf(date)?.reason ?? null, clearActual: true }, statusTypes, {
+        kind: mode === "swap" ? "SWAP" : "OFF",
+        note: swapNote,
+      });
       for (const w of writes) {
         const prev = entryOf(w.date);
         const existing = prev ? { ...prev, actualStatusTypeId: null } : null;
@@ -367,6 +412,11 @@ export async function applyImportedWeek(input: z.input<typeof importSchema>): Pr
       ),
       { timeout: 60_000 },
     );
+    for (const w of writes) {
+      const employee = employees.find((e) => e.id === w.employeeId)!;
+      const statusTypeId = w.plan.kind === "upsert" ? w.plan.statusTypeId : (getEffectiveDay(employee, w.date, null, statusTypes).status.id);
+      await logPlanningChange(db, employee, w.date, w.existing, { statusTypeId, reason: w.plan.kind === "upsert" ? w.plan.reason : null }, statusTypes);
+    }
     if (parsed.data.saveOrder) {
       // Las filas llegan en el orden de la imagen; quien no sale en ella queda al final.
       const order = new Map(ids.map((id, i) => [id, i]));
