@@ -126,3 +126,10 @@ describe("Gemini: modelo retirado", () => {
     expect(geminiFallbackModel("use models/gemini-2.5-flash", [], "gemini-2.5-flash")).toBeNull();
   });
 });
+
+describe("nombre con un apellido más en el Excel", () => {
+  it("«JOSE ALEXANDER ROMAN URREA» es Jose Alexander Roman", () => {
+    expect(matchEmployee("JOSE ALEXANDER ROMAN URREA", employees)?.id).toBe("j1");
+    expect(matchEmployee("ALEJANDRO PEREZ", employees)).toBeNull();
+  });
+});

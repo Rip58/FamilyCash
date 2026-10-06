@@ -100,3 +100,74 @@ describe("cuadrante real (REPO NIT, 5–11 oct)", () => {
     expect(importPrompt({ weekStart: "2026-10-05", statusTypes: withSusp, employees })).toContain("suspensión → SUSPENSION");
   });
 });
+
+/**
+ * Versión del 6 oct del mismo cuadrante (2 capturas; el usuario sube primero la parte de ABAJO). Transcrito a mano
+ * de las fotos: la fila del corte (Anya, Alejandro Gomez) sale en las dos; Osmani tiene la fila entera en blanco.
+ */
+describe("cuadrante real, versión del 6 oct (2 imágenes, la de abajo primero)", () => {
+  const U = "?";
+  const out6: ImportOutput = {
+    week_monday: "2026-10-05",
+    notes: "OSMANI COROMINAS: fila entera en blanco.",
+    rows: [
+      // Imagen 1: parte de ABAJO (filas 41–75), sin cabecera
+      row("ANYA DAMARY RAMIREZ", [T, T, T, T, T, F, T]),
+      row("ALEJANDRO GOMEZ", [F, T, T, T, T, T, T]),
+      row("NEIBIS VITORIA", [F, T, T, T, T, T, F]),
+      row("Joan Colldeforns", [T, T, T, T, T, T, F]),
+      row("JORGE ALARCON", [T, T, T, F, F, V, V]),
+      row("FABIAN", [V, V, V, V, V, F, F]),
+      row("ALEX RIVERO", [T, F, T, T, T, T, T]),
+      row("OSMANI COROMINAS", [U, U, U, U, U, U, U]),
+      row("MIKAEL ANTUNES", [T, T, F, F, T, T, T]),
+      row("JOAO MARCO ROSADAS", [B, B, B, B, B, B, B]),
+      row("SEBASTIAN CERDA", [B, B, B, B, B, B, B]),
+      row("Sergi Ben Amor", [T, T, T, T, F, T, T]),
+      // Imagen 2: parte de ARRIBA (filas 5–44), con cabecera y leyenda
+      row("GERARD DEU", [T, F, T, T, T, T, T]),
+      row("JOSE ALEXANDER ROMAN URREA", [T, T, T, T, T, F, T]),
+      row("ALEJANDRO ERWIN", [T, T, T, T, T, F, T]),
+      row("HENNRY ARTETA", [T, T, F, T, T, T, T]),
+      row("MIMOUNT ZARIOH", [F, T, T, T, T, T, F]),
+      row("RICARDO LUIS AYAZO BALDOVINO", [F, T, T, T, T, T, T]),
+      row("CLAUDIA CACERES", [T, T, F, T, T, T, T]),
+      row("JUAN PABLO ZAMBRANO", [T, T, F, T, T, T, T]),
+      row("CINTYA SANCHEZ", [T, T, T, T, T, F, T]),
+      row("MARILUZ CARVAJAL", [T, T, T, T, T, F, T]),
+      row("ANYA DAMARY RAMIREZ", [T, T, T, T, T, F, T]),
+      row("ALEJANDRO GOMEZ", [F, T, T, T, T, U, U]),
+    ],
+  };
+  const rows = toImportRows(out6, employees, statusTypes);
+  const cellsOf = (name: string) => {
+    const id = employees.find((e) => e.name === name)!.id;
+    return rows.find((r) => r.employeeId === id)?.cells.map((c) => c?.replace("st-", "") ?? U);
+  };
+
+  it("cada persona una sola vez aunque salga en las dos imágenes", () => {
+    expect(rows).toHaveLength(NAMES.length);
+    expect(new Set(rows.map((r) => r.employeeId).filter(Boolean)).size).toBe(NAMES.length);
+  });
+
+  it("estados por día como en el Excel", () => {
+    expect(cellsOf("Gerard Deu")).toEqual([T, F, T, T, T, T, T]);
+    expect(cellsOf("Jose Alexander Roman")).toEqual([T, T, T, T, T, F, T]);
+    expect(cellsOf("Jorge Alarcon")).toEqual([T, T, T, F, F, V, V]);
+    expect(cellsOf("Fabian")).toEqual([V, V, V, V, V, F, F]);
+    expect(cellsOf("Mikael Antunes")).toEqual([T, T, F, F, T, T, T]);
+    expect(cellsOf("Joao Marco Rosadas")).toEqual([B, B, B, B, B, B, B]);
+    expect(cellsOf("Sebastian Cerda")).toEqual([B, B, B, B, B, B, B]);
+    expect(cellsOf("Alejandro Gomez")).toEqual([F, T, T, T, T, T, T]);
+  });
+
+  it("la fila en blanco no se toca (todo «?»)", () => {
+    expect(cellsOf("Osmani Corominas")).toEqual([U, U, U, U, U, U, U]);
+  });
+
+  it("las instrucciones avisan del orden de las imágenes y de la fila en blanco", () => {
+    const p = importPrompt({ weekStart: "2026-10-05", statusTypes, employees, imageCount: 2 });
+    expect(p).toContain("primero la parte de abajo");
+    expect(p).toContain("fila ENTERA en blanco");
+  });
+});

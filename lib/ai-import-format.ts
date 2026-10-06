@@ -59,6 +59,8 @@ export function nameScore(read: string, employee: { name: string; alias?: string
     );
   if (rw.length >= 2) {
     if (rw.every(covers)) return 90;
+    // El Excel trae algún apellido más que la app ("JOSE ALEXANDER ROMAN URREA" por "Jose Alexander Roman").
+    if (fw.length >= 2 && fw.every((f) => rw.includes(f))) return 85;
     return rw.every((w, i) => covers(w, i) || roughly(w, i)) ? 85 : 0;
   }
   if (fw[0] === rw[0] || alias === rw[0]) return 80;

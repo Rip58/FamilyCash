@@ -60,7 +60,7 @@ export function importPrompt(input: {
   const named = (word: string, ...fallback: string[]) => byLabel(word) ?? or(...fallback);
   const n = input.imageCount ?? 1;
   const year = input.weekStart.slice(0, 4);
-  return `${n > 1 ? `Te paso ${n} imágenes: son partes de LA MISMA semana del mismo cuadrante (por ejemplo la parte de arriba y la de abajo de la hoja, que puede repetir alguna fila). Junta todas las personas en una sola lista, en el orden en que aparecen (primero la imagen 1), sin repetir a nadie. La cabecera con los días y la leyenda de colores puede salir solo en una de ellas: vale para todas.` : "La imagen es el cuadrante de turnos (planning) del turno de noche de una tienda."}
+  return `${n > 1 ? `Te paso ${n} imágenes: son partes de LA MISMA semana del mismo cuadrante (por ejemplo la parte de arriba y la de abajo de la hoja, que puede repetir alguna fila). Junta todas las personas en una sola lista, en el orden en que aparecen (primero la imagen 1), sin repetir a nadie. La cabecera con los días y la leyenda de colores puede salir solo en una de ellas: vale para todas. Pueden venir en cualquier orden (p. ej. primero la parte de abajo): ordénalas por los números de fila del Excel de la izquierda (la de la cabecera va primero). Si una persona sale en las dos (fila del corte), ponla UNA vez juntando sus días.` : "La imagen es el cuadrante de turnos (planning) del turno de noche de una tienda."}
 
 Es una foto o captura de un Excel (puede estar en catalán) con una fila por persona y una columna por día, de lunes a domingo: DILLUNS/Lunes (L), DIMARTS/Martes (M), DIMECRES/Miércoles (X), DIJOUS/Jueves (J), DIVENDRES/Viernes (V), DISSABTE/Sábado (S), DIUMENGE/Domingo (D). Transcribe la semana del ${formatDayMonth(days[0]!)} (lunes) al ${formatDayMonth(days[6]!)} (domingo) de ${year}. Si la cabecera muestra fechas (p. ej. "5-oct"), el año es ${year}; devuelve en week_monday la fecha del lunes que veas.
 
@@ -85,7 +85,7 @@ COMPRUEBA CADA FILA: la primera cifra de TOTAL son las horas trabajadas de la se
 
 Estados de la app (usa SOLO estos códigos):
 ${statuses}
-Si una casilla está vacía, no se lee o su color no corresponde a ningún estado de la lista, usa "${UNKNOWN}" y explícalo en notes (persona y día).
+Si una persona tiene la fila ENTERA en blanco (sin horas ni color, TOTAL 0,00), pon "${UNKNOWN}" en todos sus días y dilo en notes (puede que ya no trabaje). Si una casilla está vacía, no se lee o su color no corresponde a ningún estado de la lista, usa "${UNKNOWN}" y explícalo en notes (persona y día).
 
 Empleados de la app (asigna employee_id solo si el nombre corresponde claramente a esa persona; si no, deja employee_id vacío):
 ${people}
