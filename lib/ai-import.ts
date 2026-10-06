@@ -28,6 +28,11 @@ export function importSchema(statusCodes: string[]) {
         employee_id: z
           .string()
           .describe("id del empleado de la lista que corresponde a ese nombre; cadena vacía si no estás seguro."),
+        colors: z
+          .string()
+          .describe(
+            'ANTES de rellenar days: color de las casillas SIN horas de esta fila y a qué casilla de la leyenda se parece, p. ej. "L-V granate oscuro = VACANCES; S-D verde = DESCANS" o "L-D rojo vivo = BAIXA". Cadena vacía si trabaja todos los días.',
+          ),
         days: days,
       }),
     ),
@@ -35,6 +40,8 @@ export function importSchema(statusCodes: string[]) {
   });
 }
 export type ImportOutput = z.infer<ReturnType<typeof importSchema>>;
+/** Lo que usa la vista previa (`colors` es solo para que la IA mire el color antes de decidir). */
+export type ImportOutputLite = Omit<ImportOutput, "rows"> & { rows: (Omit<ImportOutput["rows"][number], "colors"> & { colors?: string })[] };
 
 /** Instrucciones para la IA: qué hay en la imagen y cómo traducir cada celda a un estado de la app. */
 export function importPrompt(input: {
@@ -79,7 +86,12 @@ LEYENDA DE COLORES HABITUAL (si en la imagen hay leyenda, manda la de la imagen)
 - Naranja = PERMÍS RETRIBUÏT / permiso retribuido → ${or("PAID_OFF")}
 - Morado, lila = PERMÍS NO RETRIBUÏT → ${named("no retribuid", "ABSENT")}
 - Azul OSCURO, intenso = SUSPENSIÓ / suspensión → ${named("suspension", "ABSENT")}
-Distingue bien rojo oscuro (vacaciones) de rojo vivo (baja), y azul oscuro (suspensión) de azul claro (recuperable): compáralos con la leyenda si aparece y entre filas de la misma imagen.
+LOS DOS ROJOS (se confunden mucho, fíjate bien):
+- VACANCES = granate / rojo OSCURO, tirando a marrón (como #A52A2A–#C00000). Más apagado.
+- BAIXA = rojo VIVO, puro, brillante (como #FF0000, rojo semáforo). Más claro y saturado.
+- Compara cada fila roja con las casillas VACANCES y BAIXA de la leyenda (si la leyenda está en otra imagen, úsala igual) y con las otras filas rojas: si en la hoja hay dos rojos distintos, el más oscuro es VACANCES y el más vivo es BAIXA. No pongas el mismo estado a dos rojos que se ven distintos.
+- Escribe primero en "colors" qué rojo ves y con qué casilla de la leyenda coincide, y luego pon el código en days de acuerdo con eso.
+Distingue también azul oscuro (suspensión) de azul claro (recuperable) comparándolos con la leyenda.
 
 COMPRUEBA CADA FILA: la primera cifra de TOTAL son las horas trabajadas de la semana; debe cuadrar con la suma de las horas de los días que marcas como trabajo (p. ej. 48,00 = 6 noches de 8 h; 40,00 = 5; 0,00 = ninguna). Si no cuadra, vuelve a mirar esa fila.
 
@@ -94,7 +106,7 @@ No inventes filas ni personas: transcribe solo lo que se ve. notes: dudas concre
 }
 
 /** Convierte la respuesta de la IA en filas de la vista previa (estado por día y empleado asignado). */
-export function toImportRows(out: ImportOutput, employees: EmployeeLite[], statusTypes: StatusTypeLite[]): ImportRow[] {
+export function toImportRows(out: ImportOutputLite, employees: EmployeeLite[], statusTypes: StatusTypeLite[]): ImportRow[] {
   const byCode = new Map(statusTypes.map((s) => [s.code.toUpperCase(), s.id]));
   const active = employees.filter((e) => e.active);
   const known = new Set(active.map((e) => e.id));

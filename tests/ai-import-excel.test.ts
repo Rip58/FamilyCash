@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type ImportOutput, importPrompt, toImportRows } from "@/lib/ai-import";
+import { type ImportOutputLite as ImportOutput, importPrompt, importSchema, toImportRows } from "@/lib/ai-import";
 import type { EmployeeLite, StatusTypeLite } from "@/lib/schedule";
 
 /**
@@ -169,5 +169,19 @@ describe("cuadrante real, versión del 6 oct (2 imágenes, la de abajo primero)"
     const p = importPrompt({ weekStart: "2026-10-05", statusTypes, employees, imageCount: 2 });
     expect(p).toContain("primero la parte de abajo");
     expect(p).toContain("fila ENTERA en blanco");
+  });
+});
+
+describe("los dos rojos (vacaciones / baja)", () => {
+  const p = importPrompt({ weekStart: "2026-10-05", statusTypes, employees, imageCount: 2 });
+  it("las instrucciones explican granate = vacaciones y rojo vivo = baja, comparando entre filas", () => {
+    expect(p).toContain("VACANCES = granate");
+    expect(p).toContain("BAIXA = rojo VIVO");
+    expect(p).toContain("el más oscuro es VACANCES y el más vivo es BAIXA");
+  });
+  it("la IA describe el color antes de los días (campo colors, antes de days)", () => {
+    const shape = importSchema(["WORK"]).shape.rows.element.shape;
+    const keys = Object.keys(shape);
+    expect(keys.indexOf("colors")).toBeLessThan(keys.indexOf("days"));
   });
 });

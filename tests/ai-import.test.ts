@@ -105,7 +105,8 @@ describe("esquema para Gemini", () => {
     expect(s.required).toEqual(["week_monday", "rows", "notes"]);
     const rows = (s.properties as Record<string, Record<string, unknown>>).rows!;
     const item = rows.items as Record<string, unknown>;
-    expect(item.required).toEqual(["name", "employee_id", "days"]);
+    expect(item.required).toEqual(["name", "employee_id", "colors", "days"]);
+    expect(item.propertyOrdering).toEqual(["name", "employee_id", "colors", "days"]);
     const days = (item.properties as Record<string, Record<string, unknown>>).days!;
     expect(days.propertyOrdering).toEqual(["L", "M", "X", "J", "V", "S", "D"]);
     expect(JSON.stringify(s)).not.toContain("additionalProperties");
