@@ -3,9 +3,9 @@
 import { revalidatePath, updateTag } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { addDays, isDateStr, toDbDate, weekDays, weekStart as weekStartOf } from "@/lib/dates";
+import { type DateStr, addDays, formatDayLong, isDateStr, toDbDate, weekDays, weekStart as weekStartOf } from "@/lib/dates";
 import { REF_TAG, getEmployees, getEntriesBetween, getStatusTypes } from "@/lib/queries";
-import { getEffectiveDay } from "@/lib/schedule";
+import { getEffectiveDay, isDayOffStatus } from "@/lib/schedule";
 import { MAX_RANGE_DAYS, planCopyWeek, planRepeatWeek, planSetCell, rangeDates, remainingMonthWeeks } from "@/lib/week";
 
 export type WeekActionResult = { ok: true; changed?: number } | { ok: false; error: string };
@@ -134,6 +134,87 @@ export async function setCellStatusRange(
     });
     revalidate();
     return { ok: true, changed: dates.length };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+// ---- Resolver una falta ------------------------------------------------------------------------------
+
+const absenceSchema = z.object({ employeeId: z.string().min(1), date: dateSchema });
+
+/** Días de fiesta (planning) de esa semana y la siguiente con los que se puede cambiar la falta. */
+export async function absenceSwapOptions(employeeId: string, date: string): Promise<{ date: DateStr; label: string }[]> {
+  const p = absenceSchema.safeParse({ employeeId, date });
+  if (!p.success) return [];
+  const from = weekStartOf(p.data.date);
+  const to = addDays(from, 13);
+  const [employees, statusTypes, entries] = await Promise.all([getEmployees(), getStatusTypes(), getEntriesBetween(from, to)]);
+  const employee = employees.find((e) => e.id === p.data.employeeId);
+  if (!employee) return [];
+  const out: { date: DateStr; label: string }[] = [];
+  for (let d = from; d <= to; d = addDays(d, 1)) {
+    if (d === p.data.date) continue;
+    const eff = getEffectiveDay(employee, d, entries.find((e) => e.employeeId === employee.id && e.date === d), statusTypes);
+    if (isDayOffStatus(eff.planned ?? eff.status)) out.push({ date: d, label: formatDayLong(d) });
+  }
+  return out;
+}
+
+const resolveSchema = absenceSchema.extend({ mode: z.enum(["swap", "off"]), swapDate: dateSchema.nullish() });
+
+/**
+ * Cuando vuelve el empleado tras una falta:
+ * - "swap": la falta pasa a ser su fiesta y el día de fiesta elegido (`swapDate`) pasa a trabajar.
+ * - "off": la falta pasa a fiesta y conserva su fiesta (dos días de fiesta).
+ * En los dos casos se quita lo validado en Hoy para ese día (ya no «no cuadra»). Cambia el planning.
+ */
+export async function resolveAbsence(input: z.input<typeof resolveSchema>): Promise<WeekActionResult> {
+  const p = resolveSchema.safeParse(input);
+  if (!p.success) return { ok: false, error: "Datos no válidos." };
+  const { employeeId, date, mode } = p.data;
+  const swapDate = mode === "swap" ? p.data.swapDate : null;
+  if (mode === "swap" && (!swapDate || swapDate === date)) return { ok: false, error: "Elige el día de fiesta que cambia." };
+  try {
+    const dates = [date, ...(swapDate ? [swapDate] : [])].sort();
+    const [employees, statusTypes, entries] = await Promise.all([
+      getEmployees(),
+      getStatusTypes(),
+      getEntriesBetween(dates[0]!, dates[dates.length - 1]!),
+    ]);
+    const employee = employees.find((e) => e.id === employeeId);
+    if (!employee) return { ok: false, error: "Empleado no encontrado." };
+    const off = statusTypes.find((s) => s.code === "OFF");
+    const work = statusTypes.find((s) => s.code === "WORK");
+    if (!off || !work) return { ok: false, error: "Faltan los estados Fiesta o Trabaja." };
+    const entryOf = (d: DateStr) => entries.find((e) => e.employeeId === employee.id && e.date === d) ?? null;
+    if (swapDate) {
+      const eff = getEffectiveDay(employee, swapDate, entryOf(swapDate), statusTypes);
+      if (!isDayOffStatus(eff.planned ?? eff.status)) return { ok: false, error: "Ese día no es de fiesta." };
+    }
+    const writes: { date: DateStr; statusTypeId: string }[] = [
+      { date, statusTypeId: off.id },
+      ...(swapDate ? [{ date: swapDate, statusTypeId: work.id }] : []),
+    ];
+    await db.$transaction(async (tx) => {
+      for (const w of writes) {
+        const prev = entryOf(w.date);
+        const existing = prev ? { ...prev, actualStatusTypeId: null } : null;
+        const plan = planSetCell({ employee, date: w.date, statusTypeId: w.statusTypeId, reason: prev?.reason ?? null, existing, statusTypes });
+        const where = { employeeId_date: { employeeId: employee.id, date: toDbDate(w.date) } };
+        if (plan.kind === "delete") {
+          await tx.dayEntry.deleteMany({ where: { employeeId: employee.id, date: toDbDate(w.date) } });
+        } else {
+          await tx.dayEntry.upsert({
+            where,
+            update: { statusTypeId: plan.statusTypeId, reason: plan.reason, actualStatusTypeId: null },
+            create: { employeeId: employee.id, date: toDbDate(w.date), statusTypeId: plan.statusTypeId, reason: plan.reason },
+          });
+        }
+      }
+    });
+    revalidate();
+    return { ok: true, changed: writes.length };
   } catch (e) {
     return fail(e);
   }

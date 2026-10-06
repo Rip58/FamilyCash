@@ -19,6 +19,8 @@ export interface GridCell {
   extraNote: string | null;
   /** Lo validado en Hoy si no cuadra con el planning (null = cuadra). */
   actual: string | null;
+  /** Código de lo validado en Hoy si no cuadra (p. ej. "ABSENT"); null = cuadra. */
+  actualCode?: string | null;
   /** Resumen de la petición PENDIENTE que cubre esta celda (null = ninguna). */
   pending: string | null;
 }

@@ -161,3 +161,13 @@ describe("vacaciones / baja de varios días", () => {
     expect(rangeDates("2026-10-05", 500)).toHaveLength(60);
   });
 });
+
+describe("resolver falta", () => {
+  it("falta en el planning o validada en Hoy", async () => {
+    const { isAbsence } = await import("@/lib/week");
+    expect(isAbsence("ABSENT", null)).toBe(true);
+    expect(isAbsence("WORK", "ABSENT")).toBe(true);
+    expect(isAbsence("WORK", "SICK")).toBe(false);
+    expect(isAbsence("OFF", null)).toBe(false);
+  });
+});

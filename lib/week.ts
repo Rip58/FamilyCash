@@ -80,6 +80,11 @@ export type CellWrite =
   | { kind: "upsert"; statusTypeId: string; reason: string | null };
 
 /** Qué hacer al guardar un estado en una celda. */
+/** ¿Es una falta por resolver? «Falta» en el planning o validada en Hoy (no vino). */
+export function isAbsence(planningCode: string | null | undefined, actualCode: string | null | undefined): boolean {
+  return planningCode === "ABSENT" || actualCode === "ABSENT";
+}
+
 /** Estados que suelen durar varios días seguidos: al ponerlos en Semana se pregunta cuántos días. */
 export const MULTI_DAY_CODES = ["VACATION", "SICK"] as const;
 export const MAX_RANGE_DAYS = 60;

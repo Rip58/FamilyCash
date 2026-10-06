@@ -38,6 +38,7 @@ export default async function Page({
         extraMinutes: c.extraMinutes,
         extraNote: c.extraNote,
         actual: c.planned ? c.status.label : null,
+        actualCode: c.planned ? c.status.code : null,
         pending: data.pending[`${r.employee.id}|${c.date}`] ?? null,
       })),
     })),

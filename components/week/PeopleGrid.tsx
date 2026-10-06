@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useOptimistic, useState, useTransition } from "react";
 import { setOvertime } from "@/app/actions/day";
-import { setCellStatus, setCellStatusRange } from "@/app/actions/week";
+import { absenceSwapOptions, resolveAbsence, setCellStatus, setCellStatusRange } from "@/app/actions/week";
 import { OvertimeStepper } from "@/components/day/OvertimeStepper";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Segmented } from "@/components/ui/Segmented";
@@ -10,7 +10,7 @@ import { cn } from "@/components/ui/cn";
 import { type DateStr, WEEKDAY_LETTERS, addDays, formatDayLong } from "@/lib/dates";
 import { OVERTIME_MAX, clampOvertime, formatOvertime } from "@/lib/overtime";
 import { isDayOffStatus } from "@/lib/schedule";
-import { MAX_RANGE_DAYS, compactNames, isMultiDayStatus, statusAbbr, weekSummary } from "@/lib/week";
+import { MAX_RANGE_DAYS, compactNames, isAbsence, isMultiDayStatus, statusAbbr, weekSummary } from "@/lib/week";
 import type { GridStatus, PeopleGridData } from "./types";
 
 const GRID_COLS = "grid-cols-[minmax(0,1fr)_repeat(7,34px)_60px]";
@@ -152,17 +152,94 @@ const QUICK_EXTRA = [
 
 const QUICK_DAYS = [7, 15, 30];
 
+/**
+ * Falta: cuando vuelve el empleado se decide caso por caso. Cambiar la falta por uno de sus días de fiesta
+ * (esa semana o la siguiente), hacer 2 días de fiesta, o dejarla como falta.
+ */
+function ResolveAbsence({ employeeId, date, onDone }: { employeeId: string; date: DateStr; onDone: () => void }) {
+  const [step, setStep] = useState<"menu" | "swap">("menu");
+  const [options, setOptions] = useState<{ date: DateStr; label: string }[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  const run = (mode: "swap" | "off", swapDate?: DateStr) =>
+    start(async () => {
+      setError(null);
+      const r = await resolveAbsence({ employeeId, date, mode, swapDate });
+      if (r.ok) onDone();
+      else setError(r.error);
+    });
+  const openSwap = () => {
+    setStep("swap");
+    if (!options) start(async () => setOptions(await absenceSwapOptions(employeeId, date)));
+  };
+  const btn = "press flex min-h-11 w-full items-center rounded-control bg-surface px-3 text-left text-[15px] font-medium disabled:opacity-50";
+  return (
+    <div className="flex flex-col gap-2 rounded-control bg-danger/10 p-3" aria-label="Resolver falta">
+      <span className="text-[14px] font-semibold text-danger">Resolver falta · cuando vuelva</span>
+      {step === "menu" ? (
+        <>
+          <button type="button" disabled={pending} onClick={openSwap} className={btn}>
+            🔄 Cambiar por su día de fiesta…
+          </button>
+          <button type="button" disabled={pending} onClick={() => run("off")} className={btn}>
+            🏖️ Hacer 2 días de fiesta (este y el suyo)
+          </button>
+          <span className="px-1 text-[12px] text-muted">O déjalo como está: sigue siendo falta.</span>
+        </>
+      ) : (
+        <>
+          <span className="text-[13px] text-muted">¿Qué día de fiesta pasa a trabajar? Este día quedará como fiesta.</span>
+          {options === null ? (
+            <span className="text-[14px] text-muted">Buscando sus fiestas…</span>
+          ) : options.length === 0 ? (
+            <span className="text-[14px] text-muted">No tiene días de fiesta esta semana ni la siguiente.</span>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {options.map((o) => (
+                <button
+                  key={o.date}
+                  type="button"
+                  disabled={pending}
+                  onClick={() => run("swap", o.date)}
+                  className="press min-h-11 rounded-full bg-surface px-3 text-[14px] font-semibold text-accent disabled:opacity-50"
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <button type="button" onClick={() => setStep("menu")} className="min-h-11 self-start px-1 text-[14px] text-accent">
+            ‹ Volver
+          </button>
+        </>
+      )}
+      {error && (
+        <p role="alert" className="text-[14px] text-danger">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function CellSheetBody({
   statuses,
   initial,
   date,
+  employeeId,
+  absence,
   pending,
   actual,
   onSave,
+  onClose,
 }: {
   statuses: GridStatus[];
   initial: CellValue;
   date: DateStr;
+  employeeId: string;
+  /** Es una falta (planning «Falta» o validada así en Hoy): ofrece resolverla. */
+  absence: boolean;
+  onClose: () => void;
   pending: string | null;
   actual: string | null;
   /** `days` > 1: vacaciones / baja de varios días seguidos desde este día. */
@@ -192,6 +269,7 @@ function CellSheetBody({
           ⚠️ No cuadró: en Hoy se validó «{actual}». Aquí solo cambias el planning.
         </p>
       )}
+      {absence && <ResolveAbsence employeeId={employeeId} date={date} onDone={onClose} />}
       <Segmented
         wrap
         aria-label="Estado"
@@ -425,6 +503,15 @@ export function PeopleGrid({ data, flat = false }: { data: PeopleGridData; flat?
         });
     return m;
   }, [groups, days]);
+  const actualCodeByKey = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const g of groups)
+      for (const r of g.rows)
+        r.cells.forEach((c, i) => {
+          if (c.actualCode) m[keyOf(r.employeeId, days[i]!)] = c.actualCode;
+        });
+    return m;
+  }, [groups, days]);
   const actualByKey = useMemo(() => {
     const m: Record<string, string> = {};
     for (const g of groups)
@@ -581,6 +668,9 @@ export function PeopleGrid({ data, flat = false }: { data: PeopleGridData; flat?
             statuses={sheetStatuses}
             initial={sheetValue}
             date={sheet.target.date}
+            employeeId={sheet.target.employeeId}
+            absence={isAbsence(statusById.get(sheetValue.statusId)?.code, actualCodeByKey[sheetKey])}
+            onClose={() => setSheet({ ...sheet, open: false })}
             pending={pendingByKey[sheetKey] ?? null}
             actual={actualByKey[sheetKey] ?? null}
             onSave={(v, span) => {
