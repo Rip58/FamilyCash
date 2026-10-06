@@ -35,6 +35,7 @@ const employeeSchema = z.object({
   name,
   alias: z.string().trim().max(12, "El alias puede tener como máximo 12 caracteres.").nullish().transform((v) => v || null),
   defaultDepartmentId: optionalId,
+  defaultExtraDepartmentIds: z.array(id).max(50).optional(),
   fixedDaysOff: z
     .array(z.number().int().min(0).max(6))
     .max(7)
@@ -58,6 +59,14 @@ export async function saveEmployee(input: z.input<typeof employeeSchema>): Promi
   if (data.defaultDepartmentId) {
     const dep = await db.department.findUnique({ where: { id: data.defaultDepartmentId } });
     if (!dep) return fail("El departamento no existe.");
+  }
+  if (data.defaultExtraDepartmentIds) {
+    // Sin principal no hay «también cubre»; sin repetir el principal.
+    data.defaultExtraDepartmentIds = data.defaultDepartmentId
+      ? [...new Set(data.defaultExtraDepartmentIds)].filter((d) => d !== data.defaultDepartmentId)
+      : [];
+    const n = await db.department.count({ where: { id: { in: data.defaultExtraDepartmentIds } } });
+    if (n !== data.defaultExtraDepartmentIds.length) return fail("Algún departamento no existe.");
   }
   if (!empId) {
     const created = await db.employee.create({

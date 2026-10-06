@@ -38,6 +38,8 @@ export interface EmployeeLite {
   name: string;
   alias?: string | null;
   defaultDepartmentId: string | null;
+  /** Otros departamentos que cubre habitualmente (además del principal). */
+  defaultExtraDepartmentIds?: string[];
   sortOrder: number;
   fixedDaysOff: number[];
   active: boolean;
@@ -117,6 +119,22 @@ function findByCode(statusTypes: StatusTypeLite[], code: string): StatusTypeLite
   return s;
 }
 
+/**
+ * Otros departamentos de esa noche: los que se eligieron en Hoy si se tocó el puesto (`departmentId` puesto o
+ * extras elegidos); si no, los habituales del empleado (Ajustes → Empleados → «También cubre»).
+ */
+export function nightExtras(employee: EmployeeLite, entry: DayEntryLite | null | undefined): string[] {
+  const chosen = entry?.extraDepartmentIds ?? [];
+  if (entry && (entry.departmentId !== null || chosen.length > 0)) return chosen;
+  return employee.defaultExtraDepartmentIds ?? [];
+}
+
+/** Mismos departamentos (sin importar el orden). */
+export function sameIds(a: readonly string[], b: readonly string[]): boolean {
+  const sa = new Set(a);
+  return sa.size === new Set(b).size && b.every((x) => sa.has(x));
+}
+
 export function getEffectiveDay(
   employee: EmployeeLite,
   date: DateStr,
@@ -149,7 +167,7 @@ export function getEffectiveDay(
     isWorking: status.isWorking,
     isDayOff: isDayOffStatus(status),
     departmentId,
-    extraDepartmentIds: [...new Set(entry?.extraDepartmentIds ?? [])].filter((id) => id !== departmentId),
+    extraDepartmentIds: [...new Set(nightExtras(employee, entry))].filter((id) => id !== departmentId),
     reason: entry?.reason ?? null,
     note: entry?.note ?? null,
     arrivedAt: entry?.arrivedAt ?? null,

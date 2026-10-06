@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { formatOvertime } from "@/lib/overtime";
 import { leftKind, segmentName, type ShiftTimes } from "@/lib/segments";
-import type { DepartmentLite, RosterMember } from "@/lib/schedule";
+import { type DepartmentLite, type RosterMember, sameIds } from "@/lib/schedule";
 import { cn } from "@/components/ui/cn";
 import { tint } from "@/components/ui/icons";
 import { useLongPress } from "./useLongPress";
@@ -43,7 +43,8 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
   }
   const okDot = `${dot} bg-success text-white${justValidated ? " pop-in" : ""}`;
   // Fuera de su puesto habitual (o cubre otro departamento): el ✓ va en azul en vez de verde.
-  const relocated = day.departmentId !== member.employee.defaultDepartmentId || day.extraDepartmentIds.length > 0;
+  const habitualExtras = (member.employee.defaultExtraDepartmentIds ?? []).filter((id) => id !== day.departmentId);
+  const relocated = day.departmentId !== member.employee.defaultDepartmentId || !sameIds(day.extraDepartmentIds, habitualExtras);
   const okDotWork = relocated ? `${dot} bg-accent text-accent-fg${justValidated ? " pop-in" : ""}` : okDot;
   const pendingDotWork = relocated ? `${dot} bg-accent/15 text-accent` : `${dot} bg-success/15 text-success`;
   const press = useLongPress(onMove, onOpen);

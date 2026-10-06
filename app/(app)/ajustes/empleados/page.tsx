@@ -19,6 +19,7 @@ export default async function Page() {
         name: e.name,
         alias: e.alias ?? null,
         defaultDepartmentId: e.defaultDepartmentId,
+        defaultExtraDepartmentIds: e.defaultExtraDepartmentIds ?? [],
         fixedDaysOff: e.fixedDaysOff,
         active: e.active,
         notes: e.notes ?? null,

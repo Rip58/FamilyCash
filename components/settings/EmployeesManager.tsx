@@ -16,6 +16,8 @@ export interface EmployeeRow {
   name: string;
   alias: string | null;
   defaultDepartmentId: string | null;
+  /** También cubre habitualmente (además del principal). */
+  defaultExtraDepartmentIds: string[];
   fixedDaysOff: number[];
   active: boolean;
   notes: string | null;
@@ -222,6 +224,7 @@ export function EditEmployee({
         name: next.name,
         alias: next.alias,
         defaultDepartmentId: next.defaultDepartmentId,
+        defaultExtraDepartmentIds: next.defaultExtraDepartmentIds.filter((d) => d !== next.defaultDepartmentId),
         fixedDaysOff: next.fixedDaysOff,
         notes: next.notes,
         active: next.active,
@@ -240,10 +243,23 @@ export function EditEmployee({
       <Field label="Departamento habitual">
         <DepartmentSelect
           value={employee.defaultDepartmentId}
-          onChange={(v) => save({ defaultDepartmentId: v })}
+          onChange={(v) => save({ defaultDepartmentId: v, defaultExtraDepartmentIds: employee.defaultExtraDepartmentIds.filter((d) => d !== v) })}
           departments={departments.filter((d) => d.active || d.id === employee.defaultDepartmentId)}
         />
       </Field>
+      {employee.defaultDepartmentId && (
+        <Field label="También cubre (opcional)">
+          <ExtraDepartments
+            main={employee.defaultDepartmentId}
+            value={employee.defaultExtraDepartmentIds}
+            departments={departments.filter((d) => d.active || employee.defaultExtraDepartmentIds.includes(d.id))}
+            onChange={(v) => save({ defaultExtraDepartmentIds: v })}
+          />
+          <p className="mt-1 text-[12px] text-muted">
+            Cada noche cuenta también en estos departamentos, salvo que en Hoy le cambies el puesto esa noche.
+          </p>
+        </Field>
+      )}
       <Field label="Días fijos de fiesta">
         <DaysChips value={employee.fixedDaysOff} onChange={(v) => save({ fixedDaysOff: v })} />
       </Field>
@@ -264,6 +280,45 @@ export function EditEmployee({
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Varios departamentos habituales: el principal (arriba) + los que marques aquí. */
+function ExtraDepartments({
+  main,
+  value,
+  departments,
+  onChange,
+}: {
+  main: string;
+  value: string[];
+  departments: DeptOption[];
+  onChange: (v: string[]) => void;
+}) {
+  const options = departments.filter((d) => d.id !== main);
+  if (options.length === 0) return <p className="text-[13px] text-muted">No hay más departamentos.</p>;
+  return (
+    <div className="grid grid-cols-2 gap-1.5">
+      {options.map((d) => {
+        const on = value.includes(d.id);
+        return (
+          <button
+            key={d.id}
+            type="button"
+            role="checkbox"
+            aria-checked={on}
+            onClick={() => onChange(on ? value.filter((x) => x !== d.id) : [...value, d.id])}
+            className={`press flex min-h-11 min-w-0 items-center gap-2 rounded-control px-2.5 text-left text-[14px] leading-tight ${
+              on ? "bg-accent/15 ring-2 ring-accent" : "bg-surface-2"
+            }`}
+          >
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: d.color ?? "#888" }} />
+            <span className="line-clamp-2 min-w-0 flex-1">{d.name}</span>
+            {on && <span className="shrink-0 text-[13px] font-bold text-accent">✓</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }

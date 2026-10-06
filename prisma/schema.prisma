@@ -60,6 +60,7 @@ model Employee {
   name                String
   alias               String?               // nombre corto para vistas compactas (Semana)
   defaultDepartmentId String?
+  defaultExtraDepartmentIds String[] @default([]) // otros departamentos que cubre habitualmente (además del principal)
   defaultDepartment   Department? @relation(fields: [defaultDepartmentId], references: [id])
   sortOrder           Int     @default(0)   // orden dentro del departamento
   rotaOrder           Int?                  // orden de las filas en el Excel del planning (se guarda al importar); null = al final

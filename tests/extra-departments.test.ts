@@ -77,3 +77,33 @@ describe("departamentos secundarios (comodín, palets…)", () => {
     expect(r.departments.find((d) => d.department.id === "drog")!.isUnderStaffed).toBe(true);
   });
 });
+
+describe("varios departamentos habituales (Ajustes → Empleados → «También cubre»)", () => {
+  const ana: EmployeeLite = { ...emp("Ana", "drog"), defaultExtraDepartmentIds: ["bot"] };
+  it("sin tocar nada esa noche, cuenta en el principal y en los que cubre siempre", () => {
+    const r = getDayRoster({ date: MON, employees: [ana], entries: [], departments, statusTypes });
+    expect(r.departments.find((d) => d.department.id === "drog")!.present.map((m) => m.employee.id)).toEqual(["Ana"]);
+    expect(r.departments.find((d) => d.department.id === "bot")!.covering.map((m) => m.employee.id)).toEqual(["Ana"]);
+    expect(r.departments.find((d) => d.department.id === "bot")!.isEmpty).toBe(false);
+  });
+  it("si en Hoy se elige solo su principal, esa noche no cubre los otros (y la entrada no sobra)", () => {
+    const e = applyEntryPatch(undefined, ana, MON, statusTypes, { kind: "department", departmentId: "drog", extraDepartmentIds: [] }, "21:30");
+    expect(e.departmentId).toBe("drog");
+    expect(e.extraDepartmentIds).toEqual([]);
+    expect(isEntryRedundant(e, ana, MON, statusTypes)).toBe(false);
+    const r = getDayRoster({ date: MON, employees: [ana], entries: [e], departments, statusTypes });
+    expect(r.departments.find((d) => d.department.id === "bot")!.covering).toEqual([]);
+  });
+  it("volver a lo habitual deja la noche como el patrón", () => {
+    const e = applyEntryPatch(undefined, ana, MON, statusTypes, { kind: "department", departmentId: "drog", extraDepartmentIds: ["bot"] }, "21:30");
+    expect(e.departmentId).toBeNull();
+    expect(e.extraDepartmentIds).toEqual([]);
+    expect(isEntryRedundant(e, ana, MON, statusTypes)).toBe(true);
+  });
+  it("moverla a otro sitio esa noche: mandan los elegidos", () => {
+    const e = applyEntryPatch(undefined, ana, MON, statusTypes, { kind: "department", departmentId: "perf", extraDepartmentIds: [] }, "21:30");
+    const r = getDayRoster({ date: MON, employees: [ana], entries: [e], departments, statusTypes });
+    expect(r.departments.find((d) => d.department.id === "perf")!.present.map((m) => m.employee.id)).toEqual(["Ana"]);
+    expect(r.departments.find((d) => d.department.id === "bot")!.covering).toEqual([]);
+  });
+});

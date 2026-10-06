@@ -81,6 +81,7 @@ export default async function Page({
             name: employee.name,
             alias: employee.alias,
             defaultDepartmentId: employee.defaultDepartmentId,
+            defaultExtraDepartmentIds: employee.defaultExtraDepartmentIds ?? [],
             fixedDaysOff: employee.fixedDaysOff,
             active: employee.active,
             notes: employee.notes,

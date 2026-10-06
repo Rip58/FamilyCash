@@ -159,6 +159,7 @@ async function loadContext(tx: Tx, employeeId: string, date: DateStr) {
     defaultDepartmentId: emp.defaultDepartmentId,
     sortOrder: emp.sortOrder,
     fixedDaysOff: emp.fixedDaysOff,
+    defaultExtraDepartmentIds: emp.defaultExtraDepartmentIds,
     active: emp.active,
     notes: emp.notes,
   };

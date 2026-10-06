@@ -11,6 +11,7 @@ import {
   type SegmentLite,
   type StatusTypeLite,
   getEffectiveDay,
+  sameIds,
 } from "./schedule";
 
 export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -161,16 +162,21 @@ export function applyEntryPatch(
     case "reason":
       e.reason = clean(patch.reason);
       break;
-    case "department":
-      e.departmentId =
-        patch.departmentId === null || patch.departmentId === employee.defaultDepartmentId
-          ? null
-          : patch.departmentId;
-      {
-        const main = e.departmentId ?? employee.defaultDepartmentId;
-        e.extraDepartmentIds = [...new Set(patch.extraDepartmentIds ?? e.extraDepartmentIds ?? [])].filter((id) => id !== main);
+    case "department": {
+      const main = patch.departmentId ?? employee.defaultDepartmentId;
+      const extras = [...new Set(patch.extraDepartmentIds ?? e.extraDepartmentIds ?? [])].filter((id) => id !== main);
+      const habitualExtras = (employee.defaultExtraDepartmentIds ?? []).filter((id) => id !== main);
+      if (main === employee.defaultDepartmentId && sameIds(extras, habitualExtras)) {
+        // Como siempre: puesto y «también cubre» habituales.
+        e.departmentId = null;
+        e.extraDepartmentIds = [];
+      } else {
+        // Se apunta el principal aunque sea el habitual: así esa noche mandan los extras elegidos (también ninguno).
+        e.departmentId = main === employee.defaultDepartmentId && habitualExtras.length === 0 ? null : main;
+        e.extraDepartmentIds = extras;
       }
       break;
+    }
     case "times":
       e.arrivedAt = patch.arrivedAt || null;
       e.leftAt = patch.leftAt || null;
@@ -213,8 +219,8 @@ export function isEntryRedundant(
   const dept = entry.departmentId ?? null;
   return (
     entry.statusTypeId === pattern.status.id &&
-    (dept === null || dept === employee.defaultDepartmentId) &&
-    (entry.extraDepartmentIds ?? []).length === 0 &&
+    ((dept === null && (entry.extraDepartmentIds ?? []).length === 0) ||
+      (dept === employee.defaultDepartmentId && sameIds(entry.extraDepartmentIds ?? [], employee.defaultExtraDepartmentIds ?? []))) &&
     !clean(entry.reason) &&
     !clean(entry.note) &&
     !entry.arrivedAt &&
