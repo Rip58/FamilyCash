@@ -64,16 +64,6 @@ export async function listReports(filter: ReportFilter, page: number, pageSize: 
   return { total, reports: rows.map(toView) };
 }
 
-/** Todos los avisos en los que aparece un empleado (más recientes primero). */
-export async function listReportsForEmployee(employeeId: string): Promise<ReportView[]> {
-  const rows = await db.report.findMany({
-    where: { employeeId },
-    include: INCLUDE,
-    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
-  });
-  return rows.map(toView);
-}
-
 /** Avisos y fotos de avisos + notas de ficha y sus fotos (para Ajustes → Almacenamiento). */
 export async function storageStats() {
   const [reports, photos, notes, notePhotos, planogramPhotos, stepPhotos] = await Promise.all([

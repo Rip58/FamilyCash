@@ -162,7 +162,7 @@ export default async function Page({
           <ReportTabs date={date} view={view} />
         </div>
         {addNote}
-        <Link href="/informe/empleado" aria-label="Historial de un empleado" className={reportIconBtn}>
+        <Link href="/informe/empleado" aria-label="Historial y notas" className={reportIconBtn}>
           <Icon name="search" className="h-[22px] w-[22px]" strokeWidth={2.2} />
         </Link>
         {share}

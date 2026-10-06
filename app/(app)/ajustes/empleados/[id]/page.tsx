@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { DataTab } from "@/components/employee/DataTab";
 import { FileTabs } from "@/components/employee/FileTabs";
-import { HistoryTab } from "@/components/employee/HistoryTab";
+import { FileHistory } from "@/components/employee/FileHistory";
 import { RequestsTab } from "@/components/employee/RequestsTab";
 import { BackHeader } from "@/components/settings/kit";
 import { Tag } from "@/components/ui/Chip";
@@ -10,7 +10,7 @@ import { WEEKDAY_LETTERS, formatDayLong, operationalToday } from "@/lib/dates";
 import { isFileTab } from "@/lib/employee-file";
 import { loadNotes, loadRequests } from "@/lib/employee-file-queries";
 import { getDepartments, getEntriesBetween, getSettings, getStatusTypes } from "@/lib/queries";
-import { listReportsForEmployee } from "@/lib/report-queries";
+import { loadEmployeeHistory } from "@/lib/employee-history-queries";
 import { getEffectiveDay } from "@/lib/schedule";
 
 export const metadata = { title: "Ficha del empleado" };
@@ -42,8 +42,8 @@ export default async function Page({
     tab === "datos"
       ? await Promise.all([db.dayEntry.count({ where: { employeeId: id } }), db.employeeNote.count({ where: { employeeId: id } })]).then(([a, b]): [number, number] => [a, b])
       : [0, 0];
-  const [historyNotes, historyReports] =
-    tab === "historial" ? await Promise.all([loadNotes(id), listReportsForEmployee(id)]) : [[], []];
+  const [historyNotes, historyItems] =
+    tab === "historial" ? await Promise.all([loadNotes(id), loadEmployeeHistory(id)]) : [[], []];
   const entry = todayEntries.find((e) => e.employeeId === id) ?? null;
   const day = getEffectiveDay(employee, today, entry, statusTypes);
   const dept = departments.find((d) => d.id === employee.defaultDepartmentId) ?? null;
@@ -91,7 +91,13 @@ export default async function Page({
         />
       )}
       {tab === "historial" && (
-        <HistoryTab employeeId={id} notes={historyNotes} reports={historyReports} />
+        <FileHistory
+          employeeId={id}
+          name={employee.name}
+          items={historyItems}
+          notes={historyNotes}
+          currentYear={new Date().getFullYear()}
+        />
       )}
       {tab === "peticiones" && <RequestsTab employeeId={id} requests={requests} />}
     </div>

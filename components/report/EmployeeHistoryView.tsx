@@ -1,10 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { cn } from "@/components/ui/cn";
 import { tint } from "@/components/ui/icons";
 import { notify } from "@/components/ui/toast";
-import { type HistoryItem, KIND_META, groupHistory, historyCounts, historyToText } from "@/lib/employee-history";
+import { type HistoryItem, type HistoryKind, KIND_META, groupHistory, historyCounts, historyToText } from "@/lib/employee-history";
 
 async function copyText(text: string): Promise<boolean> {
   try {
@@ -15,12 +14,30 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-/** Historial de un empleado por noche (desplegable), con búsqueda dentro y exportar. */
-export function EmployeeHistoryView({ name, items, currentYear }: { name: string; items: HistoryItem[]; currentYear: number }) {
+/**
+ * Historial por noche (desplegable) con filtro por tipo, búsqueda y exportar. Se usa en Informe → lupa (empleado,
+ * notas generales, departamento, todas) y en la ficha del empleado (Ajustes → Empleados → Historial).
+ */
+export function EmployeeHistoryView({
+  name,
+  items,
+  currentYear,
+  heading,
+  onEditFileNote,
+}: {
+  name: string;
+  items: HistoryItem[];
+  currentYear: number;
+  /** Primera línea del texto exportado (por defecto «HISTORIAL DE …»). */
+  heading?: string;
+  /** Ficha del empleado: las notas de ficha se pueden editar. */
+  onEditFileNote?: (id: string) => void;
+}) {
   const [q, setQ] = useState("");
-  const days = useMemo(() => groupHistory(items, currentYear, q), [items, currentYear, q]);
-  const counts = useMemo(() => historyCounts(days), [days]);
-  const text = useMemo(() => historyToText(name, days), [name, days]);
+  const [kind, setKind] = useState<HistoryKind | null>(null);
+  const counts = useMemo(() => historyCounts(items), [items]);
+  const days = useMemo(() => groupHistory(items, currentYear, q, kind ? [kind] : []), [items, currentYear, q, kind]);
+  const text = useMemo(() => historyToText(name, days, heading), [name, days, heading]);
   const total = days.reduce((n, d) => n + d.items.length, 0);
 
   async function share() {
@@ -40,21 +57,37 @@ export function EmployeeHistoryView({ name, items, currentYear }: { name: string
   }
 
   if (items.length === 0) {
-    return <p className="px-1 py-4 text-center text-[15px] text-muted">No hay nada apuntado sobre {name}.</p>;
+    return <p className="rounded-card bg-surface px-4 py-8 text-center text-[15px] text-muted">No hay nada apuntado todavía.</p>;
   }
 
+  const chip = "press min-h-9 rounded-full px-3 text-[13px] font-semibold";
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-1.5" aria-label="Resumen">
-        {counts.map((c) => (
-          <span
-            key={c.kind}
-            className="rounded-full px-2.5 py-1 text-[12px] font-semibold"
-            style={{ backgroundColor: tint(KIND_META[c.kind].color, 16), color: KIND_META[c.kind].color }}
-          >
-            {KIND_META[c.kind].label} · {c.count}
-          </span>
-        ))}
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por tipo">
+        <button
+          type="button"
+          aria-pressed={kind === null}
+          onClick={() => setKind(null)}
+          className={`${chip} ${kind === null ? "bg-fg text-bg" : "bg-surface text-muted"}`}
+        >
+          Todo · {items.length}
+        </button>
+        {counts.map((c) => {
+          const on = kind === c.kind;
+          const color = KIND_META[c.kind].color;
+          return (
+            <button
+              key={c.kind}
+              type="button"
+              aria-pressed={on}
+              onClick={() => setKind(on ? null : c.kind)}
+              className={chip}
+              style={on ? { backgroundColor: color, color: "#fff" } : { backgroundColor: tint(color, 16), color }}
+            >
+              {KIND_META[c.kind].label} · {c.count}
+            </button>
+          );
+        })}
       </div>
 
       <div className="flex gap-2">
@@ -76,7 +109,7 @@ export function EmployeeHistoryView({ name, items, currentYear }: { name: string
 
       <p className="px-1 text-[13px] text-muted">
         {total} {total === 1 ? "apunte" : "apuntes"} en {days.length} {days.length === 1 ? "noche" : "noches"}
-        {q && " (filtrado)"}
+        {(q || kind) && " (filtrado)"}
       </p>
 
       <ul className="space-y-2">
@@ -96,16 +129,26 @@ export function EmployeeHistoryView({ name, items, currentYear }: { name: string
                 {d.items.map((it, j) => (
                   <li key={j} className="flex items-start gap-2 px-3 py-2 text-[15px]">
                     <span
-                      className={cn("mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide")}
+                      className="mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
                       style={{ backgroundColor: tint(it.color, 16), color: it.color }}
                     >
                       {it.label}
                     </span>
                     <span className="min-w-0 flex-1 whitespace-pre-wrap">
+                      {it.who && <span className="font-semibold">{it.who} · </span>}
                       {it.time && <span className="text-muted">{it.time} · </span>}
                       {it.text}
                       {it.photos ? <span className="text-muted"> · 📷 {it.photos}</span> : null}
                     </span>
+                    {onEditFileNote && it.ref?.type === "file-note" && (
+                      <button
+                        type="button"
+                        onClick={() => onEditFileNote(it.ref!.id)}
+                        className="-my-2 min-h-11 shrink-0 px-1 text-[14px] font-medium text-accent"
+                      >
+                        Editar
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -113,7 +156,7 @@ export function EmployeeHistoryView({ name, items, currentYear }: { name: string
           </li>
         ))}
       </ul>
-      {days.length === 0 && <p className="px-1 text-center text-[14px] text-muted">Nada coincide con «{q}».</p>}
+      {days.length === 0 && <p className="px-1 text-center text-[14px] text-muted">Nada con ese filtro.</p>}
     </div>
   );
 }

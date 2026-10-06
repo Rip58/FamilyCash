@@ -52,6 +52,7 @@ export async function loadEmployeeHistory(employeeId: string): Promise<HistoryIt
     items.push({
       date: at.date,
       time: `${String(at.hour).padStart(2, "0")}:${String(at.minute).padStart(2, "0")}`,
+      ref: { type: "file-note", id: n.id },
       kind: "file-note",
       label: meta.label,
       text: n.text,
@@ -69,6 +70,55 @@ export async function loadEmployeeHistory(employeeId: string): Promise<HistoryIt
       text: `${summarizeRequest(lite)}${r.note ? ` — ${r.note}` : ""}${r.decisionNote ? ` (respuesta: ${r.decisionNote})` : ""}`,
       color: KIND_META.request.color,
     });
+  }
+  return items;
+}
+
+/** Listados de notas que no son de una persona: todas, las generales o las de un departamento. */
+export type NotesScope = { kind: "all" } | { kind: "general" } | { kind: "department"; departmentId: string };
+
+export async function loadNotesHistory(scope: NotesScope): Promise<HistoryItem[]> {
+  const where =
+    scope.kind === "general"
+      ? { employeeId: null, departmentId: null }
+      : scope.kind === "department"
+        ? { departmentId: scope.departmentId }
+        : {};
+  const [nightNotes, dayNotes, entryNotes, reports] = await Promise.all([
+    db.nightNote.findMany({
+      where,
+      include: { employee: { select: { name: true } }, department: { select: { name: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    scope.kind === "department" ? Promise.resolve([]) : db.dayNote.findMany(),
+    scope.kind === "all"
+      ? db.dayEntry.findMany({ where: { note: { not: null } }, select: { date: true, note: true, employee: { select: { name: true } } } })
+      : Promise.resolve([]),
+    scope.kind === "all"
+      ? db.report.findMany({ include: { photos: { select: { id: true } }, employee: { select: { name: true } } }, orderBy: { createdAt: "asc" } })
+      : Promise.resolve([]),
+  ]);
+  const items: HistoryItem[] = [];
+  for (const d of dayNotes) {
+    if (d.text.trim()) items.push({ date: fromDbDate(d.date), kind: "day-note", label: "Nota del día", text: d.text.trim(), color: KIND_META["day-note"].color, who: scope.kind === "all" ? "General" : null });
+  }
+  for (const n of nightNotes) {
+    const task = n.kind === "TASK";
+    const who = [n.employee?.name, n.department?.name].filter(Boolean).join(" · ") || "General";
+    items.push({
+      date: fromDbDate(n.date),
+      kind: task ? "task" : "night-note",
+      label: task ? (n.doneAt ? "Tarea hecha" : "Tarea pendiente") : "Nota",
+      text: n.text,
+      color: KIND_META[task ? "task" : "night-note"].color,
+      who: scope.kind === "general" ? null : who,
+    });
+  }
+  for (const e of entryNotes) {
+    if (e.note?.trim()) items.push({ date: fromDbDate(e.date), kind: "day-note", label: "Nota del día", text: e.note.trim(), color: KIND_META["day-note"].color, who: e.employee.name });
+  }
+  for (const r of reports) {
+    items.push({ date: fromDbDate(r.date), kind: "report", label: "Aviso", text: r.text, color: KIND_META.report.color, photos: r.photos.length, who: r.employee?.name ?? "General" });
   }
   return items;
 }

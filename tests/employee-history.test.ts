@@ -27,7 +27,7 @@ describe("apuntes de una noche", () => {
     expect(items(entry("2026-10-02", ABSENT))[0]).toMatchObject({ label: "Falta" });
   });
   it("baja prevista sale como ausencia; fiesta sin motivo no se apunta", () => {
-    expect(items(entry("2026-10-03", SICK, { reason: "Espalda" }))).toMatchObject([{ label: "Baja laboral", text: "Espalda" }]);
+    expect(items(entry("2026-10-03", SICK, { reason: "Espalda" }))).toMatchObject([{ kind: "leave", label: "Baja laboral", text: "Espalda" }]);
     expect(items(entry("2026-10-04", OFF))).toEqual([]);
   });
   it("horarios, horas extra y nota del día", () => {
@@ -53,7 +53,8 @@ describe("historial agrupado", () => {
     expect(days.map((d) => d.date)).toEqual(["2026-10-05", "2026-09-28", "2025-12-24"]);
     expect(days[0]!.items.map((i) => i.kind)).toEqual(["file-note", "absence"]);
     expect(days[2]!.title).toMatch(/2025$/);
-    expect(historyCounts(days).map((c) => c.kind)).toEqual(["file-note", "night-note", "report", "absence"]);
+    expect(historyCounts(all).map((c) => c.kind)).toEqual(["file-note", "night-note", "report", "absence"]);
+    expect(groupHistory(all, 2026, "", ["absence"]).map((d) => d.date)).toEqual(["2026-10-05"]);
   });
   it("búsqueda sin acentos ni mayúsculas", () => {
     expect(groupHistory(all, 2026, "PALE").map((d) => d.date)).toEqual(["2025-12-24"]);

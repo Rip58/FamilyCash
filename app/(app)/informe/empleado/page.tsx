@@ -1,19 +1,39 @@
 import Link from "next/link";
 import { EmployeeHistoryView } from "@/components/report/EmployeeHistoryView";
-import { EmployeePicker } from "@/components/report/EmployeePicker";
-import { loadEmployeeHistory } from "@/lib/employee-history-queries";
-import { getEmployees } from "@/lib/queries";
+import { EmployeePicker, type PickerOption } from "@/components/report/EmployeePicker";
+import { loadEmployeeHistory, loadNotesHistory } from "@/lib/employee-history-queries";
+import { getDepartments, getEmployees } from "@/lib/queries";
 
-export const metadata = { title: "Historial de empleado" };
+export const metadata = { title: "Historial" };
 export const dynamic = "force-dynamic";
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
-  const [{ id }, employees] = await Promise.all([searchParams, getEmployees()]);
-  const people = employees
-    .map((e) => ({ id: e.id, name: e.name, active: e.active }))
-    .sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, "es"));
-  const selected = id ? people.find((p) => p.id === id) : undefined;
-  const items = selected ? await loadEmployeeHistory(selected.id) : [];
+export default async function Page({ searchParams }: { searchParams: Promise<{ id?: string; s?: string; dep?: string }> }) {
+  const [{ id, s, dep }, employees, departments] = await Promise.all([searchParams, getEmployees(), getDepartments()]);
+  const people = [...employees].sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, "es"));
+  const options: PickerOption[] = [
+    { key: "s:all", name: "Todas las notas", href: "/informe/empleado?s=all", group: "Notas", hint: "de todos" },
+    { key: "s:general", name: "Notas generales", href: "/informe/empleado?s=general", group: "Notas", hint: "sin persona" },
+    ...departments
+      .filter((d) => d.active !== false)
+      .map((d): PickerOption => ({ key: `d:${d.id}`, name: d.name, href: `/informe/empleado?dep=${d.id}`, group: "Departamentos" })),
+    ...people.map((e): PickerOption => ({
+      key: `e:${e.id}`,
+      name: e.name,
+      href: `/informe/empleado?id=${e.id}`,
+      group: "Empleados",
+      muted: !e.active,
+      hint: e.active ? undefined : "baja",
+    })),
+  ];
+  const key = id ? `e:${id}` : dep ? `d:${dep}` : s === "all" || s === "general" ? `s:${s}` : null;
+  const selected = options.find((o) => o.key === key) ?? null;
+  const items = !selected
+    ? []
+    : selected.group === "Empleados"
+      ? await loadEmployeeHistory(id!)
+      : selected.group === "Departamentos"
+        ? await loadNotesHistory({ kind: "department", departmentId: dep! })
+        : await loadNotesHistory({ kind: s === "all" ? "all" : "general" });
 
   return (
     <div className="space-y-3 pb-4 pt-2">
@@ -23,15 +43,21 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ i
             <path d="M10 2 2 10l8 8" />
           </svg>
         </Link>
-        <h1 className="flex-1 truncate text-[22px] font-bold tracking-tight">Historial de empleado</h1>
+        <h1 className="flex-1 truncate text-[22px] font-bold tracking-tight">Historial</h1>
       </header>
-      <EmployeePicker people={people} selectedId={selected?.id ?? null} />
+      <EmployeePicker options={options} selectedKey={selected?.key ?? null} />
       {selected ? (
-        <EmployeeHistoryView key={selected.id} name={selected.name} items={items} currentYear={new Date().getFullYear()} />
+        <EmployeeHistoryView
+          key={selected.key}
+          name={selected.name}
+          heading={selected.group === "Empleados" ? undefined : `📝 ${selected.name.toUpperCase()}`}
+          items={items}
+          currentYear={new Date().getFullYear()}
+        />
       ) : (
         <p className="px-1 text-[14px] text-muted">
-          Busca un empleado para ver todo lo apuntado sobre él, noche a noche: notas de la noche y de su ficha, avisos,
-          faltas, horarios, horas extra y peticiones. Luego lo puedes compartir o copiar.
+          Elige qué quieres ver: todas las notas, las generales, un departamento o un empleado (con sus notas, faltas,
+          vacaciones, horarios, horas extra y peticiones). Luego lo puedes filtrar por tipo, compartir o copiar.
         </p>
       )}
     </div>

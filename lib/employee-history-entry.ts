@@ -19,8 +19,8 @@ export function entryHistoryItems(day: EffectiveDay, shift: ShiftConfig): Histor
   if (!day.isWorking) {
     const noShow = day.planned?.isWorking === true || day.status.code === "ABSENT";
     if (noShow) add("absence", "Falta", `No vino (${day.status.label})${day.reason ? ` — ${day.reason}` : ""}`, "#dc2626");
-    else if (!day.isDayOff) add("absence", day.status.label, day.reason ?? "Ausencia", day.status.color);
-    else if (day.reason) add("absence", day.status.label, day.reason, day.status.color);
+    else if (!day.isDayOff) add("leave", day.status.label, day.reason ?? "Todo el día", day.status.color);
+    else if (day.reason) add("leave", day.status.label, day.reason, day.status.color);
   }
   if (day.isWorking && day.arrivedAt) {
     const m = lateMinutes(day.arrivedAt, shift);
