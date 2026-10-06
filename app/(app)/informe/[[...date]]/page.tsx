@@ -94,16 +94,11 @@ export default async function Page({
       .filter((e) => e.active)
       .map((e) => ({ id: e.id, name: e.name }))
       .sort((a, b) => a.name.localeCompare(b.name, "es"));
-    addNote = (
-      <ReportAdd
-        date={date}
-        employees={people}
-        departments={departments.filter((d) => d.active !== false).map((d) => ({ id: d.id, name: d.name }))}
-      />
-    );
+    const depts = departments.filter((d) => d.active !== false).map((d) => ({ id: d.id, name: d.name }));
+    addNote = <ReportAdd date={date} employees={people} departments={depts} />;
     body = (
       <>
-        <DayReportView report={report} />
+        <DayReportView report={report} employees={people} departments={depts} />
       </>
     );
     if (!report.isEmpty) share = (

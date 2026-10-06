@@ -35,6 +35,27 @@ export async function addNightNote(input: z.input<typeof addSchema>): Promise<No
   return { ok: true };
 }
 
+const updateSchema = addSchema.omit({ date: true }).extend({ id: z.string().min(1).max(64) });
+
+/** Edita una nota de la noche (texto, tipo, empleado y departamento). */
+export async function updateNightNote(input: z.input<typeof updateSchema>): Promise<NoteActionResult> {
+  const p = updateSchema.safeParse(input);
+  if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Datos no válidos." };
+  if (p.data.employeeId && !(await db.employee.findUnique({ where: { id: p.data.employeeId } }))) {
+    return { ok: false, error: "Empleado no encontrado." };
+  }
+  if (p.data.departmentId && !(await db.department.findUnique({ where: { id: p.data.departmentId } }))) {
+    return { ok: false, error: "Departamento no encontrado." };
+  }
+  const { id, kind, ...rest } = p.data;
+  const prev = await db.nightNote.findUnique({ where: { id } });
+  if (!prev) return { ok: false, error: "La nota ya no existe." };
+  // Si deja de ser tarea, ya no tiene «hecha».
+  await db.nightNote.update({ where: { id }, data: { ...rest, kind, ...(kind === "INFO" ? { doneAt: null } : {}) } });
+  revalidate();
+  return { ok: true };
+}
+
 export async function deleteNightNote(id: string): Promise<NoteActionResult> {
   const p = z.string().min(1).max(64).safeParse(id);
   if (!p.success) return { ok: false, error: "Datos no válidos." };

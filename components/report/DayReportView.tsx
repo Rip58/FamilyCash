@@ -4,9 +4,12 @@ import { cn } from "@/components/ui/cn";
 import { formatOvertime } from "@/lib/overtime";
 import { formatDuration, noteWho, type DayReport } from "@/lib/report";
 import { buildShareModel } from "@/lib/report-share";
-import { DeleteNoteButton, TaskCheck } from "./ReportAdd";
+import { DeleteNoteButton, EditNoteButton, TaskCheck } from "./ReportAdd";
 
-export function DayReportView({ report }: { report: DayReport }) {
+type Opt = { id: string; name: string };
+
+/** `employees` / `departments`: para editar las notas de la noche (tocar una nota). */
+export function DayReportView({ report, employees = [], departments = [] }: { report: DayReport; employees?: Opt[]; departments?: Opt[] }) {
   // Misma agrupación que la imagen que se comparte: fiesta, vacaciones/bajas y faltas (en rojo), con comas.
   const share = buildShareModel(report);
   const hasPeopleIncidents =
@@ -32,13 +35,18 @@ export function DayReportView({ report }: { report: DayReport }) {
             {report.nightNotes.map((n) => (
               <li key={n.id} className={cn("flex items-start gap-1 py-2", n.isTask && "-mx-2 rounded-control bg-warning/10 px-2")}>
                 {n.isTask && <TaskCheck id={n.id} done={!!n.done} label={n.text} />}
-                <div className="min-w-0 flex-1 pt-0.5">
-                  <span className="text-[13px] font-semibold text-muted">
+                <EditNoteButton
+                  date={report.date}
+                  employees={employees}
+                  departments={departments}
+                  note={{ id: n.id, kind: n.isTask ? "TASK" : "INFO", employeeId: n.employeeId, departmentId: n.departmentId ?? null, text: n.text }}
+                >
+                  <span className="block text-[13px] font-semibold text-muted">
                     {n.isTask && <span className="mr-1 rounded bg-warning/30 px-1 text-[11px] uppercase text-fg">Tarea</span>}
                     {noteWho(n)}
                   </span>
                   <p className={cn("whitespace-pre-wrap", n.isTask && n.done && "text-muted line-through")}>{n.text}</p>
-                </div>
+                </EditNoteButton>
                 <DeleteNoteButton id={n.id} />
               </li>
             ))}

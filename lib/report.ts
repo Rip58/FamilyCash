@@ -150,6 +150,7 @@ export interface EmployeeDayNote {
 export interface NightNoteView {
   id: string;
   employeeId: string | null;
+  departmentId?: string | null;
   name: string | null;
   department?: string | null;
   isTask?: boolean;

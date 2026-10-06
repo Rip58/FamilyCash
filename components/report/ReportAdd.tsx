@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { addNightNote, deleteNightNote, setNoteDone } from "@/app/actions/notes";
+import { addNightNote, deleteNightNote, setNoteDone, updateNightNote } from "@/app/actions/notes";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Segmented } from "@/components/ui/Segmented";
 import { cn } from "@/components/ui/cn";
@@ -40,21 +40,32 @@ export function ReportAdd({ date, employees, departments }: { date: DateStr; emp
   );
 }
 
+export interface EditableNote {
+  id: string;
+  kind: "INFO" | "TASK";
+  employeeId: string | null;
+  departmentId: string | null;
+  text: string;
+}
+
 function NoteForm({
   date,
   employees,
   departments,
+  initial,
   onDone,
 }: {
   date: DateStr;
   employees: Opt[];
   departments: Opt[];
+  /** Con nota: se edita esa nota en vez de añadir una nueva. */
+  initial?: EditableNote;
   onDone: () => void;
 }) {
-  const [kind, setKind] = useState<"INFO" | "TASK">("INFO");
-  const [employeeId, setEmployeeId] = useState("");
-  const [departmentId, setDepartmentId] = useState("");
-  const [text, setText] = useState("");
+  const [kind, setKind] = useState<"INFO" | "TASK">(initial?.kind ?? "INFO");
+  const [employeeId, setEmployeeId] = useState(initial?.employeeId ?? "");
+  const [departmentId, setDepartmentId] = useState(initial?.departmentId ?? "");
+  const [text, setText] = useState(initial?.text ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   return (
@@ -118,22 +129,57 @@ function NoteForm({
         disabled={pending || !text.trim()}
         onClick={() =>
           start(async () => {
-            const r = await addNightNote({
-              date,
-              employeeId: employeeId || null,
-              departmentId: departmentId || null,
-              kind,
-              text,
-            });
+            const fields = { employeeId: employeeId || null, departmentId: departmentId || null, kind, text };
+            const r = initial ? await updateNightNote({ id: initial.id, ...fields }) : await addNightNote({ date, ...fields });
             if (r.ok) onDone();
             else setError(r.error);
           })
         }
         className="min-h-11 rounded-control bg-accent text-[16px] font-semibold text-accent-fg disabled:opacity-40"
       >
-        {pending ? "Guardando…" : kind === "TASK" ? "Añadir tarea" : "Añadir nota"}
+        {pending ? "Guardando…" : initial ? "Guardar cambios" : kind === "TASK" ? "Añadir tarea" : "Añadir nota"}
       </button>
     </div>
+  );
+}
+
+/** Toca la nota para editarla (texto, tipo, empleado o departamento). */
+export function EditNoteButton({
+  date,
+  note,
+  employees,
+  departments,
+  children,
+}: {
+  date: DateStr;
+  note: EditableNote;
+  employees: Opt[];
+  departments: Opt[];
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const [n, setN] = useState(0);
+  // Si el empleado ya no está activo, se mantiene en la lista para no perderlo al guardar.
+  const people = note.employeeId && !employees.some((e) => e.id === note.employeeId) ? [{ id: note.employeeId, name: "(empleado de la nota)" }, ...employees] : employees;
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Editar nota"
+        onClick={() => {
+          setN((x) => x + 1);
+          setOpen(true);
+        }}
+        className="min-w-0 flex-1 rounded-control pt-0.5 text-left active:bg-surface-2"
+      >
+        {children}
+      </button>
+      <BottomSheet open={open} onClose={() => setOpen(false)} title={note.kind === "TASK" ? "Editar tarea" : "Editar nota"}>
+        {open && (
+          <NoteForm key={n} date={date} employees={people} departments={departments} initial={note} onDone={() => setOpen(false)} />
+        )}
+      </BottomSheet>
+    </>
   );
 }
 

@@ -159,6 +159,7 @@ function toNoteView(r: NoteRow) {
     id: r.id,
     date: fromDbDate(r.date),
     employeeId: r.employeeId,
+    departmentId: r.departmentId,
     name: r.employee?.name ?? null,
     department: r.department?.name ?? null,
     isTask: r.kind === "TASK",
