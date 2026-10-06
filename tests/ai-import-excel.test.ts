@@ -126,7 +126,8 @@ describe("cuadrante real, versión del 6 oct (2 imágenes, la de abajo primero)"
       row("Sergi Ben Amor", [T, T, T, T, F, T, T]),
       // Imagen 2: parte de ARRIBA (filas 5–44), con cabecera y leyenda
       row("GERARD DEU", [T, F, T, T, T, T, T]),
-      row("JOSE ALEXANDER ROMAN URREA", [T, T, T, T, T, F, T]),
+      // Viernes con horario escrito pero sin horas del día (TOTAL 40): faltó.
+      row("JOSE ALEXANDER ROMAN URREA", [T, T, T, T, A, F, T]),
       row("ALEJANDRO ERWIN", [T, T, T, T, T, F, T]),
       row("HENNRY ARTETA", [T, T, F, T, T, T, T]),
       row("MIMOUNT ZARIOH", [F, T, T, T, T, T, F]),
@@ -152,7 +153,7 @@ describe("cuadrante real, versión del 6 oct (2 imágenes, la de abajo primero)"
 
   it("estados por día como en el Excel", () => {
     expect(cellsOf("Gerard Deu")).toEqual([T, F, T, T, T, T, T]);
-    expect(cellsOf("Jose Alexander Roman")).toEqual([T, T, T, T, T, F, T]);
+    expect(cellsOf("Jose Alexander Roman")).toEqual([T, T, T, T, A, F, T]);
     expect(cellsOf("Jorge Alarcon")).toEqual([T, T, T, F, F, V, V]);
     expect(cellsOf("Fabian")).toEqual([V, V, V, V, V, F, F]);
     expect(cellsOf("Mikael Antunes")).toEqual([T, T, F, F, T, T, T]);
@@ -183,5 +184,20 @@ describe("los dos rojos (vacaciones / baja)", () => {
     const shape = importSchema(["WORK"]).shape.rows.element.shape;
     const keys = Object.keys(shape);
     expect(keys.indexOf("colors")).toBeLessThan(keys.indexOf("days"));
+  });
+});
+
+describe("empleados que ya no están activos", () => {
+  it("no salen en la vista previa (Osmani ha plegado)", () => {
+    const withInactive = employees.map((e) => (e.name === "Osmani Corominas" ? { ...e, active: false } : e));
+    const r = toImportRows(
+      { week_monday: "", notes: "", rows: [row("OSMANI COROMINAS", ["?", "?", "?", "?", "?", "?", "?"]), row("GERARD DEU", [T, T, T, T, T, T, F])] },
+      withInactive,
+      statusTypes,
+    );
+    expect(r.map((x) => x.name)).toEqual(["GERARD DEU"]);
+  });
+  it("el día con horario pero sin horas es falta", () => {
+    expect(importPrompt({ weekStart: "2026-10-05", statusTypes, employees })).toContain("FALTÓ ese día → ABSENT");
   });
 });

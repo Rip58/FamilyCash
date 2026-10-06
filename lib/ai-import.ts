@@ -76,6 +76,7 @@ CÓMO ESTÁ HECHA LA HOJA
 - A la izquierda puede haber una columna de sección cortada (p. ej. "POSICIO N…", "REPOSICIO NIT"): NO es parte del nombre. El nombre es el de la columna de empleado (p. ej. "ALEJANDRO GOMEZ"). Si está cortado, cópialo tal cual se ve.
 - Un día con horas escritas (cualesquiera: 21,50/24,00, 21,00/24,00, 26,50/29,00, 12,00/17,50…) y horas del día mayores que 0 = trabaja (${or("WORK")}), aunque el horario sea distinto del habitual o haga más horas (8,50, 13,00…).
 - Un día sin horas, con las casillas pintadas de un color = ausencia: el tipo lo dice el COLOR (las horas del día suelen salir 0,00).
+- Un día CON el horario escrito (21,50/24,00…) pero con la casilla de horas del día VACÍA (sin 8,00 ni 0,00) y sin color = esa persona FALTÓ ese día → ${or("ABSENT")}. Lo confirma el TOTAL: le faltan esas 8 h. No es fiesta (la fiesta siempre va pintada de verde).
 
 LEYENDA DE COLORES HABITUAL (si en la imagen hay leyenda, manda la de la imagen)
 - Verde (claro o pistacho) = DESCANS / descanso → ${or("OFF")}
@@ -110,11 +111,14 @@ export function toImportRows(out: ImportOutputLite, employees: EmployeeLite[], s
   const byCode = new Map(statusTypes.map((s) => [s.code.toUpperCase(), s.id]));
   const active = employees.filter((e) => e.active);
   const known = new Set(active.map((e) => e.id));
+  // Quien ya no está activo en la app (p. ej. ha plegado) no sale en la vista previa aunque siga en el Excel.
+  const inactive = employees.filter((e) => !e.active);
   const taken = new Set<string>();
   const rows: ImportRow[] = [];
   const rowOf = new Map<string, ImportRow>();
   for (const r of out.rows) {
     if (!r.name.trim()) continue;
+    if (inactive.length > 0 && !matchEmployee(r.name, active) && matchEmployee(r.name, inactive)) continue;
     const cells = DAY_KEYS.map((k) => byCode.get((r.days[k] ?? "").trim().toUpperCase()) ?? null);
     // Con 2 imágenes la fila del corte puede salir en las dos: si ya está esa persona, se juntan los días.
     const same = (r.employee_id && known.has(r.employee_id) ? r.employee_id : null) ?? matchEmployee(r.name, active)?.id ?? null;
