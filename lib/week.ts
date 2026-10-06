@@ -80,6 +80,20 @@ export type CellWrite =
   | { kind: "upsert"; statusTypeId: string; reason: string | null };
 
 /** Qué hacer al guardar un estado en una celda. */
+/** Estados que suelen durar varios días seguidos: al ponerlos en Semana se pregunta cuántos días. */
+export const MULTI_DAY_CODES = ["VACATION", "SICK"] as const;
+export const MAX_RANGE_DAYS = 60;
+
+export function isMultiDayStatus(code: string): boolean {
+  return (MULTI_DAY_CODES as readonly string[]).includes(code);
+}
+
+/** `days` días seguidos desde `from` (incluido), entre 1 y MAX_RANGE_DAYS. */
+export function rangeDates(from: DateStr, days: number): DateStr[] {
+  const n = Math.max(1, Math.min(MAX_RANGE_DAYS, Math.floor(days)));
+  return Array.from({ length: n }, (_, i) => addDays(from, i));
+}
+
 export function planSetCell(input: {
   employee: EmployeeLite;
   date: DateStr;

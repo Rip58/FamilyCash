@@ -146,3 +146,18 @@ describe("compactNames", () => {
     ).toEqual(["Jose A.", "Alejandro E.", "Alejandro G.", "Fabian"]);
   });
 });
+
+describe("vacaciones / baja de varios días", () => {
+  it("solo vacaciones y baja piden días", async () => {
+    const { isMultiDayStatus } = await import("@/lib/week");
+    expect(isMultiDayStatus("VACATION")).toBe(true);
+    expect(isMultiDayStatus("SICK")).toBe(true);
+    expect(isMultiDayStatus("OFF")).toBe(false);
+  });
+  it("días seguidos, también pasando a la semana y al mes siguiente", async () => {
+    const { rangeDates } = await import("@/lib/week");
+    expect(rangeDates("2026-10-29", 5)).toEqual(["2026-10-29", "2026-10-30", "2026-10-31", "2026-11-01", "2026-11-02"]);
+    expect(rangeDates("2026-10-05", 0)).toEqual(["2026-10-05"]);
+    expect(rangeDates("2026-10-05", 500)).toHaveLength(60);
+  });
+});

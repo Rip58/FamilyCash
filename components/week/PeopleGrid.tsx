@@ -2,15 +2,15 @@
 
 import { useEffect, useMemo, useOptimistic, useState, useTransition } from "react";
 import { setOvertime } from "@/app/actions/day";
-import { setCellStatus } from "@/app/actions/week";
+import { setCellStatus, setCellStatusRange } from "@/app/actions/week";
 import { OvertimeStepper } from "@/components/day/OvertimeStepper";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Segmented } from "@/components/ui/Segmented";
 import { cn } from "@/components/ui/cn";
-import { type DateStr, WEEKDAY_LETTERS, formatDayLong } from "@/lib/dates";
+import { type DateStr, WEEKDAY_LETTERS, addDays, formatDayLong } from "@/lib/dates";
 import { OVERTIME_MAX, clampOvertime, formatOvertime } from "@/lib/overtime";
 import { isDayOffStatus } from "@/lib/schedule";
-import { compactNames, statusAbbr, weekSummary } from "@/lib/week";
+import { MAX_RANGE_DAYS, compactNames, isMultiDayStatus, statusAbbr, weekSummary } from "@/lib/week";
 import type { GridStatus, PeopleGridData } from "./types";
 
 const GRID_COLS = "grid-cols-[minmax(0,1fr)_repeat(7,34px)_60px]";
@@ -150,24 +150,33 @@ const QUICK_EXTRA = [
   { label: "+2 h", minutes: 120 },
 ];
 
+const QUICK_DAYS = [7, 15, 30];
+
 function CellSheetBody({
   statuses,
   initial,
+  date,
   pending,
   actual,
   onSave,
 }: {
   statuses: GridStatus[];
   initial: CellValue;
+  date: DateStr;
   pending: string | null;
   actual: string | null;
-  onSave: (v: CellValue) => void;
+  /** `days` > 1: vacaciones / baja de varios días seguidos desde este día. */
+  onSave: (v: CellValue, days: number) => void;
 }) {
+  const [days, setDays] = useState(1);
   const [statusId, setStatusId] = useState(initial.statusId);
   const [reason, setReason] = useState(initial.reason ?? "");
   const [extra, setExtra] = useState(initial.extraMinutes ?? 0);
   const [extraNote, setExtraNote] = useState(initial.extraNote ?? "");
-  const working = statuses.find((s) => s.id === statusId)?.isWorking ?? false;
+  const selected = statuses.find((s) => s.id === statusId);
+  const working = selected?.isWorking ?? false;
+  const multi = !!selected && isMultiDayStatus(selected.code);
+  const span = multi ? days : 1;
   return (
     <div className="flex flex-col gap-4 pt-1">
       {pending && (
@@ -190,6 +199,66 @@ function CellSheetBody({
         onChange={setStatusId}
         options={statuses.map((s) => ({ value: s.id, label: s.label, color: s.color }))}
       />
+      {multi && (
+        <div className="flex flex-col gap-2 rounded-control bg-surface-2 p-3" aria-label="Días seguidos">
+          <span className="text-[13px] font-medium text-muted">¿Cuántos días de {selected!.label.toLowerCase()}?</span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-label="Un día menos"
+              disabled={days <= 1}
+              onClick={() => setDays((d) => Math.max(1, d - 1))}
+              className="press h-11 w-11 rounded-full bg-surface text-[22px] font-semibold text-accent disabled:opacity-30"
+            >
+              −
+            </button>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={MAX_RANGE_DAYS}
+              value={days}
+              aria-label="Número de días"
+              onChange={(e) => setDays(Math.max(1, Math.min(MAX_RANGE_DAYS, Number(e.target.value) || 1)))}
+              className="h-11 w-16 rounded-control bg-surface text-center text-[18px] font-semibold tabular-nums outline-none focus:ring-2 focus:ring-accent"
+            />
+            <button
+              type="button"
+              aria-label="Un día más"
+              disabled={days >= MAX_RANGE_DAYS}
+              onClick={() => setDays((d) => Math.min(MAX_RANGE_DAYS, d + 1))}
+              className="press h-11 w-11 rounded-full bg-surface text-[22px] font-semibold text-accent disabled:opacity-30"
+            >
+              +
+            </button>
+            <div className="flex flex-wrap gap-1.5">
+              {QUICK_DAYS.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setDays(n)}
+                  className={cn(
+                    "press min-h-11 min-w-11 rounded-full px-2.5 text-[14px] font-semibold",
+                    days === n ? "bg-accent text-accent-fg" : "bg-surface text-accent",
+                  )}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+          <span className="text-[14px]" data-testid="range-summary">
+            {days === 1 ? (
+              <>Solo el {formatDayLong(date).toLowerCase()}</>
+            ) : (
+              <>
+                Del <b>{formatDayLong(date).toLowerCase()}</b> al <b>{formatDayLong(addDays(date, days - 1)).toLowerCase()}</b> ·{" "}
+                {days} días
+              </>
+            )}
+          </span>
+        </div>
+      )}
       <label className="flex flex-col gap-1.5">
         <span className="text-[13px] font-medium text-muted">Motivo (opcional)</span>
         <input
@@ -240,16 +309,19 @@ function CellSheetBody({
       <button
         type="button"
         onClick={() =>
-          onSave({
-            statusId,
-            reason: reason.trim() || null,
-            extraMinutes: working && extra > 0 ? extra : null,
-            extraNote: working && extra > 0 ? extraNote.trim() || null : null,
-          })
+          onSave(
+            {
+              statusId,
+              reason: reason.trim() || null,
+              extraMinutes: working && extra > 0 ? extra : null,
+              extraNote: working && extra > 0 ? extraNote.trim() || null : null,
+            },
+            span,
+          )
         }
         className="min-h-11 rounded-control bg-accent text-[16px] font-semibold text-accent-fg"
       >
-        Guardar
+        {span > 1 ? `Guardar ${span} días` : "Guardar"}
       </button>
     </div>
   );
@@ -309,9 +381,22 @@ export function PeopleGrid({ data, flat = false }: { data: PeopleGridData; flat?
   const [error, setError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ target: Target; open: boolean } | null>(null);
 
-  const change = (target: Target, prev: CellValue, value: CellValue) => {
+  const change = (target: Target, prev: CellValue, value: CellValue, span = 1) => {
     setError(null);
     startTransition(async () => {
+      if (span > 1) {
+        // Vacaciones / baja de varios días: se ven ya los de esta semana; el resto al recargar.
+        for (let i = 0; i < span; i++) {
+          const d = addDays(target.date, i);
+          if (days.includes(d)) {
+            const k = keyOf(target.employeeId, d);
+            applyOptimistic({ key: k, value: { ...(cells[k] ?? value), statusId: value.statusId, reason: value.reason } });
+          }
+        }
+        const res = await setCellStatusRange(target.employeeId, target.date, span, value.statusId, value.reason);
+        if (!res.ok) setError(res.error);
+        return;
+      }
       applyOptimistic({ key: keyOf(target.employeeId, target.date), value });
       if (value.statusId !== prev.statusId || value.reason !== prev.reason) {
         const res = await setCellStatus(target.employeeId, target.date, value.statusId, value.reason);
@@ -495,10 +580,11 @@ export function PeopleGrid({ data, flat = false }: { data: PeopleGridData; flat?
             key={sheetKey}
             statuses={sheetStatuses}
             initial={sheetValue}
+            date={sheet.target.date}
             pending={pendingByKey[sheetKey] ?? null}
             actual={actualByKey[sheetKey] ?? null}
-            onSave={(v) => {
-              change(sheet.target, sheetValue, v);
+            onSave={(v, span) => {
+              change(sheet.target, sheetValue, v, span);
               setSheet({ ...sheet, open: false });
             }}
           />

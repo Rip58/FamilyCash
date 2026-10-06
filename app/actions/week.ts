@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { addDays, isDateStr, toDbDate, weekDays, weekStart as weekStartOf } from "@/lib/dates";
 import { REF_TAG, getEmployees, getEntriesBetween, getStatusTypes } from "@/lib/queries";
 import { getEffectiveDay } from "@/lib/schedule";
-import { planCopyWeek, planRepeatWeek, planSetCell, remainingMonthWeeks } from "@/lib/week";
+import { MAX_RANGE_DAYS, planCopyWeek, planRepeatWeek, planSetCell, rangeDates, remainingMonthWeeks } from "@/lib/week";
 
 export type WeekActionResult = { ok: true; changed?: number } | { ok: false; error: string };
 
@@ -19,6 +19,7 @@ const setCellSchema = z.object({
   reason: z.string().trim().max(200).nullish(),
 });
 const weekSchema = z.object({ weekStart: dateSchema });
+const rangeSchema = setCellSchema.extend({ days: z.number().int().min(1).max(MAX_RANGE_DAYS) });
 
 function revalidate() {
   revalidatePath("/semana", "layout");
@@ -83,6 +84,56 @@ export async function setCellStatus(
     }
     revalidate();
     return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/**
+ * Vacaciones / baja de varios días seguidos: pone el mismo estado (y motivo) desde `date` durante `days` días,
+ * aunque pase a la semana siguiente. Mismas reglas que una casilla (`planSetCell`), en una sola transacción.
+ */
+export async function setCellStatusRange(
+  employeeId: string,
+  date: string,
+  days: number,
+  statusTypeId: string,
+  reason?: string | null,
+): Promise<WeekActionResult> {
+  const parsed = rangeSchema.safeParse({ employeeId, date, days, statusTypeId, reason });
+  if (!parsed.success) return { ok: false, error: "Datos no válidos." };
+  const input = parsed.data;
+  const dates = rangeDates(input.date, input.days);
+  try {
+    const [employees, statusTypes, entries] = await Promise.all([
+      getEmployees(),
+      getStatusTypes(),
+      getEntriesBetween(dates[0]!, dates[dates.length - 1]!),
+    ]);
+    const employee = employees.find((e) => e.id === input.employeeId);
+    if (!employee) return { ok: false, error: "Empleado no encontrado." };
+    if (!statusTypes.some((s) => s.id === input.statusTypeId)) return { ok: false, error: "Estado no encontrado." };
+    await db.$transaction(async (tx) => {
+      for (const d of dates) {
+        const existing = entries.find((e) => e.employeeId === employee.id && e.date === d) ?? null;
+        const plan = planSetCell({ employee, date: d, statusTypeId: input.statusTypeId, reason: input.reason ?? null, existing, statusTypes });
+        if (plan.kind === "delete") {
+          await tx.dayEntry.deleteMany({ where: { employeeId: employee.id, date: toDbDate(d) } });
+          continue;
+        }
+        await tx.dayEntry.upsert({
+          where: { employeeId_date: { employeeId: employee.id, date: toDbDate(d) } },
+          update: {
+            statusTypeId: plan.statusTypeId,
+            reason: plan.reason,
+            ...(existing && existing.statusTypeId !== plan.statusTypeId && !existing.actualStatusTypeId ? { present: null } : {}),
+          },
+          create: { employeeId: employee.id, date: toDbDate(d), statusTypeId: plan.statusTypeId, reason: plan.reason },
+        });
+      }
+    });
+    revalidate();
+    return { ok: true, changed: dates.length };
   } catch (e) {
     return fail(e);
   }
