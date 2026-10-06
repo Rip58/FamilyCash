@@ -5,6 +5,7 @@ import { formatOvertime } from "@/lib/overtime";
 import { formatDuration, noteWho, type DayReport } from "@/lib/report";
 import { buildShareModel } from "@/lib/report-share";
 import { DeleteNoteButton, EditNoteButton, TaskCheck } from "./ReportAdd";
+import { TextNoteItem } from "./TextNoteItem";
 
 type Opt = { id: string; name: string };
 
@@ -26,12 +27,7 @@ export function DayReportView({ report, employees = [], departments = [] }: { re
       {(report.note || report.nightNotes.length > 0 || report.employeeNotes.length > 0) && (
         <Card title="Notas de la noche">
           <ul className="divide-y divide-line text-[15px]">
-            {report.note && (
-              <li className="py-2">
-                <span className="text-[13px] font-semibold text-muted">General</span>
-                <p className="whitespace-pre-wrap">{report.note}</p>
-              </li>
-            )}
+            {report.note && <TextNoteItem target={{ kind: "day", date: report.date }} who="General (nota del día)" text={report.note} />}
             {report.nightNotes.map((n) => (
               <li key={n.id} className={cn("flex items-start gap-1 py-2", n.isTask && "-mx-2 rounded-control bg-warning/10 px-2")}>
                 {n.isTask && <TaskCheck id={n.id} done={!!n.done} label={n.text} />}
@@ -51,10 +47,12 @@ export function DayReportView({ report, employees = [], departments = [] }: { re
               </li>
             ))}
             {report.employeeNotes.map((n) => (
-              <li key={n.employeeId} className="py-2">
-                <span className="text-[13px] font-semibold text-muted">{n.name}</span>
-                <p className="whitespace-pre-wrap">{n.note}</p>
-              </li>
+              <TextNoteItem
+                key={n.employeeId}
+                target={{ kind: "employee", date: report.date, employeeId: n.employeeId }}
+                who={n.name}
+                text={n.note}
+              />
             ))}
           </ul>
         </Card>
