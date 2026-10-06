@@ -57,12 +57,30 @@ describe("respuesta de la IA → vista previa", () => {
       cells: ["st-WORK", "st-WORK", "st-OFF", "st-WORK", "st-VACATION", null, null],
     });
   });
-  it("respeta el id que da la IA y no asigna a la misma persona dos veces", () => {
+  it("respeta el id que da la IA y junta a la misma persona repetida (fila del corte entre 2 imágenes)", () => {
     expect(rows[1]!.employeeId).toBe("a1");
-    expect(rows[2]!.employeeId).toBeNull();
+    expect(rows.filter((r) => r.employeeId === "a1")).toHaveLength(1);
+    expect(rows).toHaveLength(3);
   });
   it("ignora ids inventados", () => {
-    expect(rows[3]!.employeeId).toBeNull();
+    expect(rows[2]!.employeeId).toBeNull();
+  });
+  it("2 imágenes: la persona que sale en las dos completa los días que faltaban", () => {
+    const r = toImportRows(
+      {
+        week_monday: "",
+        notes: "",
+        rows: [
+          { name: "Cintya Sanchez", employee_id: "", days: { L: "WORK", M: "WORK", X: "?", J: "?", V: "?", S: "?", D: "?" } },
+          { name: "Alejandro Erwin", employee_id: "", days: { L: "OFF", M: "WORK", X: "WORK", J: "WORK", V: "WORK", S: "WORK", D: "OFF" } },
+          { name: "CINTYA SANCHEZ", employee_id: "", days: { L: "?", M: "OFF", X: "OFF", J: "WORK", V: "WORK", S: "WORK", D: "WORK" } },
+        ],
+      },
+      employees,
+      statusTypes,
+    );
+    expect(r.map((x) => x.employeeId)).toEqual(["c1", "a2"]);
+    expect(r[0]!.cells).toEqual(["st-WORK", "st-WORK", "st-OFF", "st-WORK", "st-WORK", "st-WORK", "st-WORK"]);
   });
 });
 

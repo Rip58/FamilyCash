@@ -197,8 +197,8 @@ export function WeekImport({ weekStart, daysOffPerWeek, provider, employees, sta
             </ul>
           ) : (
             <p className="rounded-card bg-surface px-4 py-6 text-center text-[15px] text-muted">
-              Haz una foto o captura del Excel con la semana y elígela aquí. Si no cabe en una, elige varias (parte de arriba
-              y de abajo de la hoja): se leen juntas.
+              Elige las <b>2 capturas</b> del Excel de la semana (parte de arriba y de abajo de la hoja; puedes elegirlas a la
+              vez). Se leen juntas y, si alguien sale en las dos, se junta en una sola fila.
             </p>
           )}
           {images.length < MAX_IMAGES && (
@@ -209,7 +209,11 @@ export function WeekImport({ weekStart, daysOffPerWeek, provider, employees, sta
               className="flex min-h-12 items-center justify-center gap-2 rounded-control bg-surface text-[16px] font-medium text-accent disabled:opacity-50"
             >
               <Icon name="images" className="h-5 w-5" />
-              {images.length > 0 ? "Añadir otra imagen de la misma semana" : "Hacer foto / Elegir imágenes"}
+              {images.length === 1
+                ? "Añadir la 2.ª imagen (parte de abajo)"
+                : images.length > 1
+                  ? "Añadir otra imagen de la misma semana"
+                  : "Elegir las 2 imágenes"}
             </button>
           )}
           {phase.kind === "error" && (
@@ -227,7 +231,7 @@ export function WeekImport({ weekStart, daysOffPerWeek, provider, employees, sta
               ? "Leyendo con IA… (hasta 1 min)"
               : images.length > 1
                 ? `Leer las ${images.length} imágenes con IA`
-                : "Leer con IA"}
+                : "Leer solo esta imagen con IA"}
           </button>
         </section>
       )}

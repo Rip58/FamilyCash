@@ -99,18 +99,25 @@ export function toImportRows(out: ImportOutput, employees: EmployeeLite[], statu
   const active = employees.filter((e) => e.active);
   const known = new Set(active.map((e) => e.id));
   const taken = new Set<string>();
-  const rows: ImportRow[] = out.rows
-    .filter((r) => r.name.trim())
-    .map((r) => {
-      let employeeId: string | null = r.employee_id && known.has(r.employee_id) && !taken.has(r.employee_id) ? r.employee_id : null;
-      employeeId ??= matchEmployee(r.name, active, taken)?.id ?? null;
-      if (employeeId) taken.add(employeeId);
-      return {
-        name: r.name.trim(),
-        employeeId,
-        cells: DAY_KEYS.map((k) => byCode.get((r.days[k] ?? "").trim().toUpperCase()) ?? null),
-      };
-    });
+  const rows: ImportRow[] = [];
+  const rowOf = new Map<string, ImportRow>();
+  for (const r of out.rows) {
+    if (!r.name.trim()) continue;
+    const cells = DAY_KEYS.map((k) => byCode.get((r.days[k] ?? "").trim().toUpperCase()) ?? null);
+    // Con 2 imágenes la fila del corte puede salir en las dos: si ya está esa persona, se juntan los días.
+    const same = (r.employee_id && known.has(r.employee_id) ? r.employee_id : null) ?? matchEmployee(r.name, active)?.id ?? null;
+    const prev = same ? rowOf.get(same) : undefined;
+    if (prev) {
+      prev.cells = prev.cells.map((c, i) => c ?? cells[i] ?? null);
+      continue;
+    }
+    let employeeId: string | null = r.employee_id && known.has(r.employee_id) && !taken.has(r.employee_id) ? r.employee_id : null;
+    employeeId ??= matchEmployee(r.name, active, taken)?.id ?? null;
+    if (employeeId) taken.add(employeeId);
+    const row = { name: r.name.trim(), employeeId, cells };
+    if (employeeId) rowOf.set(employeeId, row);
+    rows.push(row);
+  }
   return rows;
 }
 
