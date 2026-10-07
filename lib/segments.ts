@@ -98,7 +98,6 @@ export type EntryPatch =
   /** `extraDepartmentIds` = otros departamentos que también cubre (ausente = no cambiarlos). */
   | { kind: "department"; departmentId: string | null; extraDepartmentIds?: string[] }
   | { kind: "times"; arrivedAt: string | null; leftAt: string | null; timeReason: string | null }
-  | { kind: "note"; note: string | null }
   | { kind: "overtime"; extraMinutes: number | null; extraNote: string | null }
   | { kind: "attendance"; present: boolean }
   | { kind: "segmentAdd"; segment: SegmentWithId }
@@ -120,7 +119,6 @@ export function baseEntry(employee: EmployeeLite, date: DateStr, statusTypes: St
     departmentId: null,
     extraDepartmentIds: [],
     reason: null,
-    note: null,
     arrivedAt: null,
     leftAt: null,
     timeReason: null,
@@ -182,9 +180,6 @@ export function applyEntryPatch(
       e.leftAt = patch.leftAt || null;
       e.timeReason = clean(patch.timeReason);
       break;
-    case "note":
-      e.note = clean(patch.note);
-      break;
     case "overtime":
       e.extraMinutes = patch.extraMinutes && patch.extraMinutes > 0 ? patch.extraMinutes : null;
       e.extraNote = clean(patch.extraNote);
@@ -222,7 +217,6 @@ export function isEntryRedundant(
     ((dept === null && (entry.extraDepartmentIds ?? []).length === 0) ||
       (dept === employee.defaultDepartmentId && sameIds(entry.extraDepartmentIds ?? [], employee.defaultExtraDepartmentIds ?? []))) &&
     !clean(entry.reason) &&
-    !clean(entry.note) &&
     !entry.arrivedAt &&
     !entry.leftAt &&
     !clean(entry.timeReason) &&

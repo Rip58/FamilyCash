@@ -78,7 +78,6 @@ const setOvertimeBulkSchema = z.object({
     .max(200),
 });
 const setAttendanceSchema = z.object({ ...base, present: z.boolean() });
-const setNoteSchema = z.object({ ...base, note: optText(500) });
 const segmentFields = {
   sectionId: idSchema.nullable(),
   label: z.string().max(60).nullable(),
@@ -88,7 +87,6 @@ const segmentFields = {
 const addSegmentSchema = z.object({ ...base, ...segmentFields });
 const updateSegmentSchema = z.object({ ...base, segmentId: idSchema, ...segmentFields });
 const deleteSegmentSchema = z.object({ ...base, segmentId: idSchema });
-const setDayNoteSchema = z.object({ date: dateSchema, text: z.string().max(1000) });
 
 // ---- Utilidades ----------------------------------------------------------
 
@@ -103,7 +101,6 @@ function toLite(
     departmentId: string | null;
     extraDepartmentIds: string[];
     reason: string | null;
-    note: string | null;
     arrivedAt: string | null;
     leftAt: string | null;
     timeReason: string | null;
@@ -130,7 +127,6 @@ function toLite(
     departmentId: row.departmentId,
     extraDepartmentIds: row.extraDepartmentIds,
     reason: row.reason,
-    note: row.note,
     arrivedAt: row.arrivedAt,
     leftAt: row.leftAt,
     timeReason: row.timeReason,
@@ -221,7 +217,6 @@ async function mutateScalar(employeeId: string, date: DateStr, patch: EntryPatch
         departmentId: next.departmentId,
         extraDepartmentIds: next.extraDepartmentIds ?? [],
         reason: next.reason,
-        note: next.note,
         arrivedAt: next.arrivedAt,
         leftAt: next.leftAt,
         timeReason: next.timeReason,
@@ -292,12 +287,6 @@ export async function setAttendance(input: z.input<typeof setAttendanceSchema>):
   const p = setAttendanceSchema.safeParse(input);
   if (!p.success) return invalid();
   return mutateScalar(p.data.employeeId, p.data.date, { kind: "attendance", present: p.data.present });
-}
-
-export async function setNote(input: z.input<typeof setNoteSchema>): Promise<ActionResult> {
-  const p = setNoteSchema.safeParse(input);
-  if (!p.success) return invalid();
-  return mutateScalar(p.data.employeeId, p.data.date, { kind: "note", note: p.data.note });
 }
 
 /** Aplica horas extra dentro de una transacción (0 = sin horas extra). */
@@ -449,18 +438,3 @@ export async function deleteSegment(input: z.input<typeof deleteSegmentSchema>):
   });
 }
 
-// ---- Nota del día --------------------------------------------------------
-
-export async function setDayNote(input: z.input<typeof setDayNoteSchema>): Promise<ActionResult> {
-  const p = setDayNoteSchema.safeParse(input);
-  if (!p.success) return invalid();
-  const text = p.data.text.trim();
-  return run(async () => {
-    const date = toDbDate(p.data.date);
-    if (!text) {
-      await db.dayNote.deleteMany({ where: { date } });
-    } else {
-      await db.dayNote.upsert({ where: { date }, create: { date, text }, update: { text } });
-    }
-  });
-}

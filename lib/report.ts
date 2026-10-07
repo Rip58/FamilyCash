@@ -8,7 +8,7 @@
  */
 import { type DateStr, formatDayLong, formatWeekRange, isoWeekNumber, weekDays } from "./dates";
 import { totalOvertime } from "./overtime";
-import { type ReportView } from "./report-format";
+import { type NoteView, sortNotes } from "./notes";
 import { buildShareModel, shareModelToText } from "./report-share";
 import { type DayRoster, type RosterMember, type StatusTypeLite, type WeekGrid, isDayOffStatus } from "./schedule";
 
@@ -89,7 +89,6 @@ export interface ReportMember {
   departmentName: string | null;
   /** Departamento habitual, si hoy lo han movido a otro. */
   movedFrom: string | null;
-  note: string | null;
   arrivedAt: string | null;
   leftAt: string | null;
   timeReason: string | null;
@@ -140,37 +139,11 @@ export interface ReportDepartment {
   members: ReportMember[];
 }
 
-export interface EmployeeDayNote {
-  employeeId: string;
-  name: string;
-  note: string;
-}
-
-/** Nota de la noche (Informe). employeeId null = general. */
-export interface NightNoteView {
-  id: string;
-  employeeId: string | null;
-  departmentId?: string | null;
-  name: string | null;
-  department?: string | null;
-  isTask?: boolean;
-  done?: boolean;
-  text: string;
-}
-
-/** "Ana · Droguería", "Droguería", "Ana" o "General". */
-export function noteWho(n: { name: string | null; department?: string | null }): string {
-  return [n.name, n.department].filter(Boolean).join(" · ") || "General";
-}
-
 export interface DayReport {
   date: DateStr;
   title: string;
-  note: string | null;
-  /** Notas de la noche añadidas desde Informe (varias por noche). */
-  nightNotes: NightNoteView[];
-  /** Notas de la noche sobre empleados concretos (vengan o no). */
-  employeeNotes: EmployeeDayNote[];
+  /** Notas de la noche (generales primero). */
+  notes: NoteView[];
   shift: {
     start: string;
     end: string;
@@ -192,21 +165,17 @@ export interface DayReport {
   /** Horas extra apuntadas la noche (solo quien trabajó). */
   overtime: { items: OvertimeItem[]; totalMinutes: number };
   hasIncidents: boolean;
-  /** Avisos con foto de la noche. */
-  reports: ReportView[];
   isEmpty: boolean;
 }
 
 export interface BuildDayReportInput {
   roster: DayRoster;
-  dayNote: string | null;
   shift: ShiftConfig;
   sections: { id: string; name: string }[];
   /** Todos los departamentos (para el nombre del departamento habitual). */
   departments: { id: string; name: string }[];
-  /** Avisos con foto de la noche (opcional). */
-  reports?: ReportView[];
-  nightNotes?: NightNoteView[];
+  /** Notas de la noche (opcional). */
+  notes?: NoteView[];
 }
 
 export function buildDayReport(input: BuildDayReportInput): DayReport {
@@ -245,7 +214,6 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
       name: m.employee.name,
       departmentName: d.departmentId ? (deptName.get(d.departmentId) ?? null) : null,
       movedFrom: moved && home ? (deptName.get(home) ?? null) : null,
-      note: d.note,
       arrivedAt: d.arrivedAt,
       leftAt: d.leftAt,
       timeReason: d.timeReason,
@@ -305,16 +273,8 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
     members: g.members.map((m) => ({ name: m.employee.name, reason: m.day.reason, noShow: m.day.planned?.isWorking === true })),
   }));
   const absentCount = absences.reduce((n, g) => n + g.members.length, 0);
-  const allMembers = [
-    ...roster.departments.flatMap((d) => d.present),
-    ...roster.unassigned,
-    ...roster.absentByStatus.flatMap((g) => g.members),
-  ];
-  const employeeNotes: EmployeeDayNote[] = allMembers
-    .filter((m) => m.day.note?.trim())
-    .map((m) => ({ employeeId: m.employee.id, name: m.employee.name, note: m.day.note!.trim() }))
-    .sort((a, b) => a.name.localeCompare(b.name, "es"));
   const emptyDepartments = roster.emptyDepartments.map((d) => d.name);
+  const notes = sortNotes(input.notes ?? []);
 
   const hasIncidents =
     lateArrivals.length > 0 || leaveDeviations.length > 0 || absentCount > 0 || emptyDepartments.length > 0;
@@ -322,9 +282,7 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
   return {
     date: roster.date,
     title: formatDayLong(roster.date),
-    note: input.dayNote?.trim() ? input.dayNote.trim() : null,
-    nightNotes: input.nightNotes ?? [],
-    employeeNotes,
+    notes,
     shift: {
       start: shift.shiftStart,
       end: shift.shiftEnd,
@@ -348,14 +306,7 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
     unassigned,
     overtime: { items: overtimeItems, totalMinutes: totalOvertime(overtimeItems.map((i) => ({ extraMinutes: i.minutes }))) },
     hasIncidents,
-    reports: input.reports ?? [],
-    isEmpty:
-      roster.presentCount === 0 &&
-      absentCount === 0 &&
-      (input.reports ?? []).length === 0 &&
-      employeeNotes.length === 0 &&
-      (input.nightNotes ?? []).length === 0 &&
-      !input.dayNote?.trim(),
+    isEmpty: roster.presentCount === 0 && absentCount === 0 && notes.length === 0,
   };
 }
 

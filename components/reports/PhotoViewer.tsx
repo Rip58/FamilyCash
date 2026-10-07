@@ -196,7 +196,7 @@ function Viewer({ photos, start, caption, onClose }: { photos: ReportPhotoView[]
     try {
       const res = await fetch(photo.url);
       const blob = await res.blob();
-      const file = new File([blob], `aviso-${i + 1}.jpg`, { type: blob.type || "image/jpeg" });
+      const file = new File([blob], `foto-${i + 1}.jpg`, { type: blob.type || "image/jpeg" });
       if (typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
         try {
           await navigator.share({ files: [file], text: caption });

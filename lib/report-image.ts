@@ -245,7 +245,6 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
     card(`Horas extra · ${o.total}`, C.amber, C.amberBg, () => o.items.forEach((t) => bullet(t, C.fg, C.amber)));
   }
   if (m.notes.length > 0) card("Notas de la noche", C.fg, C.line, () => m.notes.forEach((t) => bullet(t)));
-  if (m.reports.length > 0) card("Avisos con foto", C.fg, C.line, () => m.reports.forEach((t) => bullet(t)));
 
   return y + PAD - 24;
 }

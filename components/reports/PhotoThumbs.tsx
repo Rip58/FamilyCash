@@ -6,7 +6,7 @@ import type { ReportPhotoView } from "@/lib/report-format";
 export function PhotoThumbs({
   photos,
   onOpen,
-  label = "Fotos del aviso",
+  label = "Fotos",
 }: {
   photos: ReportPhotoView[];
   onOpen: (index: number) => void;

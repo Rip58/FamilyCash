@@ -12,7 +12,7 @@ const st = (code: string, isWorking: boolean, sortOrder: number): StatusTypeLite
 const statusTypes = [st("WORK", true, 0), st("OFF", false, 1), st("PAID_OFF", false, 2), st("SICK", false, 3), st("VACATION", false, 4), st("ABSENT", false, 5)];
 const me: EmployeeLite = { id: "me", name: "Yo", defaultDepartmentId: null, sortOrder: 0, fixedDaysOff: [5, 6], active: true };
 const entry = (date: string, statusTypeId: string, o: Partial<DayEntryLite> = {}): DayEntryLite => ({
-  employeeId: "me", date, statusTypeId, departmentId: null, reason: null, note: null,
+  employeeId: "me", date, statusTypeId, departmentId: null, reason: null,
   arrivedAt: null, leftAt: null, timeReason: null, segments: [], ...o,
 });
 

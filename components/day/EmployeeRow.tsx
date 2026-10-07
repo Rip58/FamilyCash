@@ -17,8 +17,8 @@ interface EmployeeRowProps {
   onMove: () => void;
   /** Muestra estado/motivo en vez de secciones (lista de ausentes). */
   showStatus?: boolean;
-  /** El empleado tiene avisos con foto esa noche. */
-  hasReports?: boolean;
+  /** Notas de esta noche sobre la persona (cuántas). */
+  notes?: number;
   /** En las burbujas de ausencia: ✓ validar (la ausencia es correcta) / ⇄ no cuadra (otro motivo o ha venido). */
   absence?: { onConfirm: () => void; onUndo: () => void; onChange: () => void };
   /** Burbuja de departamento en la que está la fila: no se repite ese nombre (null = lista sin grupos). */
@@ -32,7 +32,7 @@ const hit = "press flex h-[33px] w-11 shrink-0 items-center justify-center [touc
 const dot =
   "flex h-6 w-6 items-center justify-center rounded-full text-[13px] font-bold transition-colors duration-150 ease-out";
 
-export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, onMove, showStatus, hasReports, attendance, groupId = null, absence }: EmployeeRowProps) {
+export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, onMove, showStatus, notes = 0, attendance, groupId = null, absence }: EmployeeRowProps) {
   const { employee, day } = member;
   // ✓ verde: solo se anima cuando se valida ahora (no al cargar la página con gente ya validada).
   const [wasPresent, setWasPresent] = useState(day.present);
@@ -104,8 +104,7 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
               ⏱ {formatOvertime(day.extraMinutes!, true)}
             </span>
           )}
-          {day.note && <span aria-label="Tiene nota">💬</span>}
-          {hasReports && <span aria-label="Tiene avisos con foto">📷</span>}
+          {notes > 0 && <span aria-label={notes === 1 ? "Tiene una nota" : `Tiene ${notes} notas`}>💬</span>}
         {day.planned && (
           <span title={`Planning: ${day.planned.label}`} aria-label={`No cuadra con el planning (${day.planned.label})`}>
             ⚠️

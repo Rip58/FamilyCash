@@ -17,7 +17,7 @@ const emp = (id: string, o: Partial<EmployeeLite> = {}): EmployeeLite => ({
   id, name: id, defaultDepartmentId: "d1", sortOrder: 0, fixedDaysOff: [5, 6], active: true, ...o,
 });
 const entry = (employeeId: string, date: string, s: StatusTypeLite, o: Partial<DayEntryLite> = {}): DayEntryLite => ({
-  employeeId, date, statusTypeId: s.id, departmentId: null, reason: null, note: null,
+  employeeId, date, statusTypeId: s.id, departmentId: null, reason: null,
   arrivedAt: null, leftAt: null, timeReason: null, segments: [], ...o,
 });
 
@@ -82,7 +82,7 @@ describe("planSetCell", () => {
     expect(planSetCell({ ...base, date: "2026-09-29", statusTypeId: WORK.id, reason: " tarde " })).toEqual({
       kind: "upsert", statusTypeId: WORK.id, reason: "tarde",
     });
-    const existing = entry("a", "2026-09-29", OFF, { note: "hola" });
+    const existing = entry("a", "2026-09-29", OFF, { arrivedAt: "22:00" });
     expect(planSetCell({ ...base, date: "2026-09-29", statusTypeId: WORK.id, existing }).kind).toBe("upsert");
   });
 });
@@ -103,8 +103,8 @@ describe("planCopyWeek", () => {
       { kind: "delete", employeeId: "b", date: "2026-10-07" },
     ]);
   });
-  it("conserva entradas con nota, restaurando el estado del patrón", () => {
-    expect(run([], [entry("b", "2026-10-07", OFF, { note: "x" })])).toEqual([
+  it("conserva entradas con datos de Hoy, restaurando el estado del patrón", () => {
+    expect(run([], [entry("b", "2026-10-07", OFF, { arrivedAt: "22:00" })])).toEqual([
       { kind: "upsert", employeeId: "b", date: "2026-10-07", statusTypeId: WORK.id, departmentId: null, reason: null },
     ]);
   });

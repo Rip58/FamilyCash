@@ -66,7 +66,6 @@ export interface DayEntryLite {
   /** Otros departamentos que también cubre esa noche (además de `departmentId`). */
   extraDepartmentIds?: string[];
   reason: string | null;
-  note: string | null;
   arrivedAt: string | null;
   leftAt: string | null;
   timeReason: string | null;
@@ -93,7 +92,6 @@ export interface EffectiveDay {
   /** Otros departamentos que también cubre esa noche (sin repetir el principal). */
   extraDepartmentIds: string[];
   reason: string | null;
-  note: string | null;
   arrivedAt: string | null;
   leftAt: string | null;
   timeReason: string | null;
@@ -169,7 +167,6 @@ export function getEffectiveDay(
     departmentId,
     extraDepartmentIds: [...new Set(nightExtras(employee, entry))].filter((id) => id !== departmentId),
     reason: entry?.reason ?? null,
-    note: entry?.note ?? null,
     arrivedAt: entry?.arrivedAt ?? null,
     leftAt: entry?.leftAt ?? null,
     timeReason: entry?.timeReason ?? null,

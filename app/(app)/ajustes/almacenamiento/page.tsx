@@ -1,5 +1,5 @@
 import { StorageSettings } from "@/components/settings/StorageSettings";
-import { storageStats } from "@/lib/report-queries";
+import { storageStats } from "@/lib/note-queries";
 import { blobMissing, storageMode } from "@/lib/storage";
 
 export const metadata = { title: "Almacenamiento" };

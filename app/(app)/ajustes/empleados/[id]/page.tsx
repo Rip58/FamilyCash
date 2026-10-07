@@ -1,15 +1,13 @@
 import { notFound } from "next/navigation";
 import { DataTab } from "@/components/employee/DataTab";
 import { FileTabs } from "@/components/employee/FileTabs";
+import { isFileTab } from "@/lib/file-tabs";
 import { FileHistory } from "@/components/employee/FileHistory";
-import { RequestsTab } from "@/components/employee/RequestsTab";
 import { BackHeader } from "@/components/settings/kit";
 import { Tag } from "@/components/ui/Chip";
 import { db } from "@/lib/db";
 import { WEEKDAY_LETTERS, formatDayLong, operationalToday } from "@/lib/dates";
-import { isFileTab } from "@/lib/employee-file";
-import { loadNotes, loadRequests } from "@/lib/employee-file-queries";
-import { getDepartments, getEntriesBetween, getSettings, getStatusTypes } from "@/lib/queries";
+import { getDepartments, getEmployees, getEntriesBetween, getSections, getSettings, getStatusTypes } from "@/lib/queries";
 import { loadEmployeeHistory } from "@/lib/employee-history-queries";
 import { getEffectiveDay } from "@/lib/schedule";
 
@@ -28,30 +26,37 @@ export default async function Page({
   const employee = await db.employee.findUnique({ where: { id } });
   if (!employee) notFound();
   const tabParam = Array.isArray(rawTab) ? rawTab[0] : rawTab;
-  const tab = isFileTab(tabParam) ? tabParam : "datos";
+  const tab = isFileTab(tabParam) ? tabParam : "historial";
 
   const settings = await getSettings();
   const today = operationalToday(new Date(), settings.dayRolloverHour);
-  const [departments, statusTypes, todayEntries, requests] = await Promise.all([
+  const [departments, statusTypes, todayEntries, employees, sections] = await Promise.all([
     getDepartments(),
     getStatusTypes(),
     getEntriesBetween(today, today),
-    loadRequests({ employeeId: id }),
+    getEmployees(),
+    getSections(),
   ]);
-  const entryCounts: [number, number] =
+  const entryCount =
     tab === "datos"
-      ? await Promise.all([db.dayEntry.count({ where: { employeeId: id } }), db.employeeNote.count({ where: { employeeId: id } })]).then(([a, b]): [number, number] => [a, b])
-      : [0, 0];
-  const [historyNotes, historyItems] =
-    tab === "historial" ? await Promise.all([loadNotes(id), loadEmployeeHistory(id)]) : [[], []];
+      ? (await Promise.all([db.dayEntry.count({ where: { employeeId: id } }), db.nightNote.count({ where: { employeeId: id } })])).reduce((a, b) => a + b, 0)
+      : 0;
+  const historyItems = tab === "historial" ? await loadEmployeeHistory(id) : [];
+  const noteOptions = {
+    employees: employees
+      .filter((e) => e.active || e.id === id)
+      .map((e) => ({ id: e.id, name: e.name }))
+      .sort((a, b) => a.name.localeCompare(b.name, "es")),
+    departments: departments.filter((d) => d.active !== false).map((d) => ({ id: d.id, name: d.name })),
+    sections: sections.filter((s) => s.active).map((s) => ({ id: s.id, name: s.name })),
+  };
   const entry = todayEntries.find((e) => e.employeeId === id) ?? null;
   const day = getEffectiveDay(employee, today, entry, statusTypes);
   const dept = departments.find((d) => d.id === employee.defaultDepartmentId) ?? null;
-  const pending = requests.filter((r) => r.status === "PENDING").length;
 
   return (
     <div>
-      <BackHeader title={employee.name} href="/ajustes/empleados" backLabel="Volver a Empleados" />
+      <BackHeader title={employee.name} href="/ajustes/empleados" backLabel="Volver a Empleados" preferBack />
 
       <section aria-label="Resumen" className="mb-4 rounded-card bg-surface px-4 py-3">
         {employee.alias && <p className="text-[14px] text-muted">Alias: {employee.alias}</p>}
@@ -71,7 +76,7 @@ export default async function Page({
       </section>
 
       <div className="mb-4">
-        <FileTabs tab={tab} pending={pending} />
+        <FileTabs tab={tab} />
       </div>
 
       {tab === "datos" && (
@@ -85,7 +90,7 @@ export default async function Page({
             fixedDaysOff: employee.fixedDaysOff,
             active: employee.active,
             notes: employee.notes,
-            entryCount: entryCounts[0] + entryCounts[1] + requests.length,
+            entryCount,
           }}
           departments={departments.map((d) => ({ id: d.id, name: d.name, color: d.color, active: d.active ?? true }))}
         />
@@ -95,11 +100,11 @@ export default async function Page({
           employeeId={id}
           name={employee.name}
           items={historyItems}
-          notes={historyNotes}
+          today={today}
+          noteOptions={noteOptions}
           currentYear={new Date().getFullYear()}
         />
       )}
-      {tab === "peticiones" && <RequestsTab employeeId={id} requests={requests} />}
     </div>
   );
 }

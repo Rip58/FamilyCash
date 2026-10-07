@@ -1,7 +1,7 @@
 // Exportación del informe de la noche (texto con emojis e imagen). Sin zod: se usa también en el cliente.
 import { formatOvertime } from "./overtime";
-import type { DayReport, NightNoteView } from "./report";
-import { photoCountLabel } from "./report-format";
+import { noteLine } from "./notes";
+import type { DayReport } from "./report";
 
 export interface ShareMember {
   name: string;
@@ -40,7 +40,6 @@ export interface ShareModel {
   times: string[];
   overtime: { total: string; items: string[] } | null;
   notes: string[];
-  reports: string[];
 }
 
 /** Color de departamento → cuadrado de color (emoji) más parecido. */
@@ -63,8 +62,6 @@ export function colorEmoji(hex: string): string {
   if (h < 255) return "🟦";
   return "🟪";
 }
-
-const taskMark = (n: NightNoteView) => (n.isTask ? (n.done ? "✅ " : "☐ ") : "");
 
 export function buildShareModel(report: DayReport): ShareModel {
   const late = new Map(report.lateArrivals.map((l) => [l.name, l]));
@@ -108,21 +105,7 @@ export function buildShareModel(report: DayReport): ShareModel {
     }),
   ];
 
-  const notes = [
-    ...(report.note ? [report.note] : []),
-    ...report.nightNotes.filter((n) => !n.name && !n.department).map((n) => `${taskMark(n)}${n.text}`),
-    ...report.employeeNotes.map((n) => `${n.name}: ${n.note}`),
-    ...report.nightNotes
-      .filter((n) => n.name || n.department)
-      .map((n) => `${[n.name, n.department].filter(Boolean).join(" · ")}: ${taskMark(n)}${n.text}`),
-  ];
-
-  const reports = report.reports.map((r) => {
-    const who = r.employeeName ? `${r.employeeName}: ` : "";
-    const where = r.sectionName ? ` [${r.sectionName}]` : "";
-    const photos = r.photos.length > 0 ? ` (${photoCountLabel(r.photos.length)})` : "";
-    return `${who}${r.text.replace(/\s*\n\s*/g, " ")}${where}${photos}`;
-  });
+  const notes = report.notes.map((n) => noteLine(n));
 
   return {
     title: report.title,
@@ -149,7 +132,6 @@ export function buildShareModel(report: DayReport): ShareModel {
           }
         : null,
     notes,
-    reports,
   };
 }
 
@@ -207,11 +189,6 @@ export function shareModelToText(m: ShareModel): string {
   if (m.notes.length > 0) {
     L.push("", "📝 NOTAS DE LA NOCHE");
     for (const t of m.notes) L.push(`• ${t}`);
-  }
-
-  if (m.reports.length > 0) {
-    L.push("", "📷 AVISOS CON FOTO");
-    for (const t of m.reports) L.push(`• ${t}`);
   }
 
   if (m.missing.length === 0 && m.times.length === 0) {

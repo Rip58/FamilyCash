@@ -18,7 +18,7 @@ const emp = (id: string, dept: string): EmployeeLite => ({
   id, name: id, defaultDepartmentId: dept, sortOrder: 0, fixedDaysOff: [], active: true,
 });
 const entry = (employeeId: string, s: StatusTypeLite): DayEntryLite => ({
-  employeeId, date: MON, statusTypeId: s.id, departmentId: null, reason: null, note: null,
+  employeeId, date: MON, statusTypeId: s.id, departmentId: null, reason: null,
   arrivedAt: null, leftAt: null, timeReason: null, segments: [],
 });
 const MON = "2026-09-28";

@@ -78,7 +78,7 @@ describe("applyEntryPatch / isEntryRedundant", () => {
     expect(isEntryRedundant(e, emp, MON, statusTypes)).toBe(true);
   });
   it("día fijo de fiesta: OFF es el patrón, WORK no", () => {
-    const off = applyEntryPatch(undefined, emp, SAT, statusTypes, { kind: "note", note: "" }, "21:30");
+    const off = applyEntryPatch(undefined, emp, SAT, statusTypes, { kind: "reason", reason: "" }, "21:30");
     expect(off.statusTypeId).toBe("st-OFF");
     expect(isEntryRedundant(off, emp, SAT, statusTypes)).toBe(true);
     const work = applyEntryPatch(off, emp, SAT, statusTypes, { kind: "status", statusTypeId: "st-WORK" }, "21:30");

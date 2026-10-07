@@ -22,7 +22,6 @@ export interface SheetOps {
   /** departmentId null = el habitual; `extraDepartmentIds` = otros que también cubre esa noche. */
   setDepartment: (departmentId: string | null, extraDepartmentIds?: string[]) => void;
   setTimes: (t: { arrivedAt: string; leftAt: string; timeReason: string }) => void;
-  setNote: (note: string) => void;
   /** minutes 0 = sin horas extra. */
   setOvertime: (minutes: number, note: string) => void;
   addSegment: (s: SegmentInput) => void;

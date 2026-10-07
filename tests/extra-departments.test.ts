@@ -15,7 +15,7 @@ const emp = (id: string, dept: string | null): EmployeeLite => ({
 });
 const MON = "2026-09-28";
 const entry = (employeeId: string, o: Partial<DayEntryLite> = {}): DayEntryLite => ({
-  employeeId, date: MON, statusTypeId: WORK.id, departmentId: null, reason: null, note: null,
+  employeeId, date: MON, statusTypeId: WORK.id, departmentId: null, reason: null,
   arrivedAt: null, leftAt: null, timeReason: null, segments: [], ...o,
 });
 

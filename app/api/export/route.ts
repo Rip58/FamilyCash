@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 import { MAX_EXPORT_DAYS, buildExportRows, daysInRange, toCsv } from "@/lib/export";
 import { isDateStr } from "@/lib/dates";
+import { getNotes } from "@/lib/note-queries";
 import { getDepartments, getEmployees, getEntriesBetween, getSections, getStatusTypes } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -21,14 +22,15 @@ export async function GET(req: Request) {
   if (daysInRange(from, to).length > MAX_EXPORT_DAYS) {
     return new NextResponse(`El rango máximo es de ${MAX_EXPORT_DAYS} días`, { status: 400 });
   }
-  const [employees, departments, statusTypes, sections, entries] = await Promise.all([
+  const [employees, departments, statusTypes, sections, entries, notes] = await Promise.all([
     getEmployees(),
     getDepartments(),
     getStatusTypes(),
     getSections(),
     getEntriesBetween(from, to),
+    getNotes(from, to),
   ]);
-  const csv = toCsv(buildExportRows({ from, to, employees, departments, statusTypes, sections, entries }));
+  const csv = toCsv(buildExportRows({ from, to, employees, departments, statusTypes, sections, entries, notes }));
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

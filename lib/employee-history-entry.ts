@@ -37,7 +37,6 @@ export function entryHistoryItems(day: EffectiveDay, shift: ShiftConfig): Histor
     const t = (day.extraMinutes ?? 0) > 0 ? formatOvertime(day.extraMinutes!, true) : "sin tiempo";
     add("overtime", "Horas extra", `${t}${day.extraNote ? ` — ${day.extraNote}` : ""}`);
   }
-  if (day.note?.trim()) add("day-note", "Nota del día", day.note.trim());
   return out;
 }
 

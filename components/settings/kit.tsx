@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useId, useState, useTransition, type ReactNode } from "react";
 import {
   DndContext,
@@ -66,17 +67,26 @@ export function BackHeader({
   action,
   href = "/ajustes",
   backLabel = "Volver a Ajustes",
+  preferBack,
 }: {
   title: string;
   action?: ReactNode;
   href?: string;
   backLabel?: string;
+  /** Vuelve a la pantalla de antes (Hoy, Informe…) si se llegó desde la app; si no, a `href`. */
+  preferBack?: boolean;
 }) {
+  const router = useRouter();
   return (
     <header className="sticky top-0 z-10 -mx-4 -mt-[env(safe-area-inset-top)] mb-2 flex min-h-14 items-center gap-2 bg-bg/90 px-2 pt-[env(safe-area-inset-top)] backdrop-blur">
       <Link
         href={href}
-        aria-label={backLabel}
+        aria-label={preferBack ? "Volver" : backLabel}
+        onClick={(e) => {
+          if (!preferBack || window.history.length < 2) return;
+          e.preventDefault();
+          router.back();
+        }}
         className="flex min-h-11 min-w-11 items-center justify-center text-accent"
       >
         <svg width="12" height="20" viewBox="0 0 12 20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

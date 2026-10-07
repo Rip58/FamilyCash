@@ -3,16 +3,8 @@ import { notFound } from "next/navigation";
 import { DayView } from "@/components/day/DayView";
 import { cn } from "@/components/ui/cn";
 import { addDays, formatDayLong, isDateStr, operationalToday } from "@/lib/dates";
-import {
-  getDayNote,
-  getDepartments,
-  getEmployees,
-  getEntriesBetween,
-  getSections,
-  getSettings,
-  getStatusTypes,
-} from "@/lib/queries";
-import { getReportsForDate } from "@/lib/report-queries";
+import { getNotes } from "@/lib/note-queries";
+import { getDepartments, getEmployees, getEntriesBetween, getSections, getSettings, getStatusTypes } from "@/lib/queries";
 
 export const metadata = { title: "Hoy" };
 export const dynamic = "force-dynamic";
@@ -29,14 +21,13 @@ export default async function Page({ params }: { params: Promise<{ date?: string
   const date = segs ? segs[0]! : today;
   const isToday = date === today;
 
-  const [employees, departments, statusTypes, sections, entries, dayNote, reports] = await Promise.all([
+  const [employees, departments, statusTypes, sections, entries, notes] = await Promise.all([
     getEmployees(),
     getDepartments(),
     getStatusTypes(),
     getSections(),
     getEntriesBetween(date, date),
-    getDayNote(date),
-    getReportsForDate(date),
+    getNotes(date, date),
   ]);
 
   const title = `${formatDayLong(date)} · ${settings.shiftStart}–${settings.shiftEnd}`;
@@ -88,8 +79,7 @@ export default async function Page({ params }: { params: Promise<{ date?: string
           .filter((s) => s.active)
           .map((s) => ({ id: s.id, name: s.name, departmentId: s.departmentId }))}
         entries={entries}
-        dayNote={dayNote}
-        reports={reports}
+        notes={notes}
       />
     </div>
   );

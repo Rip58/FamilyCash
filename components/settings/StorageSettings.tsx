@@ -1,19 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { purgeOldReports } from "@/app/actions/reports";
+import { purgeOldNotePhotos } from "@/app/actions/notes";
 import { Card } from "@/components/ui/Card";
 import { formatBytes } from "@/lib/upload-rules";
 import { photoCountLabel } from "@/lib/report-format";
 import { BackHeader, ConfirmButton, Stepper, useRun } from "./kit";
 
 interface Props {
-  reports: number;
-  /** Notas de ficha de empleado. */
+  /** Notas (todas). */
   notes: number;
-  /** Fotos totales (avisos + fichas). */
+  /** Fotos totales (notas + lineales y protocolos). */
   photos: number;
-  reportPhotos: number;
   notePhotos: number;
   /** Fotos de lineales y de pasos de protocolo. */
   protocolPhotos: number;
@@ -23,7 +21,7 @@ interface Props {
   blobMissing?: boolean;
 }
 
-export function StorageSettings({ reports, notes, photos, reportPhotos, notePhotos, protocolPhotos, bytes, mode, blobMissing }: Props) {
+export function StorageSettings({ notes, photos, notePhotos, protocolPhotos, bytes, mode, blobMissing }: Props) {
   const [months, setMonths] = useState(6);
   const { pending, run } = useRun();
 
@@ -43,11 +41,7 @@ export function StorageSettings({ reports, notes, photos, reportPhotos, notePhot
       <Card title="Fotos guardadas">
         <dl>
           <div className={row}>
-            <dt>Avisos</dt>
-            <dd className="font-semibold tabular-nums" data-testid="stat-reports">{reports}</dd>
-          </div>
-          <div className={row}>
-            <dt>Notas de ficha</dt>
+            <dt>Notas</dt>
             <dd className="font-semibold tabular-nums" data-testid="stat-notes">{notes}</dd>
           </div>
           <div className={row}>
@@ -72,8 +66,8 @@ export function StorageSettings({ reports, notes, photos, reportPhotos, notePhot
 
       <Card title="Limpieza" className="mt-4">
         <p className="text-[14px] text-muted">
-          Borra los avisos de noches anteriores a N meses, junto con sus fotos. Las notas de ficha de los
-          empleados no se borran nunca desde aquí. No se puede deshacer.
+          Borra las FOTOS de las notas de noches anteriores a N meses. El texto de las notas se queda. No se
+          puede deshacer.
         </p>
         <div className="my-3 flex items-center justify-between gap-3">
           <span className="text-[16px]">Anteriores a</span>
@@ -83,18 +77,15 @@ export function StorageSettings({ reports, notes, photos, reportPhotos, notePhot
           </div>
         </div>
         <ConfirmButton
-          label={`Borrar avisos anteriores a ${months} ${months === 1 ? "mes" : "meses"}`}
-          confirmLabel="Sí, borrar avisos y fotos"
-          disabled={pending || reports === 0}
-          onConfirm={() =>
-            run(() => purgeOldReports({ months }), { msg: "Avisos anteriores borrados" })
-          }
+          label={`Borrar fotos anteriores a ${months} ${months === 1 ? "mes" : "meses"}`}
+          confirmLabel="Sí, borrar las fotos"
+          disabled={pending || notePhotos === 0}
+          onConfirm={() => run(() => purgeOldNotePhotos({ months }), { msg: "Fotos antiguas borradas" })}
         />
-        {reports === 0 && <p className="mt-2 text-[13px] text-muted">No hay avisos guardados.</p>}
+        {notePhotos === 0 && <p className="mt-2 text-[13px] text-muted">No hay fotos en las notas.</p>}
       </Card>
       <p className="mt-3 px-1 text-[12px] text-muted">
-        {photoCountLabel(reportPhotos)} en {reports} {reports === 1 ? "aviso" : "avisos"} y {photoCountLabel(notePhotos)} en{" "}
-        {notes} {notes === 1 ? "nota de ficha" : "notas de ficha"}
+        {photoCountLabel(notePhotos)} en las notas
         {protocolPhotos > 0 && `, y ${photoCountLabel(protocolPhotos)} en lineales y protocolos (no se borran desde aquí)`}.
       </p>
     </div>

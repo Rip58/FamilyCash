@@ -46,11 +46,11 @@ describe("historial del empleado", () => {
   it("no se repite: la del registro sustituye a la de la noche", () => {
     const night = [
       { date: "2026-10-09", kind: "absence" as const, label: "Falta", text: "No vino (Falta)", color: "#f00" },
-      { date: "2026-10-09", kind: "day-note" as const, label: "Nota del día", text: "Llamó tarde", color: "#000" },
+      { date: "2026-10-09", kind: "note" as const, label: "Nota", text: "Llamó tarde", color: "#000" },
     ];
     const logged = [absenceHistoryItem({ date: "2026-10-09", statusLabel: "Falta", reason: null, notified: true, resolutionNote: null })];
     const merged = mergeAbsenceItems(night, logged);
     expect(merged.filter((i) => i.kind === "absence")).toHaveLength(1);
-    expect(merged.map((i) => i.label)).toEqual(["Nota del día", "Falta"]);
+    expect(merged.map((i) => i.label)).toEqual(["Nota", "Falta"]);
   });
 });

@@ -1,13 +1,19 @@
 import { buildShareModel, colorEmoji, shareModelToText } from "@/lib/report-share";
 import { describe, expect, it } from "vitest";
+import type { NoteView } from "@/lib/notes";
 import {
   type DayEntryLite, type DepartmentLite, type EmployeeLite, type StatusTypeLite,
   getDayRoster, getWeekGrid,
 } from "@/lib/schedule";
 import {
-  DEFAULT_SHIFT, buildDayReport, noteWho, buildWeekSummary, formatDuration, lateMinutes, leaveDelta,
+  DEFAULT_SHIFT, buildDayReport, buildWeekSummary, formatDuration, lateMinutes, leaveDelta,
   minutesFromShiftStart, reportToText,
 } from "@/lib/report";
+
+const note = (o: Partial<NoteView>): NoteView => ({
+  id: "n", date: "2026-09-28", time: null, type: "NOTE", done: false, text: "", employeeId: null, employeeName: null,
+  departmentId: null, departmentName: null, sectionId: null, sectionName: null, photos: [], ...o,
+});
 
 const st = (code: string, label: string, isWorking: boolean, sortOrder: number): StatusTypeLite => ({
   id: `st-${code}`, code, label, color: "#000", isWorking, sortOrder,
@@ -26,7 +32,7 @@ const emp = (id: string, o: Partial<EmployeeLite> = {}): EmployeeLite => ({
   id, name: id, defaultDepartmentId: "drog", sortOrder: 0, fixedDaysOff: [], active: true, ...o,
 });
 const entry = (employeeId: string, date: string, s: StatusTypeLite, o: Partial<DayEntryLite> = {}): DayEntryLite => ({
-  employeeId, date, statusTypeId: s.id, departmentId: null, reason: null, note: null,
+  employeeId, date, statusTypeId: s.id, departmentId: null, reason: null,
   arrivedAt: null, leftAt: null, timeReason: null, segments: [], ...o,
 });
 const seg = (start: string, end: string, label: string, sortOrder = 0) => ({
@@ -74,39 +80,36 @@ function report() {
       arrivedAt: "22:15", timeReason: "Tren",
       segments: [seg("21:30", "05:00", "Cerveza", 0), seg("05:00", "06:30", "Chocolate", 1)],
     }),
-    entry("Beto", MON, WORK, { leftAt: "04:00", timeReason: "Médico", note: "Rápido" }),
+    entry("Beto", MON, WORK, { leftAt: "04:00", timeReason: "Médico" }),
     entry("Carla", MON, WORK, { departmentId: "drog" }),
     entry("Dani", MON, SICK, { reason: "Gripe" }),
     entry("Eva", MON, WORK, { leftAt: "07:30", timeReason: "Inventario" }),
   ];
   const roster = getDayRoster({ date: MON, employees, entries, departments, statusTypes });
-  return buildDayReport({ roster, dayNote: "Noche tranquila", shift: DEFAULT_SHIFT, sections, departments });
+  return buildDayReport({
+    roster, shift: DEFAULT_SHIFT, sections, departments,
+    notes: [note({ id: "b", employeeId: "beto", employeeName: "Beto", text: "Rápido" }), note({ id: "g", text: "Noche tranquila" })],
+  });
 }
 
 describe("buildDayReport", () => {
   const r = report();
   it("varias notas de la noche, generales y de empleado", () => {
-    const roster = r; // reutiliza datos del informe base
-    void roster;
-    const withNotes = { ...r, note: null, employeeNotes: [], nightNotes: [
-      { id: "n1", employeeId: null, name: null, text: "Han llegado todos a la hora" },
-      { id: "n2", employeeId: "x", name: "Ana", text: "Muy bien con el inventario" },
-    ] };
-    expect(reportToText(withNotes)).toContain("📝 NOTAS DE LA NOCHE\n• Han llegado todos a la hora\n• Ana: Muy bien con el inventario");
+    const t = reportToText({ ...r, notes: [note({ text: "Han llegado todos a la hora" }), note({ employeeId: "x", employeeName: "Ana", text: "Muy bien con el inventario" })] });
+    expect(t).toContain("📝 NOTAS DE LA NOCHE\n• Han llegado todos a la hora\n• Ana: Muy bien con el inventario");
   });
-  it("tareas y departamento en las notas", () => {
-    expect(noteWho({ name: "Ana", department: "Droguería" })).toBe("Ana · Droguería");
-    expect(noteWho({ name: null, department: "Droguería" })).toBe("Droguería");
-    expect(noteWho({ name: null, department: null })).toBe("General");
-    const t = reportToText({ ...r, note: null, employeeNotes: [], nightNotes: [
-      { id: "t1", employeeId: "x", name: "Ana", department: null, isTask: true, done: false, text: "Apuntar horas extra en el Excel" },
-      { id: "t2", employeeId: null, name: null, department: "Droguería", isTask: true, done: true, text: "Pedir cajas" },
+  it("tareas, departamento, tipo y fotos en las notas", () => {
+    const t = reportToText({ ...r, notes: [
+      note({ id: "t1", employeeId: "x", employeeName: "Ana", type: "TASK", text: "Apuntar horas extra en el Excel" }),
+      note({ id: "t2", departmentId: "d", departmentName: "Droguería", type: "TASK", done: true, text: "Pedir cajas" }),
+      note({ id: "t3", type: "INCIDENT", text: "Palé roto", sectionName: "Cerveza", photos: [{ id: "p", url: "u", width: 1, height: 1, size: 1 }] }),
     ] });
     expect(t).toContain("• Ana: ☐ Apuntar horas extra en el Excel");
     expect(t).toContain("• Droguería: ✅ Pedir cajas");
+    expect(t).toContain("• Incidencia: Palé roto [Cerveza] (📷 1)");
   });
-  it("notas de empleados", () => {
-    expect(r.employeeNotes).toEqual([{ employeeId: expect.any(String), name: "Beto", note: "Rápido" }]);
+  it("las notas generales van primero", () => {
+    expect(r.notes.map((n) => n.text)).toEqual(["Noche tranquila", "Rápido"]);
     expect(reportToText(r)).toContain("📝 NOTAS DE LA NOCHE\n• Noche tranquila\n• Beto: Rápido");
   });
   it("incidencias", () => {
@@ -153,7 +156,7 @@ describe("horas extra en informes", () => {
   ];
   it("bloque diario con total y texto compartido", () => {
     const roster = getDayRoster({ date: MON, employees, entries, departments, statusTypes });
-    const r = buildDayReport({ roster, dayNote: null, shift: DEFAULT_SHIFT, sections: [], departments });
+    const r = buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments });
     expect(r.overtime.totalMinutes).toBe(90);
     expect(r.overtime.items.map((i) => i.name)).toEqual(["Ana", "Beto"]);
     const t = reportToText(r);
@@ -163,7 +166,7 @@ describe("horas extra en informes", () => {
   });
   it("sin horas extra no hay bloque", () => {
     const roster = getDayRoster({ date: MON, employees, entries: [], departments, statusTypes });
-    const r = buildDayReport({ roster, dayNote: null, shift: DEFAULT_SHIFT, sections: [], departments });
+    const r = buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments });
     expect(r.overtime.items).toEqual([]);
     expect(reportToText(r)).not.toContain("HORAS EXTRA");
   });
@@ -219,7 +222,7 @@ describe("exportación visual", () => {
       entry("Ana", MON, WORK),
     ];
     const roster = getDayRoster({ date: MON, employees, entries, departments, statusTypes });
-    const m = buildShareModel(buildDayReport({ roster, dayNote: null, shift: DEFAULT_SHIFT, sections: [], departments }));
+    const m = buildShareModel(buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments }));
     expect(m.off).toEqual(["Fran"]);
     expect(m.away).toEqual([{ label: "Baja laboral", members: [{ name: "Dani", reason: "Gripe" }] }]);
     expect(m.missing.map((x) => x.name).sort()).toEqual(["Jorge", "Mikael", "Mike"]);

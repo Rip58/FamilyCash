@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DayReportView } from "@/components/report/DayReportView";
-import { ReportAdd } from "@/components/report/ReportAdd";
+import { AddNoteButton } from "@/components/notes/NoteList";
 import { ReportTabs } from "@/components/report/ReportTabs";
 import { ShareButton } from "@/components/report/ShareButton";
 import { Icon } from "@/components/ui/icons";
@@ -19,20 +19,10 @@ import {
   operationalToday,
   weekDays,
 } from "@/lib/dates";
-import {
-  getDayNote,
-  getDayNotesBetween,
-  getDepartments,
-  getEmployees,
-  getEntriesBetween,
-  getNightNotes,
-  getPendingTasksBefore,
-  getSections,
-  getSettings,
-  getStatusTypes,
-} from "@/lib/queries";
-import { getReportsForDate } from "@/lib/report-queries";
-import { buildDayReport, buildWeekSummary, noteWho, reportToText } from "@/lib/report";
+import { getNotes, getPendingTasksBefore } from "@/lib/note-queries";
+import { noteLine } from "@/lib/notes";
+import { getDepartments, getEmployees, getEntriesBetween, getSections, getSettings, getStatusTypes } from "@/lib/queries";
+import { buildDayReport, buildWeekSummary, reportToText } from "@/lib/report";
 import { getDayRoster, getWeekGrid } from "@/lib/schedule";
 
 export const metadata = { title: "Informe" };
@@ -79,48 +69,41 @@ export default async function Page({
   let share: React.ReactNode = null;
   let addNote: React.ReactNode = null;
 
-  if (view === "dia") {
-    const [entries, dayNote, reports, nightNotes] = await Promise.all([
-      getEntriesBetween(date, date),
-      getDayNote(date),
-      getReportsForDate(date),
-      getNightNotes(date, date),
-    ]);
-    const roster = getDayRoster({ date, employees, entries, departments, statusTypes });
-    const report = buildDayReport({ roster, dayNote, shift: settings, sections, departments, reports, nightNotes });
-    title = formatDayLong(date);
-    subtitle = `Turno ${settings.shiftStart}–${settings.shiftEnd} · ${report.presentCount} trabajan`;
-    const people = employees
+  const options = {
+    employees: employees
       .filter((e) => e.active)
       .map((e) => ({ id: e.id, name: e.name }))
-      .sort((a, b) => a.name.localeCompare(b.name, "es"));
-    const depts = departments.filter((d) => d.active !== false).map((d) => ({ id: d.id, name: d.name }));
-    addNote = <ReportAdd date={date} employees={people} departments={depts} />;
-    body = (
-      <>
-        <DayReportView report={report} employees={people} departments={depts} />
-      </>
+      .sort((a, b) => a.name.localeCompare(b.name, "es")),
+    departments: departments.filter((d) => d.active !== false).map((d) => ({ id: d.id, name: d.name })),
+    sections: sections.map((s) => ({ id: s.id, name: s.name })),
+  };
+
+  if (view === "dia") {
+    const [entries, notes] = await Promise.all([getEntriesBetween(date, date), getNotes(date, date)]);
+    const roster = getDayRoster({ date, employees, entries, departments, statusTypes });
+    const report = buildDayReport({ roster, shift: settings, sections, departments, notes });
+    title = formatDayLong(date);
+    subtitle = `Turno ${settings.shiftStart}–${settings.shiftEnd} · ${report.presentCount} trabajan`;
+    addNote = (
+      <AddNoteButton defaults={{ date }} options={options} ariaLabel="Añadir nota" className={reportIconBtn}>
+        <Icon name="note" className="h-[22px] w-[22px]" strokeWidth={2.2} />
+      </AddNoteButton>
     );
+    body = <DayReportView report={report} options={options} />;
     if (!report.isEmpty) share = (
         <ShareButton text={reportToText(report)} model={buildShareModel(report)} fileName={`informe-noche-${date}.png`} />
       );
   } else {
     const days = weekDays(date);
-    const [entries, nightNotes, dayNotes, olderTasks] = await Promise.all([
+    const [entries, weekNotes, olderTasks] = await Promise.all([
       getEntriesBetween(days[0]!, days[6]!),
-      getNightNotes(days[0]!, days[6]!),
-      getDayNotesBetween(days[0]!, days[6]!),
+      getNotes(days[0]!, days[6]!),
       getPendingTasksBefore(days[0]!),
     ]);
-    const tasks = [...olderTasks, ...nightNotes.filter((n) => n.isTask)];
-    const nameById = new Map(employees.map((e) => [e.id, e.name]));
-    const notes = [
-      ...dayNotes.map((n) => ({ date: n.date, name: null, text: n.text })),
-      ...nightNotes.filter((n) => !n.isTask).map((n) => ({ date: n.date, name: n.name || n.department ? noteWho(n) : null, text: n.text })),
-      ...entries
-        .filter((e) => e.note?.trim())
-        .map((e) => ({ date: e.date, name: nameById.get(e.employeeId) ?? null, text: e.note!.trim() })),
-    ];
+    const tasks = [...olderTasks, ...weekNotes.filter((n) => n.type === "TASK")];
+    const notes = weekNotes
+      .filter((n) => n.type !== "TASK")
+      .map((n) => ({ date: n.date, name: null, text: noteLine(n) }));
     const grid = getWeekGrid({
       date,
       employees,
@@ -168,11 +151,6 @@ export default async function Page({
         {share}
       </div>
       {body}
-      <div className="text-center">
-        <Link href="/avisos" className="inline-flex min-h-11 items-center px-4 text-[15px] font-medium text-accent">
-          Ver todos los avisos
-        </Link>
-      </div>
     </div>
   );
 }

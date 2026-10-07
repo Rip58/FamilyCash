@@ -1,18 +1,19 @@
 // Historial de un empleado (Informe → buscar empleado): todo lo apuntado o hablado con él, agrupado por noche.
 // Puro y sin zod (se usa también en el cliente para exportar).
 import { type DateStr, formatDayLong } from "./dates";
+import { NOTE_TYPE_META, type NoteType, type NoteView, noteLabel } from "./notes";
 
 export type HistoryKind =
-  | "night-note" // nota de la noche (Informe) sobre él
-  | "task" // tarea de la noche sobre él
-  | "day-note" // nota del día en su ficha de Hoy
-  | "file-note" // nota de su ficha (Ajustes → Empleados): nota, incidencia, felicitación, conversación
-  | "report" // aviso con foto
+  | "note" // nota
+  | "task" // tarea
+  | "incident" // incidencia
+  | "praise" // felicitación
+  | "talk" // conversación
+  | "request" // petición (fiesta, vacaciones…): una nota más, sin seguimiento
   | "absence" // faltó (tocaba trabajar y no vino, o «Falta»)
   | "leave" // vacaciones, baja, permiso (ausencias previstas)
   | "time" // llegó tarde / se fue antes / se quedó más
-  | "overtime" // horas extra
-  | "request"; // petición de fiesta / vacaciones
+  | "overtime"; // horas extra
 
 export interface HistoryItem {
   date: DateStr;
@@ -25,8 +26,8 @@ export interface HistoryItem {
   /** Color de la etiqueta (hex). */
   color: string;
   photos?: number;
-  /** Para poder editarlo desde la ficha (notas de ficha). */
-  ref?: { type: "file-note"; id: string };
+  /** Si es una nota: la nota entera (para verla con fotos y editarla). */
+  note?: NoteView;
   /** Quién (en los listados de varias personas: «Todas las notas», departamento…). */
   who?: string | null;
 }
@@ -38,20 +39,45 @@ export interface HistoryDay {
 }
 
 export const KIND_META: Record<HistoryKind, { label: string; color: string }> = {
-  "night-note": { label: "Nota", color: "#64748b" },
-  task: { label: "Tarea", color: "#d97706" },
-  "day-note": { label: "Nota del día", color: "#64748b" },
-  "file-note": { label: "Ficha", color: "#4f46e5" },
-  report: { label: "Aviso", color: "#0ea5e9" },
+  note: { label: "Notas", color: NOTE_TYPE_META.NOTE.color },
+  task: { label: "Tareas", color: NOTE_TYPE_META.TASK.color },
+  incident: { label: "Incidencias", color: NOTE_TYPE_META.INCIDENT.color },
+  praise: { label: "Felicitaciones", color: NOTE_TYPE_META.PRAISE.color },
+  talk: { label: "Conversaciones", color: NOTE_TYPE_META.TALK.color },
+  request: { label: "Peticiones", color: NOTE_TYPE_META.REQUEST.color },
   absence: { label: "Faltas", color: "#dc2626" },
   leave: { label: "Vacaciones y bajas", color: "#3b82f6" },
   time: { label: "Horario", color: "#d97706" },
   overtime: { label: "Horas extra", color: "#0a84ff" },
-  request: { label: "Petición", color: "#16a34a" },
 };
 
 /** Orden dentro de una noche: primero lo hablado (notas), luego lo que pasó. */
-const ORDER: HistoryKind[] = ["file-note", "night-note", "day-note", "task", "report", "absence", "leave", "time", "overtime", "request"];
+const ORDER: HistoryKind[] = ["talk", "incident", "praise", "request", "note", "task", "absence", "leave", "time", "overtime"];
+
+const NOTE_KIND: Record<NoteType, HistoryKind> = {
+  NOTE: "note",
+  TASK: "task",
+  INCIDENT: "incident",
+  PRAISE: "praise",
+  TALK: "talk",
+  REQUEST: "request",
+};
+
+/** Una nota como apunte del historial. `who` = quién/dónde (en los listados de varias personas). */
+export function noteHistoryItem(n: NoteView, who?: string | null): HistoryItem {
+  const where = n.sectionName ? ` [${n.sectionName}]` : "";
+  return {
+    date: n.date,
+    time: n.time,
+    kind: NOTE_KIND[n.type],
+    label: noteLabel(n),
+    text: `${n.text}${where}`,
+    color: NOTE_TYPE_META[n.type].color,
+    photos: n.photos.length || undefined,
+    note: n,
+    who: who ?? null,
+  };
+}
 
 /** "Lunes 28 sep" (+ año si no es el actual). */
 export function historyDayTitle(date: DateStr, currentYear: number): string {

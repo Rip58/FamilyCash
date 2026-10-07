@@ -1,74 +1,149 @@
 "use server";
 
+/** Server Actions de LA nota (NightNote): crear/editar con fotos, borrar, tarea hecha y limpieza de fotos antiguas. */
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { isDateStr, toDbDate } from "@/lib/dates";
+import { operationalToday, toDbDate } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { noteTypeToDb } from "@/lib/notes";
+import { type SaveNoteInput, saveNoteSchema } from "@/lib/notes-schema";
+import { getSettings } from "@/lib/queries";
+import { purgeCutoff } from "@/lib/report-format";
+import { deleteStoredFiles } from "@/lib/storage";
+import { MAX_PHOTOS_PER_REPORT } from "@/lib/upload-rules";
 
-export type NoteActionResult = { ok: true } | { ok: false; error: string };
+export type NoteActionResult<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
-const addSchema = z.object({
-  date: z.string().refine(isDateStr, "Fecha no válida."),
-  employeeId: z.string().min(1).max(64).nullable(),
-  departmentId: z.string().min(1).max(64).nullable(),
-  kind: z.enum(["INFO", "TASK"]),
-  text: z.string().trim().min(1, "Escribe la nota.").max(1000, "Nota demasiado larga."),
-});
+const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
+const idSchema = z.string().min(1).max(64);
 
 function revalidate() {
+  revalidatePath("/hoy", "layout");
   revalidatePath("/informe", "layout");
+  revalidatePath("/semana", "layout");
+  revalidatePath("/ajustes", "layout");
 }
 
-/** Añade una nota a la noche (general o de un empleado). */
-export async function addNightNote(input: z.input<typeof addSchema>): Promise<NoteActionResult> {
-  const p = addSchema.safeParse(input);
-  if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Datos no válidos." };
-  if (p.data.employeeId && !(await db.employee.findUnique({ where: { id: p.data.employeeId } }))) {
-    return { ok: false, error: "Empleado no encontrado." };
+/** Fotos subidas de una nota que al final no se guarda: fuera del almacenamiento. */
+async function discardPhotos(input: unknown) {
+  const photos = (input as { photos?: { pathname?: unknown }[] } | null)?.photos;
+  if (!Array.isArray(photos)) return;
+  const names = photos
+    .map((x) => x?.pathname)
+    .filter((n): n is string => typeof n === "string" && n.startsWith("reports/") && !n.includes(".."));
+  if (names.length) await deleteStoredFiles(names);
+}
+
+async function checkRefs(d: { employeeId: string | null; departmentId: string | null; sectionId: string | null }) {
+  const [e, dep, s] = await Promise.all([
+    d.employeeId ? db.employee.findUnique({ where: { id: d.employeeId }, select: { id: true } }) : true,
+    d.departmentId ? db.department.findUnique({ where: { id: d.departmentId }, select: { id: true } }) : true,
+    d.sectionId ? db.section.findUnique({ where: { id: d.sectionId }, select: { id: true } }) : true,
+  ]);
+  if (!e) return "Empleado no encontrado.";
+  if (!dep) return "Departamento no encontrado.";
+  if (!s) return "Sección no encontrada.";
+  return null;
+}
+
+/** Crea o edita una nota. `photos` son fotos nuevas que se añaden a las que ya tenga. */
+export async function saveNote(input: SaveNoteInput): Promise<NoteActionResult<{ id: string }>> {
+  const p = saveNoteSchema.safeParse(input);
+  if (!p.success) {
+    await discardPhotos(input);
+    return fail(p.error.issues[0]?.message ?? "Datos no válidos.");
   }
-  if (p.data.departmentId && !(await db.department.findUnique({ where: { id: p.data.departmentId } }))) {
-    return { ok: false, error: "Departamento no encontrado." };
+  const { id, date, type, photos, ...rest } = p.data;
+  const refErr = await checkRefs(rest);
+  if (refErr) {
+    await discardPhotos(p.data);
+    return fail(refErr);
   }
-  const { date, ...rest } = p.data;
-  await db.nightNote.create({ data: { date: toDbDate(date), ...rest } });
+  const { kind, category } = noteTypeToDb(type);
+  const fields = { date: toDbDate(date), kind, category, ...rest };
+  try {
+    if (!id) {
+      const n = await db.nightNote.create({
+        data: { ...fields, photos: { create: photos.map((ph, i) => ({ ...ph, sortOrder: i })) } },
+        select: { id: true },
+      });
+      revalidate();
+      return { ok: true, id: n.id };
+    }
+    const prev = await db.nightNote.findUnique({ where: { id }, include: { photos: { select: { sortOrder: true } } } });
+    if (!prev) {
+      await discardPhotos(p.data);
+      return fail("La nota ya no existe.");
+    }
+    if (prev.photos.length + photos.length > MAX_PHOTOS_PER_REPORT) {
+      await discardPhotos(p.data);
+      return fail(`Máximo ${MAX_PHOTOS_PER_REPORT} fotos por nota.`);
+    }
+    const start = prev.photos.reduce((m, x) => Math.max(m, x.sortOrder + 1), 0);
+    await db.nightNote.update({
+      where: { id },
+      data: {
+        ...fields,
+        // Si deja de ser tarea, ya no tiene «hecha».
+        ...(kind === "INFO" ? { doneAt: null } : {}),
+        photos: { create: photos.map((ph, i) => ({ ...ph, sortOrder: start + i })) },
+      },
+    });
+    revalidate();
+    return { ok: true, id };
+  } catch (e) {
+    console.error(e);
+    await discardPhotos(p.data);
+    return fail("No se pudo guardar. Inténtalo de nuevo.");
+  }
+}
+
+/** Borra una nota y sus fotos. */
+export async function deleteNote(id: string): Promise<NoteActionResult> {
+  const p = idSchema.safeParse(id);
+  if (!p.success) return fail("Datos no válidos.");
+  const note = await db.nightNote.findUnique({ where: { id: p.data }, include: { photos: { select: { pathname: true } } } });
+  if (!note) return { ok: true };
+  await db.nightNote.delete({ where: { id: note.id } });
+  await deleteStoredFiles(note.photos.map((x) => x.pathname));
   revalidate();
   return { ok: true };
 }
 
-const updateSchema = addSchema.omit({ date: true }).extend({ id: z.string().min(1).max(64) });
-
-/** Edita una nota de la noche (texto, tipo, empleado y departamento). */
-export async function updateNightNote(input: z.input<typeof updateSchema>): Promise<NoteActionResult> {
-  const p = updateSchema.safeParse(input);
-  if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Datos no válidos." };
-  if (p.data.employeeId && !(await db.employee.findUnique({ where: { id: p.data.employeeId } }))) {
-    return { ok: false, error: "Empleado no encontrado." };
-  }
-  if (p.data.departmentId && !(await db.department.findUnique({ where: { id: p.data.departmentId } }))) {
-    return { ok: false, error: "Departamento no encontrado." };
-  }
-  const { id, kind, ...rest } = p.data;
-  const prev = await db.nightNote.findUnique({ where: { id } });
-  if (!prev) return { ok: false, error: "La nota ya no existe." };
-  // Si deja de ser tarea, ya no tiene «hecha».
-  await db.nightNote.update({ where: { id }, data: { ...rest, kind, ...(kind === "INFO" ? { doneAt: null } : {}) } });
-  revalidate();
-  return { ok: true };
-}
-
-export async function deleteNightNote(id: string): Promise<NoteActionResult> {
-  const p = z.string().min(1).max(64).safeParse(id);
-  if (!p.success) return { ok: false, error: "Datos no válidos." };
-  await db.nightNote.deleteMany({ where: { id: p.data } });
+/** Quita una foto ya guardada de una nota. */
+export async function deleteNotePhoto(photoId: string): Promise<NoteActionResult> {
+  const p = idSchema.safeParse(photoId);
+  if (!p.success) return fail("Datos no válidos.");
+  const photo = await db.nightNotePhoto.findUnique({ where: { id: p.data } });
+  if (!photo) return fail("La foto ya no existe.");
+  await db.nightNotePhoto.delete({ where: { id: photo.id } });
+  await deleteStoredFiles([photo.pathname]);
   revalidate();
   return { ok: true };
 }
 
 /** Marca una tarea como hecha o pendiente. */
 export async function setNoteDone(input: { id: string; done: boolean }): Promise<NoteActionResult> {
-  const p = z.object({ id: z.string().min(1).max(64), done: z.boolean() }).safeParse(input);
-  if (!p.success) return { ok: false, error: "Datos no válidos." };
+  const p = z.object({ id: idSchema, done: z.boolean() }).safeParse(input);
+  if (!p.success) return fail("Datos no válidos.");
   await db.nightNote.updateMany({ where: { id: p.data.id, kind: "TASK" }, data: { doneAt: p.data.done ? new Date() : null } });
   revalidate();
   return { ok: true };
+}
+
+/** Borra las FOTOS (no el texto) de las notas de noches anteriores a hace N meses. */
+export async function purgeOldNotePhotos(input: { months: number }): Promise<NoteActionResult<{ photos: number }>> {
+  const p = z.object({ months: z.number().int().min(1).max(120) }).safeParse(input);
+  if (!p.success) return fail("Indica un número de meses válido (1–120).");
+  const settings = await getSettings();
+  const cutoff = purgeCutoff(operationalToday(new Date(), settings.dayRolloverHour), p.data.months);
+  const old = await db.nightNotePhoto.findMany({
+    where: { note: { date: { lt: toDbDate(cutoff) } } },
+    select: { id: true, pathname: true },
+  });
+  if (old.length === 0) return { ok: true, photos: 0 };
+  await db.nightNotePhoto.deleteMany({ where: { id: { in: old.map((x) => x.id) } } });
+  await deleteStoredFiles(old.map((x) => x.pathname));
+  revalidate();
+  return { ok: true, photos: old.length };
 }

@@ -25,7 +25,7 @@ const emp = (id: string, o: Partial<EmployeeLite> = {}): EmployeeLite => ({
   id, name: id, defaultDepartmentId: "drog", sortOrder: 0, fixedDaysOff: [], active: true, ...o,
 });
 const entry = (employeeId: string, date: string, st: StatusTypeLite, o: Partial<DayEntryLite> = {}): DayEntryLite => ({
-  employeeId, date, statusTypeId: st.id, departmentId: null, reason: null, note: null,
+  employeeId, date, statusTypeId: st.id, departmentId: null, reason: null,
   arrivedAt: null, leftAt: null, timeReason: null, segments: [], ...o,
 });
 
@@ -50,10 +50,10 @@ describe("getEffectiveDay", () => {
   });
   it("la excepción (DayEntry) gana al día fijo", () => {
     const e = emp("a", { fixedDaysOff: [0] });
-    const d = getEffectiveDay(e, MON, entry("a", MON, WORK, { note: "hace extra" }), statusTypes);
+    const d = getEffectiveDay(e, MON, entry("a", MON, WORK, { reason: "hace extra" }), statusTypes);
     expect(d.status.code).toBe("WORK");
     expect(d.source).toBe("entry");
-    expect(d.note).toBe("hace extra");
+    expect(d.reason).toBe("hace extra");
   });
   it("entry no laborable con motivo", () => {
     const d = getEffectiveDay(emp("a"), MON, entry("a", MON, SICK, { reason: "gripe" }), statusTypes);
@@ -185,7 +185,7 @@ describe("asistencia en el día efectivo", () => {
       { id: "o", code: "OFF", label: "Fiesta", color: "#000", isWorking: false, sortOrder: 1 },
     ];
     const employee = { id: "e", name: "E", defaultDepartmentId: null, sortOrder: 0, fixedDaysOff: [], active: true };
-    const base = { employeeId: "e", date: "2026-09-28", departmentId: null, reason: null, note: null, arrivedAt: null, leftAt: null, timeReason: null, segments: [] };
+    const base = { employeeId: "e", date: "2026-09-28", departmentId: null, reason: null, arrivedAt: null, leftAt: null, timeReason: null, segments: [] };
     expect(getEffectiveDay(employee, "2026-09-28", { ...base, statusTypeId: "w", present: true }, sts).present).toBe(true);
     expect(getEffectiveDay(employee, "2026-09-28", { ...base, statusTypeId: "o", present: true }, sts).present).toBe(true);
     expect(getEffectiveDay(employee, "2026-09-28", null, sts).present).toBe(false);
@@ -200,7 +200,7 @@ describe("planning en el día efectivo", () => {
       { id: "s", code: "SICK", label: "Baja", color: "#000", isWorking: false, sortOrder: 1 },
     ];
     const employee = { id: "e", name: "E", defaultDepartmentId: null, sortOrder: 0, fixedDaysOff: [], active: true };
-    const base = { employeeId: "e", date: "2026-09-28", departmentId: null, reason: null, note: null, arrivedAt: null, leftAt: null, timeReason: null, segments: [] };
+    const base = { employeeId: "e", date: "2026-09-28", departmentId: null, reason: null, arrivedAt: null, leftAt: null, timeReason: null, segments: [] };
     const d = getEffectiveDay(employee, "2026-09-28", { ...base, statusTypeId: "w", actualStatusTypeId: "s" }, sts);
     expect(d.status.label).toBe("Baja");
     expect(d.planned?.label).toBe("Trabaja");
@@ -214,7 +214,7 @@ describe("planning en el día efectivo", () => {
       { id: "s", code: "SICK", label: "Baja", color: "#000", isWorking: false, sortOrder: 1 },
     ];
     const employee = { id: "e", name: "E", defaultDepartmentId: null, sortOrder: 0, fixedDaysOff: [], active: true };
-    const base = { employeeId: "e", date: "2026-09-28", departmentId: null, reason: null, note: null, arrivedAt: null, leftAt: null, timeReason: null, segments: [] };
+    const base = { employeeId: "e", date: "2026-09-28", departmentId: null, reason: null, arrivedAt: null, leftAt: null, timeReason: null, segments: [] };
     const d = getEffectiveDay(employee, "2026-09-28", { ...base, statusTypeId: "s", present: true }, sts);
     expect(d.isWorking).toBe(false);
     expect(d.present).toBe(true);

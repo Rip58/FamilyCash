@@ -41,7 +41,7 @@ model Section {             // pasillos / tareas: Cerveza, Chocolate, ...
   sortOrder    Int     @default(0)
   active       Boolean @default(true)
   segments     WorkSegment[]
-  reports      Report[]
+  nightNotes   NightNote[]
 }
 
 model StatusType {
@@ -68,9 +68,6 @@ model Employee {
   active              Boolean @default(true)
   notes               String?               // nota permanente
   days                DayEntry[]
-  reports             Report[]
-  fileNotes           EmployeeNote[]
-  leaveRequests       LeaveRequest[]
   nightNotes          NightNote[]
   absences            Absence[]
 }
@@ -80,12 +77,11 @@ model DayEntry {            // solo existe si el día difiere del patrón o tien
   date          DateTime @db.Date           // día de INICIO del turno
   employeeId    String
   employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  statusTypeId  String                      // PLANNING (solo lo cambia Semana / peticiones aprobadas)
+  statusTypeId  String                      // PLANNING (solo lo cambia Semana)
   statusType    StatusType @relation(fields: [statusTypeId], references: [id])
   departmentId  String?                     // ubicación ese día (null = la habitual)
   extraDepartmentIds String[] @default([])  // Hoy: otros departamentos que también cubre esa noche
   reason        String?                     // motivo ausencia / cambio
-  note          String?                     // nota del día sobre el empleado
   arrivedAt     String?                     // "22:15" si llega tarde
   leftAt        String?                     // "07:30" si se queda más / "04:00" si se va antes
   timeReason    String?
@@ -112,10 +108,6 @@ model WorkSegment {         // "Cerveza 21:30–05:00", "Chocolate 05:00–06:30
   sortOrder   Int      @default(0)
 }
 
-model DayNote {             // nota general de la noche
-  date  DateTime @id @db.Date
-  text  String
-}
 
 model Protocol {            // hoja de protocolos
   id        String   @id @default(cuid())
@@ -160,7 +152,7 @@ model Planogram {           // lineal: cómo tiene que quedar (foto + nota), opc
   updatedAt  DateTime @updatedAt
 }
 
-model PlanogramPhoto {      // mismos campos que ReportPhoto
+model PlanogramPhoto {      // mismos campos que NightNotePhoto
   id          String    @id @default(cuid())
   planogramId String
   planogram   Planogram @relation(fields: [planogramId], references: [id], onDelete: Cascade)
@@ -172,73 +164,10 @@ model PlanogramPhoto {      // mismos campos que ReportPhoto
   sortOrder   Int       @default(0)
 }
 
-model Report {              // aviso con fotos + nota escrita
-  id          String   @id @default(cuid())
-  date        DateTime @db.Date           // día de turno al que pertenece
-  employeeId  String?                     // empleado implicado (opcional)
-  employee    Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
-  sectionId   String?                     // dónde ocurrió (opcional)
-  section     Section?  @relation(fields: [sectionId], references: [id], onDelete: SetNull)
-  text        String
-  photos      ReportPhoto[]
-  createdAt   DateTime @default(now())
-  @@index([date])
-}
 
-model ReportPhoto {
-  id        String @id @default(cuid())
-  reportId  String
-  report    Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  url       String                        // Vercel Blob, o /api/files/... en local
-  pathname  String                        // para poder borrarla del almacenamiento
-  width     Int
-  height    Int
-  size      Int    @default(0)            // bytes, para el resumen de Almacenamiento
-  sortOrder Int    @default(0)
-}
 
-model EmployeeNote {        // nota de ficha (privada, con fecha y hora)
-  id          String   @id @default(cuid())
-  employeeId  String
-  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  occurredAt  DateTime                    // fecha y hora del evento
-  category    String   @default("NOTE")   // NOTE | INCIDENT | PRAISE | TALK
-  text        String
-  photos      EmployeeNotePhoto[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  @@index([employeeId, occurredAt])
-}
 
-model EmployeeNotePhoto {   // mismos campos que ReportPhoto
-  id        String @id @default(cuid())
-  noteId    String
-  note      EmployeeNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
-  url       String
-  pathname  String
-  width     Int
-  height    Int
-  size      Int    @default(0)
-  sortOrder Int    @default(0)
-}
 
-model LeaveRequest {        // petición de cambio de fiesta / vacaciones / permiso
-  id           String   @id @default(cuid())
-  employeeId   String
-  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  type         String                     // SWAP_OFF | VACATION | PAID_OFF | OTHER
-  dateFrom     DateTime @db.Date          // SWAP_OFF: día que deja de librar (A)
-  dateTo       DateTime @db.Date          // SWAP_OFF: día que pasa a librar (B); rango: fin
-  note         String?
-  requestedAt  DateTime @db.Date
-  status       String   @default("PENDING") // PENDING | APPROVED | DENIED
-  decisionNote String?
-  decidedAt    DateTime?
-  appliedChanges Json?                    // estados previos de cada día, para poder revertir
-  createdAt    DateTime @default(now())
-  @@index([status])
-  @@index([employeeId])
-}
 
 model PayrollSettings {     // fila única id=1: importes para la calculadora de nómina
   id                     Int     @id @default(1)
@@ -285,18 +214,36 @@ model PayrollPeriod {       // salario por tramos de fechas (propuestas, subidas
   @@index([from])
 }
 
-model NightNote {           // notas de la noche (Informe): varias por noche, generales o de un empleado
+model NightNote {           // LA nota: de la noche, general o de un empleado / departamento; con fotos opcionales
   id         String    @id @default(cuid())
-  date       DateTime  @db.Date
+  date       DateTime  @db.Date             // noche a la que pertenece
+  time       String?                        // "22:15" si se apuntó la hora
   employeeId String?
   employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
   departmentId String?
   department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  kind       String    @default("INFO")   // INFO (informativa) | TASK (tarea pendiente de hacer)
-  doneAt     DateTime?                    // tarea hecha
+  sectionId  String?                        // dónde ocurrió (opcional)
+  section    Section?  @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  kind       String    @default("INFO")     // INFO | TASK (tarea pendiente de hacer)
+  category   String    @default("NOTE")     // INFO: NOTE | INCIDENT | PRAISE | TALK | REQUEST
+  doneAt     DateTime?                      // tarea hecha
   text       String
+  photos     NightNotePhoto[]
   createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @default(now()) @updatedAt
   @@index([date])
+  @@index([employeeId])
+}
+model NightNotePhoto {      // fotos de una nota
+  id        String @id @default(cuid())
+  noteId    String
+  note      NightNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  url       String                        // /api/files/... (Blob privado o .uploads/)
+  pathname  String                        // para poder borrarla del almacenamiento
+  width     Int
+  height    Int
+  size      Int    @default(0)            // bytes, para el resumen de Almacenamiento
+  sortOrder Int    @default(0)
 }
 
 model Absence {             // registro de faltas: queda aunque luego se cambie el día (fiesta, cambio…)

@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { toggleDepartment } from "@/lib/segments";
 import { useState } from "react";
-import { ReportCard } from "@/components/reports/ReportCard";
-import type { ReportView } from "@/lib/report-format";
+import { NoteList } from "@/components/notes/NoteList";
+import type { NoteOptions } from "@/components/notes/NoteSheet";
+import type { NoteView } from "@/lib/notes";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Chip } from "@/components/ui/Chip";
 import { TimeInput } from "@/components/ui/TimeInput";
@@ -28,9 +29,10 @@ interface EmployeeSheetProps {
   busy: boolean;
   error: string | null;
   ops: SheetOps;
-  /** Avisos de esta noche que mencionan al empleado. */
-  reports: ReportView[];
-  onNewReport: () => void;
+  /** Notas de esta noche sobre la persona. */
+  notes: NoteView[];
+  noteOptions: NoteOptions;
+  onAddNote: () => void;
 }
 
 function Block({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
@@ -56,8 +58,9 @@ export function EmployeeSheet({
   busy,
   error,
   ops,
-  reports,
-  onNewReport,
+  notes,
+  noteOptions,
+  onAddNote,
 }: EmployeeSheetProps) {
   const { employee, day } = member;
   const deptMap = new Map(departments.map((d) => [d.id, d]));
@@ -221,31 +224,14 @@ export function EmployeeSheet({
           </>
         )}
 
-        <Block title="Nota del día">
-          <AutoText
-            label="Sobre este empleado, hoy"
-            value={day.note ?? ""}
-            onSave={ops.setNote}
-            multiline
-            maxLength={500}
-            placeholder="Escribe una nota…"
-          />
-        </Block>
-
-        <Block title="Avisos" hint={reports.length > 0 ? String(reports.length) : undefined}>
-          {reports.length > 0 && (
-            <div className="flex flex-col gap-2">
-              {reports.map((r) => (
-                <ReportCard key={r.id} report={r} readOnly />
-              ))}
-            </div>
-          )}
+        <Block title="Notas de esta noche" hint={notes.length > 0 ? String(notes.length) : undefined}>
+          <NoteList notes={notes} options={noteOptions} defaults={{ date: day.date, employeeId: employee.id }} showWho={false} />
           <button
             type="button"
-            onClick={onNewReport}
+            onClick={onAddNote}
             className="flex min-h-11 items-center justify-center gap-2 rounded-control bg-surface-2 text-[16px] font-medium text-accent"
           >
-            <span aria-hidden>📷</span> Aviso con foto
+            + Nota o foto
           </button>
         </Block>
 

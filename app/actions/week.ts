@@ -43,7 +43,7 @@ async function logPlanningChange(
   resolution?: { kind: AbsenceResolution; note: string },
 ) {
   const blank: DayEntryLite = {
-    employeeId: employee.id, date, statusTypeId: next.statusTypeId, departmentId: null, reason: null, note: null,
+    employeeId: employee.id, date, statusTypeId: next.statusTypeId, departmentId: null, reason: null,
     arrivedAt: null, leftAt: null, timeReason: null, segments: [],
   };
   const after: DayEntryLite = {
@@ -443,7 +443,6 @@ export async function resetWeek(weekStart: string): Promise<WeekActionResult> {
     const res = await db.dayEntry.deleteMany({
       where: {
         date: { gte: toDbDate(days[0]!), lte: toDbDate(days[6]!) },
-        note: null,
         arrivedAt: null,
         leftAt: null,
         timeReason: null,

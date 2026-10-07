@@ -37,7 +37,6 @@ function CellButton({
   label,
   hasReason,
   hasExtra,
-  pending,
   actual,
   onTap,
 }: {
@@ -47,8 +46,6 @@ function CellButton({
   hasExtra: boolean;
   /** En Hoy pasó otra cosa distinta al planning. */
   actual: boolean;
-  /** Hay una petición pendiente que cubre esta celda. */
-  pending: boolean;
   onTap: () => void;
 }) {
   return (
@@ -92,13 +89,6 @@ function CellButton({
         >
           !
         </span>
-      )}
-      {pending && (
-        <span
-          aria-hidden="true"
-          data-pending-dot
-          className="absolute bottom-1 right-0.5 h-2 w-2 rounded-full bg-warning ring-1 ring-surface"
-        />
       )}
     </button>
   );
@@ -255,7 +245,6 @@ function CellSheetBody({
   employeeId,
   absence,
   absenceStatusId,
-  pending,
   actual,
   onSave,
   onClose,
@@ -269,7 +258,6 @@ function CellSheetBody({
   /** Estado con el que se marcó la falta (lo de Hoy si no cuadra). */
   absenceStatusId?: string;
   onClose: () => void;
-  pending: string | null;
   actual: string | null;
   /** `days` > 1: vacaciones / baja de varios días seguidos desde este día. */
   onSave: (v: CellValue, days: number) => void;
@@ -285,14 +273,6 @@ function CellSheetBody({
   const span = multi ? days : 1;
   return (
     <div className="flex flex-col gap-4 pt-1">
-      {pending && (
-        <p
-          data-testid="pending-request"
-          className="rounded-control bg-warning/20 px-3 py-2 text-[14px] font-medium text-[#92600a] dark:text-warning"
-        >
-          Petición pendiente: {pending}
-        </p>
-      )}
       {actual && (
         <p className="rounded-control bg-warning/20 px-3 py-2 text-[14px] font-medium text-[#92600a] dark:text-warning">
           ⚠️ No cuadró: en Hoy se validó «{actual}». Aquí solo cambias el planning.
@@ -523,15 +503,6 @@ export function PeopleGrid({ data, flat = false }: { data: PeopleGridData; flat?
 
   const sheetKey = sheet ? keyOf(sheet.target.employeeId, sheet.target.date) : "";
   const sheetValue = sheet ? cells[sheetKey] : undefined;
-  const pendingByKey = useMemo(() => {
-    const m: Record<string, string> = {};
-    for (const g of groups)
-      for (const r of g.rows)
-        r.cells.forEach((c, i) => {
-          if (c.pending) m[keyOf(r.employeeId, days[i]!)] = c.pending;
-        });
-    return m;
-  }, [groups, days]);
   const actualCodeByKey = useMemo(() => {
     const m: Record<string, string> = {};
     for (const g of groups)
@@ -650,9 +621,8 @@ export function PeopleGrid({ data, flat = false }: { data: PeopleGridData; flat?
                         status={status}
                         hasReason={!!v.reason}
                         hasExtra={(v.extraMinutes ?? 0) > 0}
-                        pending={!!pendingByKey[keyOf(r.employeeId, d)]}
                         actual={!!actualByKey[keyOf(r.employeeId, d)]}
-                        label={`${r.name}, ${formatDayLong(d)}: ${status.label}${v.reason ? ` (${v.reason})` : ""}${v.extraMinutes ? `, ${formatOvertime(v.extraMinutes)} extra` : ""}${actualByKey[keyOf(r.employeeId, d)] ? `. Hoy: ${actualByKey[keyOf(r.employeeId, d)]}` : ""}${pendingByKey[keyOf(r.employeeId, d)] ? ". Petición pendiente" : ""}`}
+                        label={`${r.name}, ${formatDayLong(d)}: ${status.label}${v.reason ? ` (${v.reason})` : ""}${v.extraMinutes ? `, ${formatOvertime(v.extraMinutes)} extra` : ""}${actualByKey[keyOf(r.employeeId, d)] ? `. Hoy: ${actualByKey[keyOf(r.employeeId, d)]}` : ""}`}
                         onTap={() => setSheet({ target, open: true })}
                       />
                     );
@@ -701,7 +671,6 @@ export function PeopleGrid({ data, flat = false }: { data: PeopleGridData; flat?
             absence={isAbsence(statusById.get(sheetValue.statusId)?.code, actualCodeByKey[sheetKey])}
             absenceStatusId={statuses.find((s) => s.code === actualCodeByKey[sheetKey])?.id}
             onClose={() => setSheet({ ...sheet, open: false })}
-            pending={pendingByKey[sheetKey] ?? null}
             actual={actualByKey[sheetKey] ?? null}
             onSave={(v, span) => {
               change(sheet.target, sheetValue, v, span);

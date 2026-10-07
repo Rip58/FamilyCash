@@ -1,20 +1,11 @@
 import { Card } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
 import { type DateStr, formatDayShort } from "@/lib/dates";
-import { noteWho } from "@/lib/report";
-import { TaskCheck } from "./ReportAdd";
-
-interface TaskView {
-  id: string;
-  date: DateStr;
-  name: string | null;
-  department: string | null;
-  done: boolean;
-  text: string;
-}
+import { type NoteView, noteWho } from "@/lib/notes";
+import { TaskCheck } from "@/components/notes/NoteList";
 
 /** Tareas de la semana (y pendientes de semanas anteriores) con casilla de hecho. */
-export function WeekTasks({ tasks, weekStart }: { tasks: TaskView[]; weekStart: DateStr }) {
+export function WeekTasks({ tasks, weekStart }: { tasks: NoteView[]; weekStart: DateStr }) {
   if (tasks.length === 0) return null;
   const pending = tasks.filter((t) => !t.done).length;
   return (

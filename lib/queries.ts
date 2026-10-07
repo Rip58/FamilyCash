@@ -84,7 +84,6 @@ export function toEntryLite(r: EntryRow): DayEntryLite {
     departmentId: r.departmentId,
     extraDepartmentIds: r.extraDepartmentIds,
     reason: r.reason,
-    note: r.note,
     arrivedAt: r.arrivedAt,
     leftAt: r.leftAt,
     timeReason: r.timeReason,
@@ -113,11 +112,6 @@ export async function getEntriesBetween(from: DateStr, to: DateStr): Promise<Day
     include: { segments: { orderBy: { sortOrder: "asc" } } },
   });
   return rows.map(toEntryLite);
-}
-
-export async function getDayNote(date: DateStr): Promise<string | null> {
-  const n = await db.dayNote.findUnique({ where: { date: toDbDate(date) } });
-  return n?.text ?? null;
 }
 
 /** Roster de una noche: departamentos, ausentes, vacíos y bajo plazas. */
@@ -149,46 +143,4 @@ export async function loadWeekGrid(date: DateStr): Promise<WeekGrid> {
     statusTypes,
     daysOffPerWeek: settings.daysOffPerWeek,
   });
-}
-
-const NOTE_INCLUDE = { employee: { select: { name: true } }, department: { select: { name: true } } } as const;
-type NoteRow = Awaited<ReturnType<typeof db.nightNote.findMany<{ include: typeof NOTE_INCLUDE }>>>[number];
-
-function toNoteView(r: NoteRow) {
-  return {
-    id: r.id,
-    date: fromDbDate(r.date),
-    employeeId: r.employeeId,
-    departmentId: r.departmentId,
-    name: r.employee?.name ?? null,
-    department: r.department?.name ?? null,
-    isTask: r.kind === "TASK",
-    done: r.doneAt !== null,
-    text: r.text,
-  };
-}
-
-/** Notas de la noche (Informe) entre dos fechas incluidas, en orden de creación. */
-export async function getNightNotes(from: DateStr, to: DateStr) {
-  const rows = await db.nightNote.findMany({
-    where: { date: { gte: toDbDate(from), lte: toDbDate(to) } },
-    include: NOTE_INCLUDE,
-    orderBy: { createdAt: "asc" },
-  });
-  return rows.map(toNoteView);
-}
-
-/** Tareas aún sin hacer de noches anteriores a `before`. */
-export async function getPendingTasksBefore(before: DateStr) {
-  const rows = await db.nightNote.findMany({
-    where: { kind: "TASK", doneAt: null, date: { lt: toDbDate(before) } },
-    include: NOTE_INCLUDE,
-    orderBy: [{ date: "asc" }, { createdAt: "asc" }],
-  });
-  return rows.map(toNoteView);
-}
-
-export async function getDayNotesBetween(from: DateStr, to: DateStr): Promise<{ date: DateStr; text: string }[]> {
-  const rows = await db.dayNote.findMany({ where: { date: { gte: toDbDate(from), lte: toDbDate(to) } } });
-  return rows.filter((r) => r.text.trim()).map((r) => ({ date: fromDbDate(r.date), text: r.text.trim() }));
 }

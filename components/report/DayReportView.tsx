@@ -1,16 +1,12 @@
-import { ReportCard } from "@/components/reports/ReportCard";
+import { NoteList } from "@/components/notes/NoteList";
+import type { NoteOptions } from "@/components/notes/NoteSheet";
 import { Card } from "@/components/ui";
-import { cn } from "@/components/ui/cn";
 import { formatOvertime } from "@/lib/overtime";
-import { formatDuration, noteWho, type DayReport } from "@/lib/report";
+import { formatDuration, type DayReport } from "@/lib/report";
 import { buildShareModel } from "@/lib/report-share";
-import { DeleteNoteButton, EditNoteButton, TaskCheck } from "./ReportAdd";
-import { TextNoteItem } from "./TextNoteItem";
 
-type Opt = { id: string; name: string };
-
-/** `employees` / `departments`: para editar las notas de la noche (tocar una nota). */
-export function DayReportView({ report, employees = [], departments = [] }: { report: DayReport; employees?: Opt[]; departments?: Opt[] }) {
+/** `options`: para editar las notas de la noche (tocar una nota). */
+export function DayReportView({ report, options }: { report: DayReport; options: NoteOptions }) {
   // Misma agrupación que la imagen que se comparte: fiesta, vacaciones/bajas y faltas (en rojo), con comas.
   const share = buildShareModel(report);
   const hasPeopleIncidents =
@@ -24,37 +20,9 @@ export function DayReportView({ report, employees = [], departments = [] }: { re
   }
   return (
     <div className="space-y-3">
-      {(report.note || report.nightNotes.length > 0 || report.employeeNotes.length > 0) && (
-        <Card title="Notas de la noche">
-          <ul className="divide-y divide-line text-[15px]">
-            {report.note && <TextNoteItem target={{ kind: "day", date: report.date }} who="General (nota del día)" text={report.note} />}
-            {report.nightNotes.map((n) => (
-              <li key={n.id} className={cn("flex items-start gap-1 py-2", n.isTask && "-mx-2 rounded-control bg-warning/10 px-2")}>
-                {n.isTask && <TaskCheck id={n.id} done={!!n.done} label={n.text} />}
-                <EditNoteButton
-                  date={report.date}
-                  employees={employees}
-                  departments={departments}
-                  note={{ id: n.id, kind: n.isTask ? "TASK" : "INFO", employeeId: n.employeeId, departmentId: n.departmentId ?? null, text: n.text }}
-                >
-                  <span className="block text-[13px] font-semibold text-muted">
-                    {n.isTask && <span className="mr-1 rounded bg-warning/30 px-1 text-[11px] uppercase text-fg">Tarea</span>}
-                    {noteWho(n)}
-                  </span>
-                  <p className={cn("whitespace-pre-wrap", n.isTask && n.done && "text-muted line-through")}>{n.text}</p>
-                </EditNoteButton>
-                <DeleteNoteButton id={n.id} />
-              </li>
-            ))}
-            {report.employeeNotes.map((n) => (
-              <TextNoteItem
-                key={n.employeeId}
-                target={{ kind: "employee", date: report.date, employeeId: n.employeeId }}
-                who={n.name}
-                text={n.note}
-              />
-            ))}
-          </ul>
+      {report.notes.length > 0 && (
+        <Card title={`Notas de la noche · ${report.notes.length}`}>
+          <NoteList notes={report.notes} options={options} defaults={{ date: report.date }} />
         </Card>
       )}
 
@@ -147,16 +115,6 @@ export function DayReportView({ report, employees = [], departments = [] }: { re
         </Card>
       )}
 
-      {report.reports.length > 0 && (
-        <section aria-label="Avisos con foto" className="space-y-2">
-          <h2 className="px-1 text-[13px] font-semibold uppercase tracking-wide text-muted">
-            Avisos con foto · {report.reports.length}
-          </h2>
-          {report.reports.map((r) => (
-            <ReportCard key={r.id} report={r} />
-          ))}
-        </section>
-      )}
 
     </div>
   );

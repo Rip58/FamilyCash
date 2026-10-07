@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { aiProviderLabel } from "@/lib/ai-import-format";
 import { db } from "@/lib/db";
-import { countPendingRequests } from "@/lib/employee-file-queries";
 import { getDepartments, getEmployees, getSections, getSettings, getStatusTypes } from "@/lib/queries";
 import { VersionCard } from "@/components/settings/VersionCard";
 import { Icon, type IconName, tint } from "@/components/ui/icons";
@@ -11,14 +10,13 @@ export const dynamic = "force-dynamic";
 
 export default async function Page() {
   // Los recuentos salen de los datos de referencia en caché: solo 2 consultas reales.
-  const [employees, departments, sections, statuses, locs, settings, pending] = await Promise.all([
+  const [employees, departments, sections, statuses, locs, settings] = await Promise.all([
     getEmployees(),
     getDepartments(),
     getSections(),
     getStatusTypes(),
     db.shelfLocation.count({ where: { active: true } }),
     getSettings(),
-    countPendingRequests(),
   ]);
   const active = (rows: { active?: boolean }[]) => rows.filter((r) => r.active !== false).length;
   const [emps, deps, secs, sts] = [active(employees), active(departments), active(sections), active(statuses)];
@@ -27,7 +25,6 @@ export default async function Page() {
     {
       items: [
         { href: "/ajustes/empleados", label: "Empleados", detail: String(emps), icon: "users", color: "#3b82f6" },
-        { href: "/ajustes/peticiones", label: "Peticiones", badge: pending, icon: "inbox", color: "#f59e0b" },
         { href: "/ajustes/departamentos", label: "Departamentos", detail: String(deps), icon: "tag", color: "#f97316" },
         { href: "/ajustes/secciones", label: "Secciones", detail: String(secs), icon: "route", color: "#14b8a6" },
         { href: "/ajustes/estados", label: "Estados", detail: String(sts), icon: "swatch", color: "#8b5cf6" },
@@ -51,7 +48,7 @@ export default async function Page() {
       items: [
         { href: "/ajustes/seguridad", label: "Seguridad", icon: "lock", color: "#64748b" },
         { href: "/ajustes/datos", label: "Datos", detail: "Exportar CSV", icon: "database", color: "#22c55e" },
-        { href: "/ajustes/almacenamiento", label: "Almacenamiento", detail: "Avisos y fichas", icon: "images", color: "#0ea5e9" },
+        { href: "/ajustes/almacenamiento", label: "Almacenamiento", detail: "Fotos", icon: "images", color: "#0ea5e9" },
       ],
     },
   ];

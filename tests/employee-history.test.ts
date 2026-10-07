@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type HistoryItem, groupHistory, historyCounts, historyToText } from "@/lib/employee-history";
+import { type HistoryItem, groupHistory, noteHistoryItem, historyCounts, historyToText } from "@/lib/employee-history";
 import { entryHistoryItems } from "@/lib/employee-history-entry";
 import { DEFAULT_SHIFT } from "@/lib/report";
 import { type DayEntryLite, type EmployeeLite, type StatusTypeLite, getEffectiveDay } from "@/lib/schedule";
@@ -14,7 +14,7 @@ const ABSENT = st("ABSENT", "Falta", false);
 const statusTypes = [WORK, OFF, SICK, ABSENT];
 const ana: EmployeeLite = { id: "ana", name: "Ana", defaultDepartmentId: null, sortOrder: 0, fixedDaysOff: [], active: true };
 const entry = (date: string, s: StatusTypeLite, o: Partial<DayEntryLite> = {}): DayEntryLite => ({
-  employeeId: "ana", date, statusTypeId: s.id, departmentId: null, reason: null, note: null,
+  employeeId: "ana", date, statusTypeId: s.id, departmentId: null, reason: null,
   arrivedAt: null, leftAt: null, timeReason: null, segments: [], ...o,
 });
 const items = (e: DayEntryLite) => entryHistoryItems(getEffectiveDay(ana, e.date, e, statusTypes), DEFAULT_SHIFT);
@@ -30,30 +30,29 @@ describe("apuntes de una noche", () => {
     expect(items(entry("2026-10-03", SICK, { reason: "Espalda" }))).toMatchObject([{ kind: "leave", label: "Baja laboral", text: "Espalda" }]);
     expect(items(entry("2026-10-04", OFF))).toEqual([]);
   });
-  it("horarios, horas extra y nota del día", () => {
-    const r = items(entry("2026-10-05", WORK, { arrivedAt: "22:15", leftAt: "07:30", timeReason: "Tren", extraMinutes: 60, extraNote: "Camión", note: "Muy bien" }));
+  it("horarios y horas extra", () => {
+    const r = items(entry("2026-10-05", WORK, { arrivedAt: "22:15", leftAt: "07:30", timeReason: "Tren", extraMinutes: 60, extraNote: "Camión" }));
     expect(r.map((i) => [i.label, i.text])).toEqual([
       ["Llega tarde", "a las 22:15 (+45 min) — Tren"],
       ["Se queda más", "se queda 1 h más (sale a las 07:30) — Tren"],
       ["Horas extra", "+1 h — Camión"],
-      ["Nota del día", "Muy bien"],
     ]);
   });
 });
 
 describe("historial agrupado", () => {
   const all: HistoryItem[] = [
-    { date: "2026-09-28", kind: "night-note", label: "Nota", text: "Habla con el jefe", color: "#000" },
+    { date: "2026-09-28", kind: "note", label: "Nota", text: "Habla con el jefe", color: "#000" },
     { date: "2026-10-05", kind: "absence", label: "Falta", text: "No vino", color: "#f00" },
-    { date: "2026-10-05", kind: "file-note", time: "23:10", label: "Conversación", text: "Avisado por llegar tarde", color: "#00f" },
-    { date: "2025-12-24", kind: "report", label: "Aviso", text: "Rotura de palé", color: "#0af", photos: 2 },
+    { date: "2026-10-05", kind: "talk", time: "23:10", label: "Conversación", text: "Avisado por llegar tarde", color: "#00f" },
+    { date: "2025-12-24", kind: "incident", label: "Incidencia", text: "Rotura de palé", color: "#0af", photos: 2 },
   ];
   it("por noche, más reciente primero, notas antes que incidencias", () => {
     const days = groupHistory(all, 2026);
     expect(days.map((d) => d.date)).toEqual(["2026-10-05", "2026-09-28", "2025-12-24"]);
-    expect(days[0]!.items.map((i) => i.kind)).toEqual(["file-note", "absence"]);
+    expect(days[0]!.items.map((i) => i.kind)).toEqual(["talk", "absence"]);
     expect(days[2]!.title).toMatch(/2025$/);
-    expect(historyCounts(all).map((c) => c.kind)).toEqual(["file-note", "night-note", "report", "absence"]);
+    expect(historyCounts(all).map((c) => c.kind)).toEqual(["talk", "incident", "note", "absence"]);
     expect(groupHistory(all, 2026, "", ["absence"]).map((d) => d.date)).toEqual(["2026-10-05"]);
   });
   it("búsqueda sin acentos ni mayúsculas", () => {
@@ -65,7 +64,22 @@ describe("historial agrupado", () => {
     expect(t).toContain("👤 HISTORIAL DE ANA");
     expect(t).toContain("4 apuntes");
     expect(t).toContain("• 23:10 · Conversación: Avisado por llegar tarde");
-    expect(t).toContain("• Aviso: Rotura de palé (📷 2)");
+    expect(t).toContain("• Incidencia: Rotura de palé (📷 2)");
     expect(t.indexOf("Falta")).toBeLessThan(t.indexOf("Habla con el jefe"));
+  });
+});
+
+describe("notas en el historial", () => {
+  it("cada tipo de nota tiene su filtro, con hora, sección y fotos", () => {
+    const base = {
+      id: "n", date: "2026-10-05", time: "23:10", done: false, text: "Palé roto", employeeId: "e", employeeName: "Ana",
+      departmentId: null, departmentName: null, sectionId: "s", sectionName: "Cerveza",
+      photos: [{ id: "p", url: "u", width: 1, height: 1, size: 1 }],
+    };
+    const inc = noteHistoryItem({ ...base, type: "INCIDENT" }, "Ana");
+    expect(inc).toMatchObject({ kind: "incident", label: "Incidencia", text: "Palé roto [Cerveza]", time: "23:10", photos: 1, who: "Ana" });
+    expect(inc.note?.id).toBe("n");
+    expect(noteHistoryItem({ ...base, type: "TASK", done: true, photos: [] })).toMatchObject({ kind: "task", label: "Tarea hecha", photos: undefined });
+    expect(noteHistoryItem({ ...base, type: "REQUEST" }).kind).toBe("request");
   });
 });

@@ -20,8 +20,8 @@ let keySeq = 0;
 
 /**
  * Estado de las fotos que se están eligiendo/subiendo (compresión + subida
- * directa, reintento, descarte de lo subido y no enviado). Lo usan los avisos
- * y las notas de ficha.
+ * directa, reintento, descarte de lo subido y no enviado). Lo usan las notas,
+ * los lineales y los pasos de protocolo.
  */
 export function usePhotoUploads(max: number = MAX_PHOTOS_PER_REPORT) {
   const mode = useStorageMode();
@@ -69,7 +69,7 @@ export function usePhotoUploads(max: number = MAX_PHOTOS_PER_REPORT) {
       });
   }
 
-  function add(files: FileList | null, noun = "aviso") {
+  function add(files: FileList | null, noun = "nota") {
     if (!files || files.length === 0) return;
     const room = max - items.length;
     const picked = Array.from(files).slice(0, Math.max(0, room));
@@ -133,7 +133,7 @@ export function usePhotoUploads(max: number = MAX_PHOTOS_PER_REPORT) {
 export type PhotoUploads = ReturnType<typeof usePhotoUploads>;
 
 /** Botón "Hacer foto / Elegir" + cuadrícula de miniaturas con progreso. */
-export function PhotoPicker({ uploads, noun = "aviso" }: { uploads: PhotoUploads; noun?: string }) {
+export function PhotoPicker({ uploads, noun = "nota" }: { uploads: PhotoUploads; noun?: string }) {
   const { items, max } = uploads;
   const fileRef = useRef<HTMLInputElement>(null);
   return (

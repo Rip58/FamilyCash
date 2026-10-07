@@ -1,8 +1,8 @@
 "use client";
 
 import { type ReactNode, useEffect, useMemo, useOptimistic, useState, useSyncExternalStore, useTransition } from "react";
-import { ReportCard } from "@/components/reports/ReportCard";
-import { ReportComposer } from "@/components/reports/ReportComposer";
+import { NoteList } from "@/components/notes/NoteList";
+import { NoteSheet } from "@/components/notes/NoteSheet";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/components/ui/cn";
 import { ActionMenu } from "@/components/ui/ActionMenu";
@@ -10,9 +10,7 @@ import { tint } from "@/components/ui/icons";
 import {
   addSegment as addSegmentAction,
   deleteSegment as deleteSegmentAction,
-  setDayNote as setDayNoteAction,
   setDepartment as setDepartmentAction,
-  setNote as setNoteAction,
   setOvertime as setOvertimeAction,
   setAttendance as setAttendanceAction,
   setOvertimeBulk as setOvertimeBulkAction,
@@ -24,7 +22,7 @@ import {
 } from "@/app/actions/day";
 import { type DateStr, madridParts } from "@/lib/dates";
 import { formatOvertime, totalOvertime } from "@/lib/overtime";
-import type { ReportView } from "@/lib/report-format";
+import type { NoteView } from "@/lib/notes";
 import { statusAbbr } from "@/lib/week";
 import {
   type DayEntryLite,
@@ -37,7 +35,6 @@ import {
 import { type EntryPatch, type ShiftTimes, applyEntryPatch } from "@/lib/segments";
 import { setAbsenceNotice } from "@/app/actions/absences";
 import { AbsentSheet } from "./AbsentSheet";
-import { DayNoteCard } from "./DayNoteCard";
 import { EmployeeRow } from "./EmployeeRow";
 import { EmployeeSheet } from "./EmployeeSheet";
 import { MoveSheet } from "./MoveSheet";
@@ -52,8 +49,8 @@ interface DayViewProps {
   statusTypes: StatusTypeLite[];
   sections: SectionLite[];
   entries: DayEntryLite[];
-  dayNote: string | null;
-  reports: ReportView[];
+  /** Notas de la noche. */
+  notes: NoteView[];
   /** La fecha mostrada es la noche operativa actual. */
   isToday?: boolean;
 }
@@ -68,7 +65,7 @@ interface OptimisticAction {
   patch: EntryPatch;
 }
 
-export function DayView({ date, shift, employees, departments, statusTypes, sections, entries, dayNote, reports, isToday = false }: DayViewProps) {
+export function DayView({ date, shift, employees, departments, statusTypes, sections, entries, notes, isToday = false }: DayViewProps) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ id: string; open: boolean } | null>(null);
@@ -76,7 +73,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
   const [absentSheet, setAbsentSheet] = useState<{ id: string; open: boolean; change?: boolean } | null>(null);
   const [closeSheet, setCloseSheet] = useState<{ open: boolean; n: number }>({ open: false, n: 0 });
   const madridHour = useSyncExternalStore(subscribeNever, currentMadridHour, () => null);
-  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteSheet, setNoteSheet] = useState<{ open: boolean; employeeId: string | null }>({ open: false, employeeId: null });
   const [flat, setFlat] = useState(false);
   useEffect(() => {
     try {
@@ -95,7 +92,6 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
       /* ignorar */
     }
   };
-  const [composer, setComposer] = useState<{ open: boolean; employeeId: string | null }>({ open: false, employeeId: null });
 
   const [optEntries, applyOptimistic] = useOptimistic(entries, (cur: DayEntryLite[], a: OptimisticAction) => {
     const employee = employees.find((e) => e.id === a.employeeId);
@@ -104,7 +100,6 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
     const next = applyEntryPatch(existing, employee, date, statusTypes, a.patch, shift.shiftStart);
     return existing ? cur.map((e) => (e === existing ? next : e)) : [...cur, next];
   });
-  const [optNote, setOptNote] = useOptimistic(dayNote, (_cur: string | null, next: string) => next.trim() || null);
 
   const roster = useMemo(
     () => getDayRoster({ date, employees, entries: optEntries, departments, statusTypes }),
@@ -113,13 +108,21 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
   const deptMap = useMemo(() => new Map(departments.map((d) => [d.id, d])), [departments]);
   const sectionNames = useMemo(() => new Map(sections.map((s) => [s.id, s.name])), [sections]);
   const activeSections = useMemo(() => sections, [sections]);
-  const composerEmployees = useMemo(
-    () => employees.filter((e) => e.active).map((e) => ({ id: e.id, name: e.name })).sort((a, b) => a.name.localeCompare(b.name, "es")),
-    [employees],
-  );
-  const reportedIds = useMemo(() => new Set(reports.flatMap((r) => (r.employeeId ? [r.employeeId] : []))), [reports]);
-  const openComposer = (employeeId: string | null) => setComposer({ open: true, employeeId });
   const activeDepartments = useMemo(() => departments.filter((d) => d.active !== false), [departments]);
+  const noteOptions = useMemo(
+    () => ({
+      employees: employees.filter((e) => e.active).map((e) => ({ id: e.id, name: e.name })).sort((a, b) => a.name.localeCompare(b.name, "es")),
+      departments: activeDepartments.map((d) => ({ id: d.id, name: d.name })),
+      sections: sections.map((s) => ({ id: s.id, name: s.name })),
+    }),
+    [employees, activeDepartments, sections],
+  );
+  const notesBy = useMemo(() => {
+    const m = new Map<string, NoteView[]>();
+    for (const n of notes) if (n.employeeId) m.set(n.employeeId, [...(m.get(n.employeeId) ?? []), n]);
+    return m;
+  }, [notes]);
+  const openNote = (employeeId: string | null) => setNoteSheet({ open: true, employeeId });
 
   const allMembers = useMemo(() => {
     const m = new Map<string, RosterMember>();
@@ -158,8 +161,6 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
           setTimesAction({ ...base, arrivedAt, leftAt, timeReason }),
         );
       },
-      setNote: (note) =>
-        commit(employeeId, { kind: "note", note }, () => setNoteAction({ ...base, note: note.trim() || null })),
       setOvertime: (minutes, note) => {
         const extraNote = note.trim() || null;
         commit(employeeId, { kind: "overtime", extraMinutes: minutes || null, extraNote }, () =>
@@ -181,14 +182,6 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
     };
   };
 
-  const saveDayNote = (text: string) => {
-    startTransition(async () => {
-      setOptNote(text);
-      const r = await setDayNoteAction({ date, text });
-      setError(r.ok ? null : r.error);
-    });
-  };
-
   const openSheet = (id: string) => {
     setError(null);
     setSheet({ id, open: true });
@@ -207,7 +200,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
       departments={deptMap}
       shift={shift}
       showStatus={!m.day.isWorking}
-      hasReports={reportedIds.has(m.employee.id)}
+      notes={notesBy.get(m.employee.id)?.length ?? 0}
       onOpen={() => openSheet(m.employee.id)}
       onMove={() => openMove(m.employee.id)}
       attendance={
@@ -329,7 +322,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
           label="Opciones del día"
           badge={closeHighlight || nightExtra > 0}
           items={[
-            { icon: "note", label: "Nota del día", onSelect: () => setNoteOpen(true) },
+            { icon: "note", label: "Añadir nota o foto", onSelect: () => openNote(null) },
             {
               icon: flat ? "group" : "list",
               label: flat ? "Agrupar por departamentos" : "Ver sin departamentos",
@@ -383,15 +376,15 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
         </section>
       )}
 
-      <DayNoteCard note={optNote} onSave={saveDayNote} open={noteOpen} onOpenChange={setNoteOpen} />
-
-      {reports.length > 0 && (
-        <section aria-label="Avisos" className="flex flex-col gap-2">
-          <h2 className="px-1 text-[12px] font-semibold uppercase tracking-wide text-muted">Avisos · {reports.length}</h2>
-          {reports.map((r) => (
-            <ReportCard key={r.id} report={r} />
-          ))}
-        </section>
+      {notes.length > 0 && (
+        <Card flush aria-label="Notas de la noche">
+          <h2 className="flex min-h-7 items-center px-3 text-[12px] font-semibold uppercase tracking-wide text-muted">
+            Notas de la noche · {notes.length}
+          </h2>
+          <div className="px-3 pb-1">
+            <NoteList notes={notes} options={noteOptions} defaults={{ date }} compact />
+          </div>
+        </Card>
       )}
 
       {flat ? (
@@ -462,10 +455,11 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
           busy={pending}
           error={error}
           ops={opsFor(sheet.id)}
-          reports={reports.filter((r) => r.employeeId === sheet.id)}
-          onNewReport={() => {
+          notes={notesBy.get(sheet.id) ?? []}
+          noteOptions={noteOptions}
+          onAddNote={() => {
             setSheet((s) => (s ? { ...s, open: false } : s));
-            openComposer(sheet.id);
+            openNote(sheet.id);
           }}
         />
       )}
@@ -536,13 +530,11 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
         />
       )}
 
-      <ReportComposer
-        open={composer.open}
-        onClose={() => setComposer((c) => ({ ...c, open: false }))}
-        date={date}
-        employees={composerEmployees}
-        sections={sections.map((s) => ({ id: s.id, name: s.name }))}
-        employeeId={composer.employeeId}
+      <NoteSheet
+        open={noteSheet.open}
+        onClose={() => setNoteSheet((n) => ({ ...n, open: false }))}
+        defaults={{ date, employeeId: noteSheet.employeeId }}
+        options={noteOptions}
       />
     </div>
   );

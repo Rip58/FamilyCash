@@ -10,7 +10,7 @@ const emp = (id: string, fixedDaysOff: number[] = []): EmployeeLite => ({
   id, name: id, defaultDepartmentId: "d1", sortOrder: 0, fixedDaysOff, active: true,
 });
 const entry = (employeeId: string, date: string, code: string, departmentId: string | null = null): DayEntryLite => ({
-  employeeId, date, statusTypeId: `st-${code}`, departmentId, reason: null, note: null,
+  employeeId, date, statusTypeId: `st-${code}`, departmentId, reason: null,
   arrivedAt: null, leftAt: null, timeReason: null, segments: [],
 });
 
