@@ -24,7 +24,7 @@ const idSchema = z.string().min(1).max(64);
 function revalidate() {
   revalidatePath("/protocolos/lineales");
   revalidatePath("/ajustes/ubicaciones");
-  revalidatePath("/ajustes/almacenamiento");
+  revalidatePath("/ajustes/datos");
 }
 
 async function locationExists(id: string | null): Promise<boolean> {

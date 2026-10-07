@@ -6,7 +6,6 @@ import { leftKind, segmentName, type ShiftTimes } from "@/lib/segments";
 import { type DepartmentLite, type RosterMember, sameIds } from "@/lib/schedule";
 import { cn } from "@/components/ui/cn";
 import { tint } from "@/components/ui/icons";
-import { useLongPress } from "./useLongPress";
 
 interface EmployeeRowProps {
   member: RosterMember;
@@ -14,7 +13,6 @@ interface EmployeeRowProps {
   departments: Map<string, DepartmentLite>;
   shift: ShiftTimes;
   onOpen: () => void;
-  onMove: () => void;
   /** Muestra estado/motivo en vez de secciones (lista de ausentes). */
   showStatus?: boolean;
   /** Notas de esta noche sobre la persona (cuántas). */
@@ -32,7 +30,7 @@ const hit = "press flex h-[33px] w-11 shrink-0 items-center justify-center [touc
 const dot =
   "flex h-6 w-6 items-center justify-center rounded-full text-[13px] font-bold transition-colors duration-150 ease-out";
 
-export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, onMove, showStatus, notes = 0, attendance, groupId = null, absence }: EmployeeRowProps) {
+export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, showStatus, notes = 0, attendance, groupId = null, absence }: EmployeeRowProps) {
   const { employee, day } = member;
   // ✓ verde: solo se anima cuando se valida ahora (no al cargar la página con gente ya validada).
   const [wasPresent, setWasPresent] = useState(day.present);
@@ -47,7 +45,6 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
   const relocated = day.departmentId !== member.employee.defaultDepartmentId || !sameIds(day.extraDepartmentIds, habitualExtras);
   const okDotWork = relocated ? `${dot} bg-accent text-accent-fg${justValidated ? " pop-in" : ""}` : okDot;
   const pendingDotWork = relocated ? `${dot} bg-accent/15 text-accent` : `${dot} bg-success/15 text-success`;
-  const press = useLongPress(onMove, onOpen);
   const habitual = employee.defaultDepartmentId ? departments.get(employee.defaultDepartmentId) : undefined;
   const moved = day.departmentId !== employee.defaultDepartmentId;
   // Departamentos de esta noche (principal + los que también cubre) menos el de la burbuja en la que está.
@@ -63,7 +60,7 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
     <div className="flex items-center">
       <button
         type="button"
-        {...press}
+        onClick={onOpen}
         className="flex min-h-[33px] min-w-0 flex-1 select-none items-center gap-2 py-0.5 pl-3.5 pr-1 text-left [-webkit-touch-callout:none] active:bg-surface-2"
       >
         <span className="min-w-0 flex-1">

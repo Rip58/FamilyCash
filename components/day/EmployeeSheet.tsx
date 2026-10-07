@@ -1,28 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { toggleDepartment } from "@/lib/segments";
 import { useState } from "react";
 import { NoteList } from "@/components/notes/NoteList";
 import type { NoteOptions } from "@/components/notes/NoteSheet";
 import type { NoteView } from "@/lib/notes";
 import { BottomSheet } from "@/components/ui/BottomSheet";
-import { Chip } from "@/components/ui/Chip";
 import { TimeInput } from "@/components/ui/TimeInput";
-import type { DepartmentLite, RosterMember, StatusTypeLite } from "@/lib/schedule";
+import type { DepartmentLite, RosterMember } from "@/lib/schedule";
 import type { ShiftTimes } from "@/lib/segments";
-import { clampOvertime, formatOvertime, proposeOvertime } from "@/lib/overtime";
+import { formatOvertime, proposeOvertime } from "@/lib/overtime";
 import { AutoText } from "./AutoText";
-import { OvertimeStepper } from "./OvertimeStepper";
 import { SegmentEditor } from "./SegmentEditor";
-import { StatusButtons } from "./StatusButtons";
 import type { SectionLite, SegmentWithId, SheetOps } from "./types";
 
 interface EmployeeSheetProps {
   open: boolean;
   onClose: () => void;
   member: RosterMember;
-  statusTypes: StatusTypeLite[];
   departments: DepartmentLite[];
   sections: SectionLite[];
   shift: ShiftTimes;
@@ -33,6 +28,12 @@ interface EmployeeSheetProps {
   notes: NoteView[];
   noteOptions: NoteOptions;
   onAddNote: () => void;
+  /** Abre la misma hoja que ✗ / ⇄ en ausentes (pregunta si ha avisado). */
+  onChangeStatus: () => void;
+  /** Abre el cierre de turno (las horas extra se apuntan allí). */
+  onOvertime: () => void;
+  /** Abre la misma hoja que ⇄ (cambiar de puesto). */
+  onMove?: () => void;
 }
 
 function Block({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
@@ -51,7 +52,6 @@ export function EmployeeSheet({
   open,
   onClose,
   member,
-  statusTypes,
   departments,
   sections,
   shift,
@@ -61,11 +61,13 @@ export function EmployeeSheet({
   notes,
   noteOptions,
   onAddNote,
+  onChangeStatus,
+  onOvertime,
+  onMove,
 }: EmployeeSheetProps) {
   const { employee, day } = member;
   const deptMap = new Map(departments.map((d) => [d.id, d]));
   const habitual = employee.defaultDepartmentId ? deptMap.get(employee.defaultDepartmentId) : undefined;
-  const statusOptions = statusTypes.filter((s) => s.active !== false || s.id === day.status.id);
   const [showTimes, setShowTimes] = useState(!!(day.arrivedAt || day.leftAt));
   const extra = day.extraMinutes ?? 0;
   const suggestion = proposeOvertime(day.leftAt, shift);
@@ -81,12 +83,22 @@ export function EmployeeSheet({
           </p>
         )}
 
-        <Block title="Qué pasa hoy">
-          <p className="mb-2 text-[13px] text-muted">
-            Planning (Semana): <b className="text-fg">{(day.planned ?? day.status).label}</b>
-            {day.planned ? " · no cuadra, queda como aviso" : ""}. Esto no cambia la Semana.
-          </p>
-          <StatusButtons statuses={statusOptions} value={day.status.id} onPick={(s) => ops.setStatus(s.id)} />
+        <Block title="Hoy">
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="flex flex-wrap items-center gap-1.5 text-[16px] font-semibold">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: day.status.color }} aria-hidden />
+                {day.status.code === "WORK" ? (day.present ? "Ha venido" : "Trabaja") : day.status.label}
+              </p>
+              <p className="text-[13px] text-muted">
+                Planning: {(day.planned ?? day.status).label}
+                {day.planned ? " · no cuadra, queda como aviso" : ""}
+              </p>
+            </div>
+            <button type="button" onClick={onChangeStatus} className="press min-h-11 shrink-0 rounded-control bg-surface-2 px-3 text-[15px] font-semibold text-accent">
+              {day.isWorking ? "No ha venido" : "Cambiar"}
+            </button>
+          </div>
           {!day.isWorking && (
             <AutoText
               label="Motivo"
@@ -96,28 +108,28 @@ export function EmployeeSheet({
               placeholder="Ej. gripe, asuntos propios…"
             />
           )}
-        </Block>
-
-        <Block
-          title="Departamentos de hoy"
-          hint={`${habitual ? `Habitual: ${habitual.name}` : "Sin habitual"} · puedes elegir varios`}
-        >
-          <div className="flex flex-wrap gap-2">
-            {activeDepartments.map((d) => (
-              <Chip
-                key={d.id}
-                selected={day.departmentId === d.id || day.extraDepartmentIds.includes(d.id)}
-                color={d.color}
-                onClick={() => {
-                  const next = toggleDepartment(day.departmentId, day.extraDepartmentIds, d.id);
-                  ops.setDepartment(next.main === employee.defaultDepartmentId ? null : next.main, next.extras);
-                }}
-              >
-                {d.name}
-                {day.extraDepartmentIds.length > 0 && day.departmentId === d.id && " · principal"}
-              </Chip>
-            ))}
-          </div>
+          {day.isWorking && (
+            <div className="flex items-center gap-2">
+              <p className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-[15px]">
+                {[day.departmentId, ...day.extraDepartmentIds]
+                  .map((id) => (id ? deptMap.get(id) : undefined))
+                  .filter((d): d is DepartmentLite => !!d)
+                  .map((d) => (
+                    <span key={d.id} className="inline-flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: d.color }} aria-hidden />
+                      {d.name}
+                    </span>
+                  ))}
+                {!day.departmentId && day.extraDepartmentIds.length === 0 && <span className="text-muted">Sin departamento</span>}
+                <span className="text-[13px] text-muted">{habitual ? `(habitual: ${habitual.name})` : ""}</span>
+              </p>
+              {onMove && (
+                <button type="button" onClick={onMove} aria-label="Cambiar de puesto" className="press min-h-11 shrink-0 rounded-control bg-surface-2 px-3 text-[15px] font-semibold text-accent">
+                  ⇄ Puesto
+                </button>
+              )}
+            </div>
+          )}
         </Block>
 
         {day.isWorking && (
@@ -180,46 +192,16 @@ export function EmployeeSheet({
             )}
 
             <Block title="Horas extra">
-              <div className="flex flex-wrap items-center gap-2">
-                <OvertimeStepper
-                  label="Horas extra"
-                  minutes={extra}
-                  onChange={(m) => ops.setOvertime(m, day.extraNote ?? "")}
-                />
+              <div className="flex items-center gap-2">
+                <p className="min-w-0 flex-1 text-[15px]">
+                  {extra > 0 ? <b>{formatOvertime(extra, true)}</b> : <span className="text-muted">Ninguna</span>}
+                  {day.extraNote && <span className="text-muted"> — {day.extraNote}</span>}
+                  {extra === 0 && suggestion !== null && <span className="text-accent"> · salió a las {day.leftAt}</span>}
+                </p>
+                <button type="button" onClick={onOvertime} className="press min-h-11 shrink-0 rounded-control bg-surface-2 px-3 text-[15px] font-semibold text-accent">
+                  Cierre de turno
+                </button>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {[15, 30, 60].map((n) => (
-                  <Chip key={n} onClick={() => ops.setOvertime(clampOvertime(extra + n), day.extraNote ?? "")}>
-                    {n === 60 ? "+1 h" : `+${n}`}
-                  </Chip>
-                ))}
-                {extra > 0 && (
-                  <Chip onClick={() => ops.setOvertime(0, day.extraNote ?? "")}>Quitar</Chip>
-                )}
-              </div>
-              {suggestion !== null && extra === 0 && (
-                <div className="flex items-center gap-3 rounded-control bg-accent/10 px-3 py-2">
-                  <p className="min-w-0 flex-1 text-[14px]">
-                    Salió a las {day.leftAt} → ¿apuntar {formatOvertime(suggestion)}?
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => ops.setOvertime(suggestion, day.extraNote ?? "")}
-                    className="min-h-11 shrink-0 rounded-control bg-accent px-4 text-[15px] font-semibold text-accent-fg active:opacity-80"
-                  >
-                    Apuntar
-                  </button>
-                </div>
-              )}
-              {(extra > 0 || day.extraNote) && (
-                <AutoText
-                  label="Motivo de las horas extra"
-                  value={day.extraNote ?? ""}
-                  onSave={(v) => ops.setOvertime(extra, v)}
-                  maxLength={200}
-                  placeholder="Ej. descarga de camión, inventario…"
-                />
-              )}
             </Block>
           </>
         )}

@@ -11,7 +11,6 @@ import {
   addSegment as addSegmentAction,
   deleteSegment as deleteSegmentAction,
   setDepartment as setDepartmentAction,
-  setOvertime as setOvertimeAction,
   setAttendance as setAttendanceAction,
   setOvertimeBulk as setOvertimeBulkAction,
   setReason as setReasonAction,
@@ -161,12 +160,6 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
           setTimesAction({ ...base, arrivedAt, leftAt, timeReason }),
         );
       },
-      setOvertime: (minutes, note) => {
-        const extraNote = note.trim() || null;
-        commit(employeeId, { kind: "overtime", extraMinutes: minutes || null, extraNote }, () =>
-          setOvertimeAction({ ...base, extraMinutes: minutes, extraNote }),
-        );
-      },
       addSegment: (s) =>
         commit(
           employeeId,
@@ -202,7 +195,6 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
       showStatus={!m.day.isWorking}
       notes={notesBy.get(m.employee.id)?.length ?? 0}
       onOpen={() => openSheet(m.employee.id)}
-      onMove={() => openMove(m.employee.id)}
       attendance={
         m.day.isWorking
           ? {
@@ -448,7 +440,6 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
           open={sheet.open}
           onClose={() => setSheet((s) => (s ? { ...s, open: false } : s))}
           member={sheetMember}
-          statusTypes={statusTypes}
           departments={departments}
           sections={activeSections}
           shift={shift}
@@ -461,6 +452,22 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
             setSheet((s) => (s ? { ...s, open: false } : s));
             openNote(sheet.id);
           }}
+          onChangeStatus={() => {
+            setSheet((s) => (s ? { ...s, open: false } : s));
+            setAbsentSheet({ id: sheet.id, open: true, change: !sheetMember.day.isWorking || !!sheetMember.day.planned });
+          }}
+          onOvertime={() => {
+            setSheet((s) => (s ? { ...s, open: false } : s));
+            setCloseSheet((c) => ({ open: true, n: c.n + 1 }));
+          }}
+          onMove={
+            activeDepartments.length > 0
+              ? () => {
+                  setSheet((s) => (s ? { ...s, open: false } : s));
+                  openMove(sheet.id);
+                }
+              : undefined
+          }
         />
       )}
 

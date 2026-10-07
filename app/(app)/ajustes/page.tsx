@@ -21,34 +21,35 @@ export default async function Page() {
   const active = (rows: { active?: boolean }[]) => rows.filter((r) => r.active !== false).length;
   const [emps, deps, secs, sts] = [active(employees), active(departments), active(sections), active(statuses)];
   const shift = settings ? `${settings.shiftStart}–${settings.shiftEnd}` : "21:30–06:30";
-  const groups: { items: { href: string; label: string; detail?: string; badge?: number; icon: IconName; color: string }[] }[] = [
+  const groups: { title: string; items: { href: string; label: string; detail?: string; icon: IconName; color: string }[] }[] = [
     {
+      title: "Plantilla",
       items: [
         { href: "/ajustes/empleados", label: "Empleados", detail: String(emps), icon: "users", color: "#3b82f6" },
         { href: "/ajustes/departamentos", label: "Departamentos", detail: String(deps), icon: "tag", color: "#f97316" },
         { href: "/ajustes/secciones", label: "Secciones", detail: String(secs), icon: "route", color: "#14b8a6" },
         { href: "/ajustes/estados", label: "Estados", detail: String(sts), icon: "swatch", color: "#8b5cf6" },
-        { href: "/ajustes/ubicaciones", label: "Ubicaciones", detail: String(locs), icon: "pin", color: "#ec4899" },
       ],
     },
     {
+      title: "Turno y planning",
       items: [
         { href: "/ajustes/turno", label: "Turno", detail: shift, icon: "moon", color: "#6366f1" },
-        { href: "/ajustes/nomina", label: "Nómina", detail: "Importes", icon: "wallet", color: "#16a34a" },
-        {
-          href: "/ajustes/ia",
-          label: "Importar con IA",
-          detail: aiProviderLabel(settings.aiProvider),
-          icon: "sparkles",
-          color: "#d97757",
-        },
+        { href: "/ajustes/ia", label: "Importar con IA", detail: aiProviderLabel(settings.aiProvider), icon: "sparkles", color: "#d97757" },
       ],
     },
     {
+      title: "Otras pestañas",
       items: [
+        { href: "/ajustes/nomina", label: "Nómina", detail: "Importes", icon: "wallet", color: "#16a34a" },
+        { href: "/ajustes/ubicaciones", label: "Ubicaciones de lineales", detail: String(locs), icon: "pin", color: "#ec4899" },
+      ],
+    },
+    {
+      title: "App",
+      items: [
+        { href: "/ajustes/datos", label: "Datos y fotos", detail: "Copias, CSV", icon: "database", color: "#22c55e" },
         { href: "/ajustes/seguridad", label: "Seguridad", icon: "lock", color: "#64748b" },
-        { href: "/ajustes/datos", label: "Datos", detail: "Exportar CSV", icon: "database", color: "#22c55e" },
-        { href: "/ajustes/almacenamiento", label: "Almacenamiento", detail: "Fotos", icon: "images", color: "#0ea5e9" },
       ],
     },
   ];
@@ -56,8 +57,10 @@ export default async function Page() {
     <div className="pt-4">
       <h1 className="mb-4 text-[28px] font-bold tracking-tight">Ajustes</h1>
       <div className="flex flex-col gap-6">
-        {groups.map((g, i) => (
-          <div key={i} className="overflow-hidden rounded-card bg-surface">
+        {groups.map((g) => (
+          <section key={g.title} aria-label={g.title}>
+            <h2 className="mb-1.5 px-4 text-[13px] font-semibold uppercase tracking-wide text-muted">{g.title}</h2>
+            <div className="overflow-hidden rounded-card bg-surface">
             {g.items.map((it) => (
               <Link
                 key={it.href}
@@ -73,19 +76,11 @@ export default async function Page() {
                 </span>
                 <span className="flex-1 text-[17px]">{it.label}</span>
                 {it.detail && <span className="text-[15px] text-muted">{it.detail}</span>}
-                {it.badge ? (
-                  <span
-                    data-testid="pending-badge"
-                    aria-label={`${it.badge} pendientes`}
-                    className="flex h-6 min-w-6 items-center justify-center rounded-full bg-warning px-1.5 text-[13px] font-bold text-black"
-                  >
-                    {it.badge}
-                  </span>
-                ) : null}
                 <span aria-hidden className="text-muted">›</span>
               </Link>
             ))}
-          </div>
+            </div>
+          </section>
         ))}
         <VersionCard />
       </div>

@@ -48,7 +48,7 @@ export function getPendingTasksBefore(before: DateStr): Promise<NoteView[]> {
   return findNotes({ kind: "TASK", doneAt: null, date: { lt: toDbDate(before) } });
 }
 
-/** Notas y fotos (Ajustes → Almacenamiento). Las fotos de lineales y pasos de protocolo cuentan aparte. */
+/** Notas y fotos (Ajustes → Datos y fotos). Las fotos de lineales y pasos de protocolo cuentan aparte. */
 export async function storageStats() {
   const [notes, photos, planogramPhotos, stepPhotos] = await Promise.all([
     db.nightNote.count(),

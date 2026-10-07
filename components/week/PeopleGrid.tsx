@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useOptimistic, useState, useTransition } from "react";
 import { setOvertime } from "@/app/actions/day";
 import { getAbsenceNotice, setAbsenceNotice } from "@/app/actions/absences";
@@ -99,12 +100,14 @@ function CellButton({
  * nombre completo y el departamento; se oculta sola o al tocar en cualquier otro sitio.
  */
 function NameCell({
+  employeeId,
   compact,
   name,
   departmentName,
   open,
   onToggle,
 }: {
+  employeeId: string;
   compact: string;
   name: string;
   departmentName: string | null;
@@ -124,13 +127,18 @@ function NameCell({
         <span className="truncate">{compact}</span>
       </button>
       {open && (
-        <span
-          role="status"
-          className="animate-peek pointer-events-none absolute left-2 top-1/2 z-20 flex max-w-[calc(100vw-24px)] -translate-y-1/2 flex-col rounded-[12px] bg-fg px-3 py-1.5 text-bg shadow-lg"
+        // Nombre completo; tocarlo abre su ficha (historial y datos).
+        <Link
+          href={`/ajustes/empleados/${employeeId}`}
+          aria-label={`Abrir la ficha de ${name}`}
+          data-peek-name
+          className="animate-peek absolute left-2 top-1/2 z-20 flex max-w-[calc(100vw-24px)] -translate-y-1/2 flex-col rounded-[12px] bg-fg px-3 py-1.5 text-bg shadow-lg"
         >
-          <span className="whitespace-nowrap text-[15px] font-semibold leading-tight">{name}</span>
-          {departmentName && <span className="whitespace-nowrap text-[12px] leading-tight opacity-70">{departmentName}</span>}
-        </span>
+          <span className="whitespace-nowrap text-[15px] font-semibold leading-tight">{name} ›</span>
+          <span className="whitespace-nowrap text-[12px] leading-tight opacity-70">
+            {departmentName ? `${departmentName} · ` : ""}ver ficha
+          </span>
+        </Link>
       )}
     </div>
   );
@@ -605,6 +613,7 @@ export function PeopleGrid({ data, flat = false }: { data: PeopleGridData; flat?
               return (
                 <div key={r.employeeId} className={cn("grid items-center border-b border-line last:border-b-0", GRID_COLS)}>
                   <NameCell
+                    employeeId={r.employeeId}
                     compact={shortById.get(r.employeeId)!}
                     name={r.name}
                     departmentName={r.departmentName}

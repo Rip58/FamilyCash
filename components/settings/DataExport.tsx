@@ -17,7 +17,7 @@ export function DataExport({ today }: { today: string }) {
 
   return (
     <div>
-      <BackHeader title="Datos" />
+      <BackHeader title="Datos y fotos" />
       <Card title="Copia de seguridad" className="mb-4">
         <p className="text-[14px] text-muted">
           Descarga toda la base de datos (empleados, cuadrante, notas, nómina…) en un archivo. Guárdalo en Archivos o en

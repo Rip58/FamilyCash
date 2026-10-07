@@ -259,26 +259,6 @@ export function WeekShell({
               </button>
               <button
                 type="button"
-                onClick={toggleFlat}
-                aria-pressed={flat}
-                className="flex min-h-12 flex-col justify-center rounded-control bg-surface-2 px-4 text-left text-[16px]"
-              >
-                {flat ? "🗂️ Ver por departamentos" : "📋 Ver sin departamentos (orden del Excel)"}
-                <span className="text-[13px] text-muted">
-                  {flat
-                    ? "Vuelve a agrupar a la plantilla por departamento"
-                    : "Todos en una lista, como en el Excel, para poner las fiestas"}
-                </span>
-              </button>
-              <Link
-                href={`/semana/importar?semana=${weekStart}`}
-                className="flex min-h-12 flex-col justify-center rounded-control bg-surface-2 px-4 text-left text-[16px]"
-              >
-                ✨ Cargar desde imagen (IA)
-                <span className="text-[13px] text-muted">Foto o captura del Excel del planning</span>
-              </Link>
-              <button
-                type="button"
                 onClick={() => setMenu((m) => ({ ...m, confirm: "copy" }))}
                 className="min-h-11 rounded-control bg-surface-2 px-4 text-left text-[16px]"
               >

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Card } from "@/components/ui/Card";
@@ -45,8 +46,8 @@ export function DepartmentsManager({ departments, employees }: { departments: De
         Asignación oficial (departamento habitual). Los cambios del día a día por fiestas o bajas se hacen en Hoy.
       </p>
       <p className="mb-3 px-1 text-[13px] text-muted">
-        Arrastra <span aria-hidden>⠿</span> para reordenar. Abre un departamento con › para asignar, ordenar o mover sus
-        empleados.
+        Arrastra <span aria-hidden>⠿</span> para reordenar. Abre un departamento con › para ordenar o asignar sus
+        empleados; toca un empleado para abrir su ficha.
       </p>
       <div className="flex flex-col gap-3">
         <SortableList
@@ -90,7 +91,7 @@ export function DepartmentsManager({ departments, employees }: { departments: De
                 </div>
                 {isOpen && (
                   <>
-                    <EmployeeOrder list={list} departments={departments} empty="Sin empleados en este departamento." />
+                    <EmployeeOrder list={list} empty="Sin empleados en este departamento." />
                     <button
                       type="button"
                       onClick={() => setAssigningId(d.id)}
@@ -107,7 +108,7 @@ export function DepartmentsManager({ departments, employees }: { departments: De
         {departments.length === 0 && <p className="py-6 text-center text-muted">Aún no hay departamentos.</p>}
         {unassigned.length > 0 && (
           <Card title={`Sin asignar · ${unassigned.length}`} flush>
-            <EmployeeOrder list={unassigned} departments={departments} empty="" />
+            <EmployeeOrder list={unassigned} empty="" />
           </Card>
         )}
       </div>
@@ -136,7 +137,7 @@ export function DepartmentsManager({ departments, employees }: { departments: De
   );
 }
 
-function EmployeeOrder({ list, departments, empty }: { list: EmpRow[]; departments: DeptRow[]; empty: string }) {
+function EmployeeOrder({ list, empty }: { list: EmpRow[]; empty: string }) {
   const { run } = useRun();
   if (list.length === 0) return empty ? <p className="border-t border-line px-4 py-3 text-[14px] text-muted">{empty}</p> : null;
   return (
@@ -147,22 +148,11 @@ function EmployeeOrder({ list, departments, empty }: { list: EmpRow[]; departmen
         render={(e, handle) => (
           <div className="flex items-center gap-1 border-b border-line bg-surface pr-3 last:border-b-0">
             {handle}
-            <span className="min-w-0 flex-1 truncate text-[16px]">{e.name}</span>
-            <select
-              aria-label={`Mover a ${e.name}`}
-              value={e.defaultDepartmentId ?? ""}
-              onChange={(ev) =>
-                run(() => moveEmployee({ id: e.id, departmentId: ev.target.value || null }), { msg: "Empleado movido" })
-              }
-              className="min-h-11 max-w-[42%] rounded-control bg-surface-2 px-2 text-[14px]"
-            >
-              <option value="">Sin asignar</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
+            {/* Su departamento habitual se cambia en su ficha (un solo sitio). */}
+            <Link href={`/ajustes/empleados/${e.id}?tab=datos`} className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2">
+              <span className="truncate text-[16px]">{e.name}</span>
+              <span aria-hidden className="text-muted">›</span>
+            </Link>
           </div>
         )}
       />

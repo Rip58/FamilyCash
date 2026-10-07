@@ -5,7 +5,7 @@ import { purgeOldNotePhotos } from "@/app/actions/notes";
 import { Card } from "@/components/ui/Card";
 import { formatBytes } from "@/lib/upload-rules";
 import { photoCountLabel } from "@/lib/report-format";
-import { BackHeader, ConfirmButton, Stepper, useRun } from "./kit";
+import { ConfirmButton, Stepper, useRun } from "./kit";
 
 interface Props {
   /** Notas (todas). */
@@ -28,7 +28,6 @@ export function StorageSettings({ notes, photos, notePhotos, protocolPhotos, byt
   const row = "flex min-h-11 items-center justify-between border-b border-line py-2 last:border-b-0";
   return (
     <div>
-      <BackHeader title="Almacenamiento" />
       {blobMissing && (
         <div role="alert" className="mb-4 rounded-card bg-danger/10 p-4 text-[15px] text-danger">
           <p className="font-semibold">No se pueden subir fotos</p>
@@ -38,7 +37,7 @@ export function StorageSettings({ notes, photos, notePhotos, protocolPhotos, byt
           </p>
         </div>
       )}
-      <Card title="Fotos guardadas">
+      <Card title="Fotos guardadas" className="mt-4">
         <dl>
           <div className={row}>
             <dt>Notas</dt>
