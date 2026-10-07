@@ -76,7 +76,7 @@ function NewSection({ departments, onDone }: { departments: DeptOption[]; onDone
         <input aria-label="Nombre" value={name} onChange={(e) => setName(e.target.value)} className={inputClass} maxLength={80} autoFocus />
       </Field>
       <Field label="Departamento (opcional)">
-        <DepartmentSelect label="Departamento" value={dept} onChange={setDept} departments={departments.filter((d) => d.active)} />
+        <DepartmentSelect noneLabel="Ninguno" value={dept} onChange={setDept} departments={departments.filter((d) => d.active)} />
       </Field>
       <PrimaryButton
         className="mt-2 w-full"
@@ -112,7 +112,7 @@ function EditSection({
       </Field>
       <Field label="Departamento (opcional)">
         <DepartmentSelect
-          label="Departamento"
+          noneLabel="Ninguno"
           value={section.departmentId}
           onChange={(v) => save({ departmentId: v })}
           departments={departments.filter((d) => d.active || d.id === section.departmentId)}

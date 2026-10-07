@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { deleteNote, deleteNotePhoto, saveNote } from "@/app/actions/notes";
+import { DepartmentGrid } from "@/components/day/DepartmentGrid";
 import { PhotoPicker, usePhotoUploads } from "@/components/reports/PhotoPicker";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Segmented } from "@/components/ui/Segmented";
@@ -205,18 +206,16 @@ function NoteForm({ note, defaults, options, onDone }: { note: NoteView | null; 
 
       {more ? (
         <div className="flex flex-col gap-3">
-          <div className="grid grid-cols-2 gap-3">
-            <label className="flex min-w-0 flex-col gap-1.5">
-              <span className={label}>Departamento</span>
-              <select aria-label="Departamento" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} className={field}>
-                <option value="">—</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+          <div className="flex flex-col gap-1.5">
+            <span className={label}>Departamento</span>
+            <DepartmentGrid
+              departments={departments}
+              chosen={departmentId ? [departmentId] : []}
+              onPickOne={setDepartmentId}
+              none={{ label: "Ninguno", onPick: () => setDepartmentId("") }}
+            />
+          </div>
+          <div>
             {sections.length > 0 && (
               <label className="flex min-w-0 flex-col gap-1.5">
                 <span className={label}>Sección</span>
@@ -261,23 +260,28 @@ function NoteForm({ note, defaults, options, onDone }: { note: NoteView | null; 
 
       {note &&
         (confirmDelete ? (
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() =>
-              start(async () => {
-                const r = await deleteNote(note.id);
-                if (r.ok) {
-                  sent.current = true;
-                  notify("Nota borrada");
-                  onDone();
-                } else setError(r.error);
-              })
-            }
-            className="min-h-11 rounded-control bg-danger text-[15px] font-semibold text-white"
-          >
-            Sí, borrar {note.photos.length > 0 ? "nota y fotos" : "nota"}
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => setConfirmDelete(false)} className="min-h-11 rounded-control bg-surface-2 text-[15px] font-medium">
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() =>
+                start(async () => {
+                  const r = await deleteNote(note.id);
+                  if (r.ok) {
+                    sent.current = true;
+                    notify("Nota borrada");
+                    onDone();
+                  } else setError(r.error);
+                })
+              }
+              className="min-h-11 rounded-control bg-danger text-[15px] font-semibold text-white"
+            >
+              Sí, borrar
+            </button>
+          </div>
         ) : (
           <button type="button" onClick={() => setConfirmDelete(true)} className="min-h-11 text-[15px] font-medium text-danger">
             Borrar nota

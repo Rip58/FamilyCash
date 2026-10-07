@@ -1,5 +1,6 @@
 "use client";
 
+import { DepartmentGrid } from "@/components/day/DepartmentGrid";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
@@ -36,32 +37,25 @@ function daysLabel(days: number[]): string {
   return days.length ? `Libra: ${days.map((d) => WEEKDAY_LETTERS[d]).join(" ")}` : "Sin días fijos";
 }
 
+/** Departamento (uno): la misma cuadrícula de 2 columnas que en Hoy, con «Sin asignar». */
 export function DepartmentSelect({
   value,
   onChange,
   departments,
-  label = "Departamento habitual",
+  noneLabel = "Sin asignar",
 }: {
   value: string | null;
   onChange: (v: string | null) => void;
   departments: DeptOption[];
-  label?: string;
+  noneLabel?: string;
 }) {
   return (
-    <select
-      aria-label={label}
-      value={value ?? ""}
-      onChange={(e) => onChange(e.target.value || null)}
-      className={inputClass}
-    >
-      <option value="">Sin asignar</option>
-      {departments.map((d) => (
-        <option key={d.id} value={d.id}>
-          {d.name}
-          {d.active ? "" : " (inactivo)"}
-        </option>
-      ))}
-    </select>
+    <DepartmentGrid
+      departments={departments}
+      chosen={value ? [value] : []}
+      onPickOne={(id) => onChange(id)}
+      none={{ label: noneLabel, onPick: () => onChange(null) }}
+    />
   );
 }
 
@@ -298,27 +292,7 @@ function ExtraDepartments({
 }) {
   const options = departments.filter((d) => d.id !== main);
   if (options.length === 0) return <p className="text-[13px] text-muted">No hay más departamentos.</p>;
-  return (
-    <div className="grid grid-cols-2 gap-1.5">
-      {options.map((d) => {
-        const on = value.includes(d.id);
-        return (
-          <button
-            key={d.id}
-            type="button"
-            role="checkbox"
-            aria-checked={on}
-            onClick={() => onChange(on ? value.filter((x) => x !== d.id) : [...value, d.id])}
-            className={`press flex min-h-11 min-w-0 items-center gap-2 rounded-control px-2.5 text-left text-[14px] leading-tight ${
-              on ? "bg-accent/15 ring-2 ring-accent" : "bg-surface-2"
-            }`}
-          >
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: d.color ?? "#888" }} />
-            <span className="line-clamp-2 min-w-0 flex-1">{d.name}</span>
-            {on && <span className="shrink-0 text-[13px] font-bold text-accent">✓</span>}
-          </button>
-        );
-      })}
-    </div>
-  );
+  const toggle = (id: string) => onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
+  // La misma cuadrícula que en Hoy: aquí todos son «también» (el principal va arriba), así que tocar = marcar.
+  return <DepartmentGrid departments={options} chosen={value} onPickOne={toggle} onToggle={toggle} />;
 }

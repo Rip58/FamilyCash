@@ -7,8 +7,8 @@ import { getAbsenceNotice, setAbsenceNotice } from "@/app/actions/absences";
 import { absenceSwapOptions, resolveAbsence, setCellStatus, setCellStatusRange } from "@/app/actions/week";
 import { NoticeToggle } from "@/components/day/NoticeToggle";
 import { OvertimeStepper } from "@/components/day/OvertimeStepper";
+import { StatusButtons } from "@/components/day/StatusButtons";
 import { BottomSheet } from "@/components/ui/BottomSheet";
-import { Segmented } from "@/components/ui/Segmented";
 import { cn } from "@/components/ui/cn";
 import { type DateStr, WEEKDAY_LETTERS, addDays, formatDayLong } from "@/lib/dates";
 import { OVERTIME_MAX, clampOvertime, formatOvertime } from "@/lib/overtime";
@@ -287,13 +287,7 @@ function CellSheetBody({
         </p>
       )}
       {absence && <ResolveAbsence employeeId={employeeId} date={date} statusTypeId={absenceStatusId ?? initial.statusId} onDone={onClose} />}
-      <Segmented
-        wrap
-        aria-label="Estado"
-        value={statusId}
-        onChange={setStatusId}
-        options={statuses.map((s) => ({ value: s.id, label: s.label, color: s.color }))}
-      />
+      <StatusButtons statuses={statuses} value={statusId} onPick={(s) => setStatusId(s.id)} />
       {multi && (
         <div className="flex flex-col gap-2 rounded-control bg-surface-2 p-3" aria-label="Días seguidos">
           <span className="text-[13px] font-medium text-muted">¿Cuántos días de {selected!.label.toLowerCase()}?</span>

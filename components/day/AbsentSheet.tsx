@@ -73,9 +73,6 @@ export function AbsentSheet({ open, onClose, title, note, current, statusTypes, 
             className="min-h-11 rounded-control bg-surface-2 px-3 text-[16px] outline-none focus:ring-2 focus:ring-accent"
           />
         </label>
-        <button type="button" onClick={onClose} className="min-h-11 text-[16px] font-medium text-accent">
-          Cancelar
-        </button>
       </div>
     </BottomSheet>
   );

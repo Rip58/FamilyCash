@@ -1,5 +1,7 @@
 "use client";
 
+import { StatusButtons } from "@/components/day/StatusButtons";
+import { Toggle } from "@/components/ui/Toggle";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -7,7 +9,7 @@ import { applyImportedWeek } from "@/app/actions/week";
 import { notify } from "@/components/ui/toast";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { cn } from "@/components/ui/cn";
-import { Icon, tint } from "@/components/ui/icons";
+import { Icon } from "@/components/ui/icons";
 import type { AiProvider, ImportResult, ImportRow } from "@/lib/ai-import-format";
 import { type DateStr, WEEKDAY_LETTERS, addDays, formatDayLong, formatDayMonth, formatWeekRange, isoWeekNumber, weekDays } from "@/lib/dates";
 import { DOCUMENT_IMAGE, compressImage } from "@/lib/image-compress";
@@ -273,18 +275,10 @@ export function WeekImport({ weekStart, daysOffPerWeek, provider, employees, sta
             </p>
           )}
 
-          <label className="flex min-h-12 items-center gap-3 rounded-card bg-surface px-4 text-[15px]">
-            <input
-              type="checkbox"
-              checked={saveOrder}
-              onChange={(e) => setSaveOrder(e.target.checked)}
-              className="h-5 w-5 accent-[var(--accent)]"
-            />
-            <span>
-              Guardar este orden de filas como el del Excel
-              <span className="block text-[13px] text-muted">Para la vista de Semana sin departamentos</span>
-            </span>
-          </label>
+          <div className="rounded-card bg-surface px-4 py-1">
+            <Toggle checked={saveOrder} onChange={setSaveOrder} label="Guardar este orden de filas como el del Excel" />
+            <p className="pb-2 text-[13px] text-muted">Para la vista de Semana sin departamentos</p>
+          </div>
 
           <button
             type="button"
@@ -353,39 +347,29 @@ export function WeekImport({ weekStart, daysOffPerWeek, provider, employees, sta
                     Ahora en el planning: {statuses.find((s) => s.id === byId.get(editRow.employeeId!)?.current[editing.day])?.label ?? "—"}
                   </p>
                 )}
-                <div className="grid grid-cols-2 gap-2">
-                  {statuses.map((s) => (
+                <StatusButtons
+                  statuses={statuses}
+                  value={editRow.cells[editing.day]}
+                  onPick={(s) => {
+                    patchRow(editing.row, { cells: editRow.cells.map((c, j) => (j === editing.day ? s.id : c)) });
+                    setEditing({ ...editing, open: false });
+                  }}
+                  extra={
                     <button
-                      key={s.id}
                       type="button"
                       onClick={() => {
-                        patchRow(editing.row, { cells: editRow.cells.map((c, j) => (j === editing.day ? s.id : c)) });
+                        patchRow(editing.row, { cells: editRow.cells.map((c, j) => (j === editing.day ? null : c)) });
                         setEditing({ ...editing, open: false });
                       }}
                       className={cn(
-                        "flex min-h-12 items-center gap-2 rounded-control border-2 px-3 text-left text-[15px] font-medium",
-                        editRow.cells[editing.day] === s.id ? "border-accent" : "border-transparent",
+                        "press flex min-h-11 w-full items-center justify-center rounded-control border-2 border-dashed px-3 text-[15px] text-muted",
+                        editRow.cells[editing.day] === null ? "border-accent" : "border-warning",
                       )}
-                      style={{ backgroundColor: tint(s.color, 22) }}
                     >
-                      <span className="w-6 text-center font-bold">{statusAbbr(s)}</span>
-                      {s.label}
+                      ? · Dejar como está
                     </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      patchRow(editing.row, { cells: editRow.cells.map((c, j) => (j === editing.day ? null : c)) });
-                      setEditing({ ...editing, open: false });
-                    }}
-                    className={cn(
-                      "col-span-2 flex min-h-12 items-center justify-center rounded-control border-2 border-dashed px-3 text-[15px] text-muted",
-                      editRow.cells[editing.day] === null ? "border-accent" : "border-warning",
-                    )}
-                  >
-                    ? · Dejar como está
-                  </button>
-                </div>
+                  }
+                />
               </div>
             )}
           </BottomSheet>

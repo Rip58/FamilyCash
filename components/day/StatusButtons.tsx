@@ -9,10 +9,13 @@ export function StatusButtons({
   statuses,
   value,
   onPick,
+  extra,
 }: {
   statuses: StatusTypeLite[];
   value?: string | null;
   onPick: (status: StatusTypeLite) => void;
+  /** Opción más a lo ancho, al final (p. ej. «? · Dejar como está» al importar). */
+  extra?: React.ReactNode;
 }) {
   return (
     <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Estado">
@@ -40,6 +43,7 @@ export function StatusButtons({
           </button>
         );
       })}
+      {extra && <div className="col-span-2">{extra}</div>}
     </div>
   );
 }
