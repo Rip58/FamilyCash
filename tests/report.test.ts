@@ -108,6 +108,15 @@ describe("buildDayReport", () => {
     expect(t).toContain("• Droguería: ✅ Pedir cajas");
     expect(t).toContain("• Incidencia: Palé roto [Cerveza] (📷 1)");
   });
+  it("al compartir, las notas de la misma persona van juntas", () => {
+    const t = reportToText({ ...r, notes: [
+      note({ id: "1", employeeId: "c", employeeName: "Claudia", departmentId: "p", departmentName: "Palets", text: "No podrá venir" }),
+      note({ id: "2", text: "Tolva atascada" }),
+      note({ id: "3", employeeId: "c", employeeName: "Claudia", text: "Zapatos talla 41" }),
+      note({ id: "4", employeeId: "j", employeeName: "Juan", text: "Zapatos talla 41" }),
+    ] });
+    expect(t).toContain("📝 NOTAS DE LA NOCHE\n• Tolva atascada\n• Claudia:\n   – Palets: No podrá venir\n   – Zapatos talla 41\n• Juan: Zapatos talla 41");
+  });
   it("las notas generales van primero", () => {
     expect(r.notes.map((n) => n.text)).toEqual(["Noche tranquila", "Rápido"]);
     expect(reportToText(r)).toContain("📝 NOTAS DE LA NOCHE\n• Noche tranquila\n• Beto: Rápido");

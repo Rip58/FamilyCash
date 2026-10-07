@@ -1,6 +1,6 @@
 // Exportación del informe de la noche (texto con emojis e imagen). Sin zod: se usa también en el cliente.
 import { formatOvertime } from "./overtime";
-import { noteLine } from "./notes";
+import { groupNotesByWho, noteLine } from "./notes";
 import type { DayReport } from "./report";
 
 export interface ShareMember {
@@ -39,7 +39,8 @@ export interface ShareModel {
   emptyDepartments: string[];
   times: string[];
   overtime: { total: string; items: string[] } | null;
-  notes: string[];
+  /** Notas juntas por persona (o departamento); `who` null = generales. */
+  notes: { who: string | null; items: string[] }[];
 }
 
 /** Color de departamento → cuadrado de color (emoji) más parecido. */
@@ -105,7 +106,11 @@ export function buildShareModel(report: DayReport): ShareModel {
     }),
   ];
 
-  const notes = report.notes.map((n) => noteLine(n));
+  const notes = groupNotesByWho(report.notes).map((g) => ({
+    who: g.key === "general" ? null : g.who,
+    // En una persona, el departamento de la nota va delante («Palets: …»).
+    items: g.notes.map((n) => `${n.employeeId && n.departmentName ? `${n.departmentName}: ` : ""}${noteLine(n, false)}`),
+  }));
 
   return {
     title: report.title,
@@ -188,7 +193,11 @@ export function shareModelToText(m: ShareModel): string {
 
   if (m.notes.length > 0) {
     L.push("", "📝 NOTAS DE LA NOCHE");
-    for (const t of m.notes) L.push(`• ${t}`);
+    for (const g of m.notes) {
+      if (!g.who) for (const t of g.items) L.push(`• ${t}`);
+      else if (g.items.length === 1) L.push(`• ${g.who}: ${g.items[0]}`);
+      else L.push(`• ${g.who}:`, ...g.items.map((t) => `   – ${t}`));
+    }
   }
 
   if (m.missing.length === 0 && m.times.length === 0) {

@@ -244,7 +244,19 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
     const o = m.overtime;
     card(`Horas extra · ${o.total}`, C.amber, C.amberBg, () => o.items.forEach((t) => bullet(t, C.fg, C.amber)));
   }
-  if (m.notes.length > 0) card("Notas de la noche", C.fg, C.line, () => m.notes.forEach((t) => bullet(t)));
+  if (m.notes.length > 0) {
+    card("Notas de la noche", C.fg, C.line, () =>
+      m.notes.forEach((g) => {
+        if (!g.who) g.items.forEach((t) => bullet(t));
+        else if (g.items.length === 1) bullet(`${g.who}: ${g.items[0]}`);
+        else {
+          // Persona con varias notas: su nombre una vez y las notas debajo, sangradas.
+          bullet(g.who);
+          g.items.forEach((t) => (y += bulletAt(PAD + 64, inner - 96, t, C.fg, C.muted)));
+        }
+      }),
+    );
+  }
 
   return y + PAD - 24;
 }
