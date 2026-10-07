@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { sheetDragOffset, shouldDismissSheet } from "@/lib/gesture";
+import { usePathname } from "next/navigation";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { lockAppScroll } from "@/lib/viewport-fix";
 import { createPortal } from "react-dom";
 import { cn } from "./cn";
@@ -11,8 +11,6 @@ interface BottomSheetProps {
   onClose: () => void;
   title: string;
   children: ReactNode;
-  /** Permite cerrar arrastrando la barra superior hacia abajo (por defecto sí). */
-  draggable?: boolean;
   className?: string;
 }
 
@@ -20,22 +18,30 @@ const FOCUSABLE =
   'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
 /**
- * Hoja inferior accesible: role=dialog, cierra con backdrop / Escape /
- * arrastre, bloquea el scroll del fondo y devuelve el foco al cerrar.
+ * Hoja a pantalla completa (sube desde abajo): título y «Cerrar» arriba, sin gestos de arrastre (se colgaban en
+ * iOS). role=dialog, cierra con Escape, bloquea el scroll del fondo y devuelve el foco al cerrar. Si se navega a
+ * otra página con la hoja abierta (p. ej. «Ver ficha»), se cierra sola.
  */
-export function BottomSheet({ open, onClose, title, children, draggable = true, className }: BottomSheetProps) {
+export function BottomSheet({ open, onClose, title, children, className }: BottomSheetProps) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
   const [entered, setEntered] = useState(false);
-  const [dragY, setDragY] = useState(0);
-  const dragStart = useRef<number | null>(null);
-  const dragStartTime = useRef(0);
-  const [dragging, setDragging] = useState(false);
+  const pathname = usePathname();
+  const [openedAt, setOpenedAt] = useState(pathname);
 
-  // Montar al abrir (ajuste de estado durante el render).
-  if (open && !mounted) setMounted(true);
-  const visible = open && entered;
+  // Montar al abrir (ajuste de estado durante el render) y recordar en qué página se abrió.
+  if (open && !mounted) {
+    setMounted(true);
+    setOpenedAt(pathname);
+  }
+  const elsewhere = pathname !== openedAt;
+  const visible = open && entered && !elsewhere;
+
+  // Al cambiar de página con la hoja abierta: cerrarla (y no pintarla en la página nueva).
+  useEffect(() => {
+    if (open && elsewhere) onClose();
+  }, [open, elsewhere, onClose]);
 
   // Transición de entrada / salida y desmontaje diferido.
   useEffect(() => {
@@ -52,7 +58,7 @@ export function BottomSheet({ open, onClose, title, children, draggable = true, 
 
   // Foco, scroll lock y Escape.
   useEffect(() => {
-    if (!open) return;
+    if (!open || elsewhere) return;
     const previous = document.activeElement as HTMLElement | null;
     const unlock = lockAppScroll();
     panelRef.current?.focus();
@@ -84,31 +90,9 @@ export function BottomSheet({ open, onClose, title, children, draggable = true, 
       unlock();
       previous?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open, elsewhere, onClose]);
 
-  const onPointerDown = useCallback((e: React.PointerEvent) => {
-    dragStart.current = e.clientY;
-    dragStartTime.current = performance.now();
-    setDragging(true);
-    e.currentTarget.setPointerCapture(e.pointerId);
-  }, []);
-  const onPointerMove = useCallback((e: React.PointerEvent) => {
-    if (dragStart.current === null) return;
-    setDragY(sheetDragOffset(e.clientY - dragStart.current));
-  }, []);
-  const onPointerUp = useCallback(() => {
-    if (dragStart.current === null) return;
-    dragStart.current = null;
-    setDragging(false);
-    const elapsed = performance.now() - dragStartTime.current;
-    setDragY((y) => {
-      // Se cierra si se baja lo bastante o con un gesto rápido hacia abajo; si no, vuelve arriba.
-      if (shouldDismissSheet(y, elapsed)) onClose();
-      return 0;
-    });
-  }, [onClose]);
-
-  if (!mounted || typeof document === "undefined") return null;
+  if (!mounted || elsewhere || typeof document === "undefined") return null;
 
   return createPortal(
     <div className="fixed inset-0 z-50">
@@ -126,34 +110,24 @@ export function BottomSheet({ open, onClose, title, children, draggable = true, 
         aria-labelledby={titleId}
         tabIndex={-1}
         className={cn(
-          "absolute inset-x-0 bottom-0 mx-auto flex max-h-[92dvh] w-full max-w-xl flex-col rounded-t-[20px] bg-surface outline-none",
-          !dragging && "transition-transform duration-300 ease-drawer",
+          "absolute inset-0 mx-auto flex h-[100dvh] w-full max-w-xl flex-col bg-surface pt-[env(safe-area-inset-top)] outline-none transition-transform duration-300 ease-drawer",
           className,
         )}
-        style={{ transform: visible ? `translateY(${dragY}px)` : "translateY(100%)" }}
+        style={{ transform: visible ? "translateY(0)" : "translateY(100%)" }}
       >
-        <div
-          className={cn("flex h-7 shrink-0 items-center justify-center", draggable && "touch-none cursor-grab")}
-          onPointerDown={draggable ? onPointerDown : undefined}
-          onPointerMove={draggable ? onPointerMove : undefined}
-          onPointerUp={draggable ? onPointerUp : undefined}
-          onPointerCancel={draggable ? onPointerUp : undefined}
-        >
-          <span className="h-1.5 w-10 rounded-full bg-line" />
-        </div>
-        <div className="flex items-center justify-between gap-3 px-4 pb-2">
-          <h2 id={titleId} className="text-[17px] font-semibold">
+        <div className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-line px-4">
+          <h2 id={titleId} className="min-w-0 truncate text-[17px] font-semibold">
             {title}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="min-h-11 min-w-11 rounded-full text-[15px] font-medium text-accent"
+            className="press min-h-11 shrink-0 rounded-full bg-surface-2 px-4 text-[15px] font-semibold text-accent"
           >
             Cerrar
           </button>
         </div>
-        <div className="overflow-y-auto overscroll-contain px-4 pb-[calc(env(safe-area-inset-bottom)+16px)]">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(env(safe-area-inset-bottom)+16px)] pt-3">
           {children}
         </div>
       </div>
