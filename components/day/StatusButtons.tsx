@@ -1,9 +1,10 @@
 "use client";
 
 import { cn } from "@/components/ui/cn";
+import { Icon, tint } from "@/components/ui/icons";
 import type { StatusTypeLite } from "@/lib/schedule";
 
-/** Estados como botones grandes separados, con su color (el elegido, relleno). */
+/** EL selector de estado de la app: 2 columnas compactas (6 estados = 3 filas), el elegido relleno con ✓ dentro. */
 export function StatusButtons({
   statuses,
   value,
@@ -25,14 +26,17 @@ export function StatusButtons({
             aria-checked={selected}
             onClick={() => onPick(s)}
             className={cn(
-              "flex min-h-14 items-center justify-center gap-2 rounded-card border-2 px-3 text-center text-[16px] font-semibold leading-tight active:opacity-70",
-              selected && "text-white shadow-sm",
+              "press flex min-h-11 min-w-0 items-center gap-2 rounded-control border-2 px-2.5 text-left text-[15px] font-semibold leading-tight",
+              selected && "text-white",
             )}
-            style={{ borderColor: s.color, backgroundColor: selected ? s.color : `${s.color}1f` }}
+            style={{ borderColor: selected ? s.color : "transparent", backgroundColor: selected ? s.color : tint(s.color, 16) }}
           >
-            {!selected && <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: s.color }} aria-hidden />}
-            {selected && <span aria-hidden>✓</span>}
-            {s.label}
+            {selected ? (
+              <Icon name="check" className="h-4 w-4 shrink-0" strokeWidth={3} />
+            ) : (
+              <span className="mx-[3px] h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} aria-hidden />
+            )}
+            <span className="min-w-0 truncate">{s.label}</span>
           </button>
         );
       })}

@@ -1,16 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NoteList } from "@/components/notes/NoteList";
 import type { NoteOptions } from "@/components/notes/NoteSheet";
 import type { NoteView } from "@/lib/notes";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { TimeInput } from "@/components/ui/TimeInput";
-import type { DepartmentLite, RosterMember } from "@/lib/schedule";
+import { getAbsenceNotice } from "@/app/actions/absences";
+import type { DepartmentLite, RosterMember, StatusTypeLite } from "@/lib/schedule";
+import { toggleDepartment } from "@/lib/segments";
 import type { ShiftTimes } from "@/lib/segments";
 import { formatOvertime, proposeOvertime } from "@/lib/overtime";
 import { AutoText } from "./AutoText";
+import { DepartmentGrid } from "./DepartmentGrid";
+import { NoticeToggle } from "./NoticeToggle";
+import { StatusButtons } from "./StatusButtons";
 import { SegmentEditor } from "./SegmentEditor";
 import type { SectionLite, SegmentWithId, SheetOps } from "./types";
 
@@ -28,12 +33,11 @@ interface EmployeeSheetProps {
   notes: NoteView[];
   noteOptions: NoteOptions;
   onAddNote: () => void;
-  /** Abre la misma hoja que ✗ / ⇄ en ausentes (pregunta si ha avisado). */
-  onChangeStatus: () => void;
+  statusTypes: StatusTypeLite[];
+  /** Falta (tocaba trabajar y no ha venido): ¿ha avisado? */
+  onNotice: (notified: boolean | null, statusTypeId: string) => void;
   /** Abre el cierre de turno (las horas extra se apuntan allí). */
   onOvertime: () => void;
-  /** Abre la misma hoja que ⇄ (cambiar de puesto). */
-  onMove?: () => void;
 }
 
 function Block({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
@@ -61,13 +65,29 @@ export function EmployeeSheet({
   notes,
   noteOptions,
   onAddNote,
-  onChangeStatus,
+  statusTypes,
+  onNotice,
   onOvertime,
-  onMove,
 }: EmployeeSheetProps) {
   const { employee, day } = member;
   const deptMap = new Map(departments.map((d) => [d.id, d]));
   const habitual = employee.defaultDepartmentId ? deptMap.get(employee.defaultDepartmentId) : undefined;
+  const statusOptions = statusTypes.filter((s) => s.active !== false || s.id === day.status.id);
+  // Falta: le tocaba trabajar y no ha venido. Se pregunta si avisó (queda en su historial).
+  const missed = (day.planned ?? day.status).isWorking && !day.isWorking;
+  const [notified, setNotified] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!missed) return;
+    let alive = true;
+    getAbsenceNotice(employee.id, day.date).then((r) => alive && setNotified(r?.notified ?? null));
+    return () => {
+      alive = false;
+    };
+  }, [missed, employee.id, day.date]);
+  const saveNotice = (v: boolean | null) => {
+    setNotified(v);
+    onNotice(v, day.status.id);
+  };
   const [showTimes, setShowTimes] = useState(!!(day.arrivedAt || day.leftAt));
   const extra = day.extraMinutes ?? 0;
   const suggestion = proposeOvertime(day.leftAt, shift);
@@ -83,22 +103,9 @@ export function EmployeeSheet({
           </p>
         )}
 
-        <Block title="Hoy">
-          <div className="flex items-center gap-2">
-            <div className="min-w-0 flex-1">
-              <p className="flex flex-wrap items-center gap-1.5 text-[16px] font-semibold">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: day.status.color }} aria-hidden />
-                {day.status.code === "WORK" ? (day.present ? "Ha venido" : "Trabaja") : day.status.label}
-              </p>
-              <p className="text-[13px] text-muted">
-                Planning: {(day.planned ?? day.status).label}
-                {day.planned ? " · no cuadra, queda como aviso" : ""}
-              </p>
-            </div>
-            <button type="button" onClick={onChangeStatus} className="press min-h-11 shrink-0 rounded-control bg-surface-2 px-3 text-[15px] font-semibold text-accent">
-              {day.isWorking ? "No ha venido" : "Cambiar"}
-            </button>
-          </div>
+        <Block title="Hoy" hint={`Planning: ${(day.planned ?? day.status).label}${day.planned ? " · no cuadra" : ""}`}>
+          <StatusButtons statuses={statusOptions} value={day.status.id} onPick={(st) => ops.setStatus(st.id)} />
+          {missed && <NoticeToggle value={notified} onChange={saveNotice} />}
           {!day.isWorking && (
             <AutoText
               label="Motivo"
@@ -108,29 +115,22 @@ export function EmployeeSheet({
               placeholder="Ej. gripe, asuntos propios…"
             />
           )}
-          {day.isWorking && (
-            <div className="flex items-center gap-2">
-              <p className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-[15px]">
-                {[day.departmentId, ...day.extraDepartmentIds]
-                  .map((id) => (id ? deptMap.get(id) : undefined))
-                  .filter((d): d is DepartmentLite => !!d)
-                  .map((d) => (
-                    <span key={d.id} className="inline-flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: d.color }} aria-hidden />
-                      {d.name}
-                    </span>
-                  ))}
-                {!day.departmentId && day.extraDepartmentIds.length === 0 && <span className="text-muted">Sin departamento</span>}
-                <span className="text-[13px] text-muted">{habitual ? `(habitual: ${habitual.name})` : ""}</span>
-              </p>
-              {onMove && (
-                <button type="button" onClick={onMove} aria-label="Cambiar de puesto" className="press min-h-11 shrink-0 rounded-control bg-surface-2 px-3 text-[15px] font-semibold text-accent">
-                  ⇄ Puesto
-                </button>
-              )}
-            </div>
-          )}
         </Block>
+
+        {day.isWorking && activeDepartments.length > 0 && (
+          <Block title="Departamentos de hoy" hint={habitual ? `Habitual: ${habitual.name}` : "Sin habitual"}>
+            <DepartmentGrid
+              departments={activeDepartments}
+              chosen={[...(day.departmentId ? [day.departmentId] : []), ...day.extraDepartmentIds]}
+              habitualId={employee.defaultDepartmentId}
+              onPickOne={(id) => ops.setDepartment(id === employee.defaultDepartmentId ? null : id, [])}
+              onToggle={(id) => {
+                const next = toggleDepartment(day.departmentId, day.extraDepartmentIds, id);
+                ops.setDepartment(next.main === employee.defaultDepartmentId ? null : next.main, next.extras);
+              }}
+            />
+          </Block>
+        )}
 
         {day.isWorking && (
           <>

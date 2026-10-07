@@ -452,22 +452,12 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
             setSheet((s) => (s ? { ...s, open: false } : s));
             openNote(sheet.id);
           }}
-          onChangeStatus={() => {
-            setSheet((s) => (s ? { ...s, open: false } : s));
-            setAbsentSheet({ id: sheet.id, open: true, change: !sheetMember.day.isWorking || !!sheetMember.day.planned });
-          }}
+          statusTypes={statusTypes}
+          onNotice={(notified, statusTypeId) => void setAbsenceNotice({ employeeId: sheet.id, date, notified, statusTypeId })}
           onOvertime={() => {
             setSheet((s) => (s ? { ...s, open: false } : s));
             setCloseSheet((c) => ({ open: true, n: c.n + 1 }));
           }}
-          onMove={
-            activeDepartments.length > 0
-              ? () => {
-                  setSheet((s) => (s ? { ...s, open: false } : s));
-                  openMove(sheet.id);
-                }
-              : undefined
-          }
         />
       )}
 
