@@ -6,12 +6,13 @@ import { PhotoThumbs } from "@/components/reports/PhotoThumbs";
 import { PhotoViewer } from "@/components/reports/PhotoViewer";
 import { cn } from "@/components/ui/cn";
 import { tint } from "@/components/ui/icons";
-import { NOTE_TYPE_META, type NoteView, noteLabel, noteWho } from "@/lib/notes";
+import { NOTE_TYPE_META, type NoteView, groupNotesByWho, noteLabel } from "@/lib/notes";
 import { type NoteDefaults, type NoteOptions, NoteSheet } from "./NoteSheet";
 
 /**
  * Notas de una noche (o de una persona): tocar una nota la abre para editar o borrar; las tareas tienen casilla.
- * `showWho` = false cuando la lista ya es de una sola persona.
+ * Con `showWho`, las de la misma persona (o departamento) van juntas bajo su nombre; `false` cuando la lista ya es
+ * de una sola persona.
  */
 export function NoteList({
   notes,
@@ -31,11 +32,35 @@ export function NoteList({
   if (notes.length === 0) return null;
   return (
     <>
-      <ul className="divide-y divide-line">
-        {notes.map((n) => (
-          <NoteRow key={n.id} note={n} showWho={showWho} compact={compact} onEdit={() => setEditing({ note: n, open: true })} />
-        ))}
-      </ul>
+      {showWho ? (
+        <ul className="divide-y divide-line">
+          {groupNotesByWho(notes).map((g) => (
+            <li key={g.key} className={compact ? "py-1" : "py-1.5"}>
+              <h3 className="pt-1 text-[12px] font-semibold leading-tight text-fg/80">
+                {g.who}
+                {g.notes.length > 1 && <span className="font-normal text-muted"> · {g.notes.length}</span>}
+              </h3>
+              <ul>
+                {g.notes.map((n) => (
+                  <NoteRow
+                    key={n.id}
+                    note={n}
+                    place={g.key.startsWith("dep:") || g.key === "general" ? null : n.departmentName}
+                    compact={compact}
+                    onEdit={() => setEditing({ note: n, open: true })}
+                  />
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <ul className="divide-y divide-line">
+          {notes.map((n) => (
+            <NoteRow key={n.id} note={n} place={n.departmentName} compact={compact} onEdit={() => setEditing({ note: n, open: true })} />
+          ))}
+        </ul>
+      )}
       <NoteSheet
         open={!!editing?.open}
         onClose={() => setEditing((e) => (e ? { ...e, open: false } : e))}
@@ -47,26 +72,28 @@ export function NoteList({
   );
 }
 
-function NoteRow({ note, showWho, compact, onEdit }: { note: NoteView; showWho: boolean; compact?: boolean; onEdit: () => void }) {
+function NoteRow({ note, place, compact, onEdit }: { note: NoteView; place: string | null; compact?: boolean; onEdit: () => void }) {
   const [viewer, setViewer] = useState<number | null>(null);
   const meta = NOTE_TYPE_META[note.type];
   const task = note.type === "TASK";
-  const who = showWho ? noteWho(note) : null;
+  const tagged = note.type !== "NOTE" || !!place || !!note.sectionName || !!note.time;
   return (
-    <li className={cn("flex items-start gap-1", compact ? "py-0.5" : "py-1.5", task && !note.done && "-mx-2 rounded-control bg-warning/10 px-2")}>
+    <li className={cn("flex items-start gap-1", compact ? "py-0" : "py-0.5", task && !note.done && "-mx-2 rounded-control bg-warning/10 px-2")}>
       {task && <TaskCheck id={note.id} done={note.done} label={note.text} />}
       <div className="min-w-0 flex-1">
         <button type="button" onClick={onEdit} aria-label={`Editar: ${note.text}`} className="block w-full rounded-control py-1 text-left active:bg-surface-2">
-          <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] leading-tight text-muted">
-            {(note.type !== "NOTE" || !who) && (
-              <span className="rounded px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide" style={{ backgroundColor: tint(meta.color, 16), color: meta.color }}>
-                {noteLabel(note)}
-              </span>
-            )}
-            {who && <span className="font-semibold text-fg/80">{who}</span>}
-            {note.sectionName && <span>· {note.sectionName}</span>}
-            {note.time && <span className="tabular-nums">· {note.time}</span>}
-          </span>
+          {tagged && (
+            <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] leading-tight text-muted">
+              {note.type !== "NOTE" && (
+                <span className="rounded px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide" style={{ backgroundColor: tint(meta.color, 16), color: meta.color }}>
+                  {noteLabel(note)}
+                </span>
+              )}
+              {place && <span>{place}</span>}
+              {note.sectionName && <span>· {note.sectionName}</span>}
+              {note.time && <span className="tabular-nums">· {note.time}</span>}
+            </span>
+          )}
           <span
             className={cn(
               "mt-0.5 block whitespace-pre-wrap break-words leading-snug",
@@ -80,7 +107,7 @@ function NoteRow({ note, showWho, compact, onEdit }: { note: NoteView; showWho: 
         {note.photos.length > 0 && (
           <>
             <PhotoThumbs photos={note.photos} onOpen={setViewer} label="Fotos de la nota" />
-            <PhotoViewer photos={note.photos} index={viewer} caption={`${who ? `${who}: ` : ""}${note.text}`} onClose={() => setViewer(null)} />
+            <PhotoViewer photos={note.photos} index={viewer} caption={`${note.employeeName ? `${note.employeeName}: ` : ""}${note.text}`} onClose={() => setViewer(null)} />
           </>
         )}
       </div>

@@ -79,3 +79,24 @@ export function sortNotes(notes: NoteView[]): NoteView[] {
   const general = (n: NoteView) => (n.employeeId || n.departmentId ? 1 : 0);
   return [...notes].sort((a, b) => general(a) - general(b));
 }
+
+export interface NoteGroup {
+  /** employeeId, `dep:<id>` o "general". */
+  key: string;
+  /** "Ana", "Droguería" o "General". */
+  who: string;
+  notes: NoteView[];
+}
+
+/** Junta las notas de la misma persona (o departamento, o generales) una debajo de otra. Generales primero. */
+export function groupNotesByWho(notes: NoteView[]): NoteGroup[] {
+  const groups = new Map<string, NoteGroup>();
+  for (const n of notes) {
+    const key = n.employeeId ?? (n.departmentId ? `dep:${n.departmentId}` : "general");
+    const who = n.employeeId ? (n.employeeName ?? "—") : (n.departmentName ?? "General");
+    const g = groups.get(key) ?? { key, who, notes: [] };
+    g.notes.push(n);
+    groups.set(key, g);
+  }
+  return [...groups.values()].sort((a, b) => Number(b.key === "general") - Number(a.key === "general"));
+}

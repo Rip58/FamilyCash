@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatStamp, madridInstant, madridTime } from "@/lib/dates";
-import { type NoteView, noteLabel, noteLine, noteTypeOf, noteTypeToDb, noteWho, sortNotes } from "@/lib/notes";
+import { type NoteView, groupNotesByWho, noteLabel, noteLine, noteTypeOf, noteTypeToDb, noteWho, sortNotes } from "@/lib/notes";
 import { saveNoteSchema } from "@/lib/notes-schema";
 import { photoCountLabel, purgeCutoff } from "@/lib/reports";
 
@@ -110,5 +110,24 @@ describe("madridInstant", () => {
   });
   it("formatea la marca de tiempo en Madrid", () => {
     expect(formatStamp(madridInstant("2026-09-29", "23:40"))).toBe("Mar 29 sep · 23:40");
+  });
+});
+
+describe("groupNotesByWho", () => {
+  it("junta las de la misma persona, generales primero, en orden de aparición", () => {
+    const g = groupNotesByWho([
+      note({ id: "1", employeeId: "c", employeeName: "Claudia", departmentId: "p", departmentName: "Palets" }),
+      note({ id: "2", employeeId: "j", employeeName: "Juan" }),
+      note({ id: "3" }),
+      note({ id: "4", employeeId: "c", employeeName: "Claudia" }),
+      note({ id: "5", departmentId: "d", departmentName: "Droguería" }),
+      note({ id: "6" }),
+    ]);
+    expect(g.map((x) => [x.who, x.notes.map((n) => n.id)])).toEqual([
+      ["General", ["3", "6"]],
+      ["Claudia", ["1", "4"]],
+      ["Juan", ["2"]],
+      ["Droguería", ["5"]],
+    ]);
   });
 });
