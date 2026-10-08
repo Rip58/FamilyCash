@@ -26,13 +26,20 @@ async function copyText(text: string): Promise<boolean> {
 
 const isAbort = (e: unknown) => e instanceof DOMException && e.name === "AbortError";
 
+/** Foto de una nota para enviar junto al informe. */
+export interface SharePhoto {
+  url: string;
+  name: string;
+}
+
 /**
- * Compartir el informe como imagen (PNG, faltas en rojo) o como texto con emojis.
- * La imagen se genera al abrir la hoja: iOS solo deja compartir justo tras el toque, sin esperas.
+ * Compartir el informe como imagen (PNG, faltas en rojo) junto con las fotos de las notas, o como texto con emojis.
+ * La imagen y las fotos se preparan al abrir la hoja: iOS solo deja compartir justo tras el toque, sin esperas.
  */
-export function ShareButton({ text, model, fileName }: { text: string; model: ShareModel; fileName: string }) {
+export function ShareButton({ text, model, fileName, photos = [] }: { text: string; model: ShareModel; fileName: string; photos?: SharePhoto[] }) {
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [photoFiles, setPhotoFiles] = useState<File[] | null>(photos.length === 0 ? [] : null);
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -53,11 +60,32 @@ export function ShareButton({ text, model, fileName }: { text: string; model: Sh
 
   useEffect(() => () => void (url && URL.revokeObjectURL(url)), [url]);
 
+  // Fotos de las notas (se descargan una vez al abrir la hoja).
+  useEffect(() => {
+    if (!open || photoFiles) return;
+    let alive = true;
+    Promise.all(
+      photos.map(async (p) => {
+        const r = await fetch(p.url);
+        if (!r.ok) return null;
+        const blob = await r.blob();
+        return new File([blob], p.name, { type: blob.type || "image/webp" });
+      }),
+    )
+      .then((list) => alive && setPhotoFiles(list.filter((f): f is File => !!f)))
+      .catch(() => alive && setPhotoFiles([]));
+    return () => {
+      alive = false;
+    };
+  }, [open, photoFiles, photos]);
+
   async function shareImage() {
     if (!file || !url) return;
-    if (typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
+    const all = [file, ...(photoFiles ?? [])];
+    const files = typeof navigator.canShare === "function" && navigator.canShare({ files: all }) ? all : [file];
+    if (typeof navigator.canShare === "function" && navigator.canShare({ files })) {
       try {
-        await navigator.share({ files: [file] });
+        await navigator.share({ files });
         setOpen(false);
       } catch (e) {
         if (!isAbort(e)) notify("No se pudo compartir la imagen", "error");
@@ -113,10 +141,14 @@ export function ShareButton({ text, model, fileName }: { text: string; model: Sh
           <button
             type="button"
             onClick={shareImage}
-            disabled={!file}
+            disabled={!file || photoFiles === null}
             className="press flex min-h-12 w-full items-center justify-center rounded-control bg-accent text-[16px] font-semibold text-accent-fg disabled:opacity-50"
           >
-            Compartir imagen
+            {photos.length === 0
+              ? "Compartir imagen"
+              : photoFiles === null
+                ? "Preparando fotos…"
+                : `Compartir imagen + ${photoFiles.length === 1 ? "1 foto" : `${photoFiles.length} fotos`}`}
           </button>
           <div className="grid grid-cols-2 gap-2">
             <button

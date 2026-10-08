@@ -91,7 +91,14 @@ export default async function Page({
     );
     body = <DayReportView report={report} options={options} />;
     if (!report.isEmpty) share = (
-        <ShareButton text={reportToText(report)} model={buildShareModel(report)} fileName={`informe-noche-${date}.png`} />
+        <ShareButton
+          text={reportToText(report)}
+          model={buildShareModel(report)}
+          fileName={`informe-noche-${date}.png`}
+          photos={report.notes.flatMap((n) =>
+            n.photos.map((ph, i) => ({ url: ph.url, name: `${date}-${(n.employeeName ?? "nota").replace(/\s+/g, "-")}-${i + 1}.${ph.url.split(".").pop() ?? "webp"}` })),
+          )}
+        />
       );
   } else {
     const days = weekDays(date);
