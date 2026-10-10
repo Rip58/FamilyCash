@@ -95,7 +95,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
   const [optEntries, applyOptimistic] = useOptimistic(entries, (cur: DayEntryLite[], a: OptimisticAction) => {
     const employee = employees.find((e) => e.id === a.employeeId);
     if (!employee) return cur;
-    const existing = cur.find((e) => e.employeeId === a.employeeId);
+    const existing = cur.find((e) => e.employeeId === a.employeeId && e.date === date);
     const next = applyEntryPatch(existing, employee, date, statusTypes, a.patch, shift.shiftStart);
     return existing ? cur.map((e) => (e === existing ? next : e)) : [...cur, next];
   });

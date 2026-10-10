@@ -193,7 +193,8 @@ function entryMap(entries: DayEntryLite[]): Map<string, DayEntryLite> {
 
 export interface RosterMember {
   employee: EmployeeLite;
-  day: EffectiveDay;
+  /** Día efectivo; en una semana de vacaciones, sus fiestas salen como vacaciones (`vacationWeekDay`). */
+  day: EffectiveDay & { asVacation?: boolean };
 }
 
 export interface DepartmentRoster {
@@ -239,8 +240,30 @@ export interface DayRosterInput {
   statusTypes: StatusTypeLite[];
 }
 
+/**
+ * Semana de vacaciones: si alguien tiene algún día de vacaciones en la semana (lunes a domingo), sus fiestas de esa
+ * semana se MUESTRAN como vacaciones (Hoy, Informe, Semana → Días): la empresa le da sus 2 fiestas dentro de las
+ * vacaciones. Solo para mostrar: la nómina y el planning siguen viéndolas como fiesta (`getEffectiveDay`).
+ * `entries` debe traer la semana entera (si solo trae el día, no cambia nada).
+ */
+export function vacationWeekDay(
+  employee: EmployeeLite,
+  day: EffectiveDay,
+  entries: Map<string, DayEntryLite>,
+  statusTypes: StatusTypeLite[],
+): EffectiveDay & { asVacation?: boolean } {
+  if (day.status.code !== "OFF") return day;
+  const vacation = statusTypes.find((s) => s.code === "VACATION");
+  if (!vacation) return day;
+  const onVacation = weekDays(day.date).some(
+    (d) => d !== day.date && getEffectiveDay(employee, d, entries.get(`${employee.id}|${d}`), statusTypes).status.code === "VACATION",
+  );
+  return onVacation ? { ...day, status: vacation, isWorking: false, isDayOff: isDayOffStatus(vacation), asVacation: true } : day;
+}
+
 export function getDayRoster(input: DayRosterInput): DayRoster {
   const { date, statusTypes } = input;
+  const allEntries = entryMap(input.entries);
   const entries = entryMap(input.entries.filter((e) => e.date === date));
   const departments = input.departments.filter((d) => d.active !== false).sort(byOrderThenName);
   const deptIds = new Set(departments.map((d) => d.id));
@@ -248,7 +271,7 @@ export function getDayRoster(input: DayRosterInput): DayRoster {
 
   const members: RosterMember[] = employees.map((employee) => ({
     employee,
-    day: getEffectiveDay(employee, date, entries.get(`${employee.id}|${date}`), statusTypes),
+    day: vacationWeekDay(employee, getEffectiveDay(employee, date, entries.get(`${employee.id}|${date}`), statusTypes), allEntries, statusTypes),
   }));
 
   const deptRosters: DepartmentRoster[] = departments.map((department) => {

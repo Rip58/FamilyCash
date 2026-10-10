@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DayView } from "@/components/day/DayView";
 import { cn } from "@/components/ui/cn";
-import { addDays, formatDayLong, isDateStr, operationalToday } from "@/lib/dates";
+import { addDays, formatDayLong, isDateStr, operationalToday, weekDays } from "@/lib/dates";
 import { getNotes } from "@/lib/note-queries";
 import { getDepartments, getEmployees, getEntriesBetween, getSections, getSettings, getStatusTypes } from "@/lib/queries";
 
@@ -26,7 +26,8 @@ export default async function Page({ params }: { params: Promise<{ date?: string
     getDepartments(),
     getStatusTypes(),
     getSections(),
-    getEntriesBetween(date, date),
+    // Toda la semana: en una semana de vacaciones las fiestas salen como vacaciones (vacationWeekDay).
+    getEntriesBetween(weekDays(date)[0]!, weekDays(date)[6]!),
     getNotes(date, date),
   ]);
 

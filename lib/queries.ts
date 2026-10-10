@@ -120,7 +120,7 @@ export async function loadDayRoster(date: DateStr): Promise<DayRoster> {
     getEmployees(),
     getDepartments(),
     getStatusTypes(),
-    getEntriesBetween(date, date),
+    getEntriesBetween(weekDays(date)[0]!, weekDays(date)[6]!),
   ]);
   return getDayRoster({ date, employees, entries, departments, statusTypes });
 }

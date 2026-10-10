@@ -79,7 +79,7 @@ export default async function Page({
   };
 
   if (view === "dia") {
-    const [entries, notes] = await Promise.all([getEntriesBetween(date, date), getNotes(date, date)]);
+    const [entries, notes] = await Promise.all([getEntriesBetween(weekDays(date)[0]!, weekDays(date)[6]!), getNotes(date, date)]);
     const roster = getDayRoster({ date, employees, entries, departments, statusTypes });
     const report = buildDayReport({ roster, shift: settings, sections, departments, notes });
     title = formatDayLong(date);
