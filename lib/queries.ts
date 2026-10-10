@@ -4,7 +4,7 @@
  */
 import { unstable_cache } from "next/cache";
 import { db } from "./db";
-import { type DateStr, fromDbDate, toDbDate, weekDays } from "./dates";
+import { type DateStr, addDays, fromDbDate, toDbDate, weekDays } from "./dates";
 import {
   type DayEntryLite,
   type DayRoster,
@@ -120,7 +120,7 @@ export async function loadDayRoster(date: DateStr): Promise<DayRoster> {
     getEmployees(),
     getDepartments(),
     getStatusTypes(),
-    getEntriesBetween(weekDays(date)[0]!, weekDays(date)[6]!),
+    getEntriesBetween(addDays(date, -7), addDays(date, 7)),
   ]);
   return getDayRoster({ date, employees, entries, departments, statusTypes });
 }

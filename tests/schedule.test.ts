@@ -222,32 +222,35 @@ describe("planning en el día efectivo", () => {
   });
 });
 
-describe("semana de vacaciones", () => {
-  // Fabián: vacaciones lunes a miércoles y sus 2 fiestas (jueves y viernes) dentro de la semana.
+describe("fiestas pegadas a vacaciones", () => {
   const fab = emp("fab");
-  const week = [
-    entry("fab", "2026-09-28", VAC),
-    entry("fab", "2026-09-29", VAC),
-    entry("fab", "2026-09-30", VAC),
-    entry("fab", "2026-10-01", OFF),
-    entry("fab", "2026-10-02", OFF),
-  ];
   const roster = (date: string, entries: DayEntryLite[]) =>
     getDayRoster({ date, employees: [fab], entries, departments, statusTypes });
+  const code = (date: string, entries: DayEntryLite[]) => roster(date, entries).absentByStatus[0]!.status.code;
 
-  it("sus fiestas de esa semana salen como vacaciones (solo al mostrar)", () => {
-    const r = roster("2026-10-01", week);
-    expect(r.absentByStatus.map((g) => [g.status.code, g.members.length])).toEqual([["VACATION", 1]]);
-    expect(r.absentByStatus[0]!.members[0]!.day.asVacation).toBe(true);
-    expect(r.absentByStatus[0]!.members[0]!.day.planned).toBeNull();
+  it("fiesta, fiesta y vacaciones seguidas = 3 días de vacaciones (solo al mostrar)", () => {
+    const e = [entry("fab", "2026-10-05", OFF), entry("fab", "2026-10-06", OFF), entry("fab", "2026-10-07", VAC)];
+    expect(code("2026-10-05", e)).toBe("VACATION");
+    expect(code("2026-10-06", e)).toBe("VACATION");
+    const m = roster("2026-10-05", e).absentByStatus[0]!.members[0]!;
+    expect(m.day.asVacation).toBe(true);
+    expect(m.day.planned).toBeNull();
     // El planning y la nómina siguen viendo fiesta.
-    expect(getEffectiveDay(fab, "2026-10-01", week[3], statusTypes).status.code).toBe("OFF");
+    expect(getEffectiveDay(fab, "2026-10-05", e[0], statusTypes).status.code).toBe("OFF");
   });
-  it("sin vacaciones esa semana (o sin la semana cargada) la fiesta es fiesta", () => {
-    expect(roster("2026-10-01", [week[3]!]).absentByStatus[0]!.status.code).toBe("OFF");
-    expect(roster("2026-10-05", [entry("fab", "2026-10-05", OFF), ...week]).absentByStatus[0]!.status.code).toBe("OFF");
+  it("vacaciones y luego fiestas también (y cruzando de semana)", () => {
+    const e = [entry("fab", "2026-10-02", VAC), entry("fab", "2026-10-03", OFF), entry("fab", "2026-10-04", OFF), entry("fab", "2026-10-05", OFF)];
+    expect(code("2026-10-05", e)).toBe("VACATION");
   });
-  it("la baja o el permiso no se tocan", () => {
-    expect(roster("2026-10-01", [...week.slice(0, 3), entry("fab", "2026-10-01", SICK)]).absentByStatus[0]!.status.code).toBe("SICK");
+  it("no seguidas (un día de trabajo en medio): fiesta es fiesta", () => {
+    // Joan: fiesta lunes, trabaja martes, vacaciones miércoles, trabaja jueves, fiesta viernes.
+    const e = [entry("fab", "2026-10-05", OFF), entry("fab", "2026-10-07", VAC), entry("fab", "2026-10-09", OFF)];
+    expect(code("2026-10-05", e)).toBe("OFF");
+    expect(code("2026-10-09", e)).toBe("OFF");
+    expect(code("2026-10-07", e)).toBe("VACATION");
+  });
+  it("sin los días de alrededor cargados, o con baja, no cambia", () => {
+    expect(code("2026-10-05", [entry("fab", "2026-10-05", OFF)])).toBe("OFF");
+    expect(code("2026-10-06", [entry("fab", "2026-10-06", SICK), entry("fab", "2026-10-07", VAC)])).toBe("SICK");
   });
 });

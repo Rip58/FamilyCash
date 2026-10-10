@@ -10,7 +10,7 @@
  * "Día libre" (para el conteo semanal): estado NO trabajando cuyo code es
  * OFF o PAID_OFF. Baja laboral y vacaciones no cuentan como día libre.
  */
-import { type DateStr, weekDays, weekdayIndex } from "./dates";
+import { type DateStr, addDays, weekDays, weekdayIndex } from "./dates";
 
 export interface StatusTypeLite {
   id: string;
@@ -241,10 +241,11 @@ export interface DayRosterInput {
 }
 
 /**
- * Semana de vacaciones: si alguien tiene algún día de vacaciones en la semana (lunes a domingo), sus fiestas de esa
- * semana se MUESTRAN como vacaciones (Hoy, Informe, Semana → Días): la empresa le da sus 2 fiestas dentro de las
- * vacaciones. Solo para mostrar: la nómina y el planning siguen viéndolas como fiesta (`getEffectiveDay`).
- * `entries` debe traer la semana entera (si solo trae el día, no cambia nada).
+ * Fiestas pegadas a vacaciones: un día de fiesta (OFF) que forma un bloque seguido con algún día de vacaciones
+ * (fiesta-fiesta-vacaciones, vacaciones-fiesta…) se MUESTRA como vacaciones en Hoy, Informe y Semana → Días: la
+ * empresa le da sus fiestas dentro de las vacaciones. Si entre la fiesta y las vacaciones hay un día de trabajo,
+ * fiesta es fiesta. Solo para mostrar: planning y nómina siguen viéndolas como fiesta (`getEffectiveDay`).
+ * `entries` debe traer los días de alrededor (±7); si solo trae el día, no cambia nada.
  */
 export function vacationWeekDay(
   employee: EmployeeLite,
@@ -255,10 +256,19 @@ export function vacationWeekDay(
   if (day.status.code !== "OFF") return day;
   const vacation = statusTypes.find((s) => s.code === "VACATION");
   if (!vacation) return day;
-  const onVacation = weekDays(day.date).some(
-    (d) => d !== day.date && getEffectiveDay(employee, d, entries.get(`${employee.id}|${d}`), statusTypes).status.code === "VACATION",
-  );
-  return onVacation ? { ...day, status: vacation, isWorking: false, isDayOff: isDayOffStatus(vacation), asVacation: true } : day;
+  const codeOn = (d: DateStr) => getEffectiveDay(employee, d, entries.get(`${employee.id}|${d}`), statusTypes).status.code;
+  // Hacia atrás y hacia delante por días de fiesta seguidos hasta dar con vacaciones (o con otra cosa).
+  const reaches = (step: 1 | -1) => {
+    for (let i = 1; i <= 7; i++) {
+      const code = codeOn(addDays(day.date, step * i));
+      if (code === "VACATION") return true;
+      if (code !== "OFF") return false;
+    }
+    return false;
+  };
+  return reaches(-1) || reaches(1)
+    ? { ...day, status: vacation, isWorking: false, isDayOff: isDayOffStatus(vacation), asVacation: true }
+    : day;
 }
 
 export function getDayRoster(input: DayRosterInput): DayRoster {
