@@ -7,6 +7,18 @@ import { addDays, madridParts } from "@/lib/dates";
 import type { Prisma, PrismaClient } from "@/lib/generated/prisma/client";
 
 export const BACKUP_FORMAT = "familycash-backup";
+
+/** Copias automáticas en el almacén: `familycash-AAAA-MM-DD.json.gz` (ver lib/backup-store.ts). */
+export const BACKUP_NAME_RE = /^familycash-(\d{4}-\d{2}-\d{2})\.json\.gz$/;
+
+export function backupName(date: string): string {
+  return `familycash-${date}.json.gz`;
+}
+
+/** Nombre válido de copia (evita leer otra cosa del almacén). */
+export function isBackupName(name: string): boolean {
+  return BACKUP_NAME_RE.test(name);
+}
 /** 2: notas unificadas (NightNote + NightNotePhoto). Las copias 1 se convierten al restaurar (`upgradeV1`). */
 export const BACKUP_VERSION = 2;
 

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { BACKUP_TABLES, parseBackup } from "@/lib/backup";
+import { BACKUP_TABLES, backupName, isBackupName, parseBackup } from "@/lib/backup";
 
 describe("copia de seguridad", () => {
   it("incluye todas las tablas del esquema (si añades un modelo, añádelo a BACKUP_TABLES)", () => {
@@ -47,5 +47,15 @@ describe("copias de la versión 1 (antes de unificar las notas)", () => {
     expect((b.tables.nightNotePhoto as Record<string, unknown>[]).map((p) => [p.id, p.noteId])).toEqual([["fp", "fn_f1"], ["rp", "rp_r1"]]);
     expect(b.tables.dayEntry[0]).not.toHaveProperty("note");
     expect(b.tables).not.toHaveProperty("report");
+  });
+});
+
+describe("nombres de las copias automáticas", () => {
+  it("uno por día y nada que no sea una copia", () => {
+    expect(backupName("2026-10-10")).toBe("familycash-2026-10-10.json.gz");
+    expect(isBackupName("familycash-2026-10-10.json.gz")).toBe(true);
+    expect(isBackupName("../familycash-2026-10-10.json.gz")).toBe(false);
+    expect(isBackupName("reports/a.webp")).toBe(false);
+    expect(isBackupName("familycash-2026-10-10.json")).toBe(false);
   });
 });

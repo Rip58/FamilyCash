@@ -1,8 +1,8 @@
 name: Copia de seguridad diaria
 
+# La copia diaria la hace la app (cron de Vercel → almacén de fotos, ver docs/COPIAS-DE-SEGURIDAD.md).
+# Esta copia extra (pg_dump cifrado) es solo manual y necesita los secretos BACKUP_DATABASE_URL y BACKUP_PASSPHRASE.
 on:
-  schedule:
-    - cron: "3 8 * * *" # 08:03 UTC = 09:03 en invierno / 10:03 en verano (Andorra): nunca antes de las 9, cuando nadie toca la app
   workflow_dispatch: {}
 
 permissions:

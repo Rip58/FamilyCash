@@ -4,9 +4,32 @@ import { useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { MAX_EXPORT_DAYS, daysInRange } from "@/lib/export";
 import { addDays, isDateStr } from "@/lib/dates";
-import { BackHeader, Field, inputClass } from "./kit";
+import { backupNow } from "@/app/actions/backups";
+import { formatBytes } from "@/lib/upload-rules";
+import { formatDayLong } from "@/lib/dates";
+import { BackHeader, Field, PrimaryButton, inputClass, useRun } from "./kit";
 
-export function DataExport({ today }: { today: string }) {
+export interface BackupItem {
+  name: string;
+  date: string;
+  size: number;
+}
+
+export function DataExport({
+  today,
+  backupToday,
+  backups,
+  blobMissing,
+}: {
+  today: string;
+  /** Día (Madrid) de la copia de hoy. */
+  backupToday: string;
+  backups: BackupItem[];
+  blobMissing?: boolean;
+}) {
+  const { pending, run } = useRun();
+  const [showAll, setShowAll] = useState(false);
+  const shown = showAll ? backups : backups.slice(0, 5);
   const [from, setFrom] = useState(addDays(today, -6));
   const [to, setTo] = useState(today);
 
@@ -18,10 +41,50 @@ export function DataExport({ today }: { today: string }) {
   return (
     <div>
       <BackHeader title="Datos y fotos" />
-      <Card title="Copia de seguridad" className="mb-4">
+      <Card title="Copias automáticas" className="mb-4">
         <p className="text-[14px] text-muted">
-          Descarga toda la base de datos (empleados, cuadrante, notas, nómina…) en un archivo. Guárdalo en Archivos o en
-          Drive. Además se hace una copia automática cada mañana a las 9.
+          Cada mañana (sobre las 10) se guarda una copia de toda la base de datos en el almacenamiento de la app, el mismo
+          de las fotos. Se guardan los últimos 60 días.
+        </p>
+        {blobMissing && (
+          <p role="alert" className="mt-2 text-[14px] font-medium text-danger">
+            Falta conectar el almacenamiento (Vercel Blob): sin él no se pueden guardar copias.
+          </p>
+        )}
+        {backups.length > 0 ? (
+          <ul className="mt-2 divide-y divide-line">
+            {shown.map((b) => (
+              <li key={b.name}>
+                <a href={`/api/backups/${b.name}`} download className="flex min-h-11 items-center justify-between gap-2 text-[15px]">
+                  <span>
+                    {formatDayLong(b.date)}
+                    {b.date === backupToday && <span className="text-success"> · hoy</span>}
+                  </span>
+                  <span className="text-[13px] text-muted">{formatBytes(b.size)} ↓</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-[14px] text-muted">Todavía no hay ninguna copia guardada.</p>
+        )}
+        {backups.length > 5 && !showAll && (
+          <button type="button" onClick={() => setShowAll(true)} className="min-h-11 text-[15px] font-medium text-accent">
+            Ver las {backups.length}
+          </button>
+        )}
+        <PrimaryButton
+          className="mt-3 w-full"
+          disabled={pending || blobMissing}
+          onClick={() => run(() => backupNow(), { msg: "Copia guardada" })}
+        >
+          {pending ? "Guardando copia…" : "Hacer copia ahora"}
+        </PrimaryButton>
+      </Card>
+      <Card title="Descargar copia al móvil" className="mb-4">
+        <p className="text-[14px] text-muted">
+          Descarga toda la base de datos (empleados, cuadrante, notas, nómina…) en un archivo para guardarlo en Archivos o
+          en Drive.
         </p>
         <a
           href="/api/backup"

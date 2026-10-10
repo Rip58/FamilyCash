@@ -69,7 +69,8 @@ App PWA de plantilla del turno de noche. El plan completo y el modelo de datos e
 - Copias de seguridad versión 2: `upgradeV1` en `lib/backup.ts` convierte las copias antiguas igual que la migración.
 
 ## Notas técnicas (copias de seguridad)
-- `lib/backup.ts` (export/restore JSON de todas las tablas, en orden de claves ajenas), `app/api/backup` (descarga con sesión), `scripts/restore-backup.ts`, workflow `.github/workflows/backup.yml` (pg_dump diario cifrado a las 9:03 de Andorra, 90 días). Guía en `docs/COPIAS-DE-SEGURIDAD.md`.
+- `lib/backup.ts` (export/restore JSON de todas las tablas, en orden de claves ajenas), `app/api/backup` (descarga con sesión), `scripts/restore-backup.ts` (acepta `.json` y `.json.gz`). Guía en `docs/COPIAS-DE-SEGURIDAD.md`.
+- COPIA DIARIA EN EL ALMACÉN DE FOTOS: cron de Vercel (`vercel.json`, 8:03 UTC) → `app/api/cron/backup` (fuera del `proxy.ts`; exige `Bearer CRON_SECRET` si existe; solo crea la de hoy si falta) → `saveBackup` en `lib/backup-store.ts` (JSON gzip en Blob privado `backups/familycash-AAAA-MM-DD.json.gz`, o `.uploads/backups/` en local; guarda 60). Ajustes → Datos y fotos las lista (descarga por `app/api/backups/[name]`, con sesión) y tiene «Hacer copia ahora» (`app/actions/backups.ts`). El workflow `.github/workflows/backup.yml` (pg_dump cifrado) quedó solo manual porque faltaban sus secretos y fallaba cada día.
 - Si añades un modelo a Prisma, añádelo a `BACKUP_TABLES` (el test `tests/backup.test.ts` falla si no).
 
 

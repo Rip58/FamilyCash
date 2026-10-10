@@ -7,6 +7,8 @@ export async function proxy(req: NextRequest) {
 
   // Vaciar caché y volver (Forzar actualización): inofensivo, debe funcionar aunque la sesión haya caducado.
   if (pathname === "/api/refresh") return NextResponse.next();
+  // Copia diaria (cron de Vercel): se protege en la propia ruta con CRON_SECRET.
+  if (pathname === "/api/cron/backup") return NextResponse.next();
   if (pathname === "/login") {
     if (ok) return NextResponse.redirect(new URL("/hoy", req.url));
     return NextResponse.next();
