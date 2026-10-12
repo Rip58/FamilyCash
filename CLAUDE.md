@@ -144,3 +144,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Cada acción en UN sitio: el departamento habitual se cambia en la ficha del empleado (Ajustes → Departamentos solo ordena y asigna en bloque; tocar un empleado abre su ficha). Semana: IA y «sin departamentos» son iconos de la barra (no se repiten en ⋯). Tocar el nombre en Semana → Personas muestra el nombre completo y tocarlo abre su ficha.
 - Ajustes agrupado (Plantilla · Turno y planning · Otras pestañas · App). «Datos y fotos» = copias/CSV + almacenamiento (`/ajustes/almacenamiento` redirige ahí).
 
+
+## Notas técnicas (recordatorios)
+- Informe → 🔔 → `/informe/recordatorios` (`RemindersManager`): texto + cada semana ciertos días (`Reminder.weekdays`, 0 = lunes) o un día (`date`) + hora Madrid (`time`). Migración `reminders`; en `BACKUP_TABLES`.
+- Lógica pura en `lib/reminders.ts` (`lastOccurrence`, `nextOccurrence`, `dueOccurrence`, `describeReminder`); acciones en `app/actions/reminders.ts` (`saveReminder` pone `lastDone` = última vez que ya tocaba, para no avisar de un día anterior a crearlo; `getDueReminders`, `markReminderDone`, `snoozeReminder`). Tests: `tests/reminders.test.ts`.
+- Aviso: `components/reminders/ReminderAlert.tsx` en el layout `(app)` consulta al montar, al volver a la app y cada 5 min; hoja «Recordatorio» con «En 1 hora» / «Hecho». Sale hasta marcarlo hecho (si no se abre la app ese día, sale al día siguiente). No son notificaciones push del sistema.

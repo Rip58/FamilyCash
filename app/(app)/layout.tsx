@@ -3,6 +3,7 @@ import { Toaster } from "@/components/ui/toast";
 import { UpdateBanner } from "@/components/pwa/UpdateBanner";
 import { TabBar } from "@/components/ui/TabBar";
 import { ScrollMemory } from "@/components/pwa/ScrollMemory";
+import { ReminderAlert } from "@/components/reminders/ReminderAlert";
 import { Suspense } from "react";
 import { storageMode } from "@/lib/storage";
 
@@ -23,6 +24,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </Suspense>
       <TabBar />
       <UpdateBanner />
+      <ReminderAlert />
       <Toaster />
     </StorageModeProvider>
   );

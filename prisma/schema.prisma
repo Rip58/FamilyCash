@@ -262,3 +262,14 @@ model Absence {             // registro de faltas: queda aunque luego se cambie 
   @@index([employeeId])
 }
 
+model Reminder {            // recordatorio (Informe → 🔔): cada semana ciertos días a una hora, o una sola vez
+  id           String   @id @default(cuid())
+  text         String
+  weekdays     Int[]    @default([])        // 0=Lun … 6=Dom; vacío = una sola vez (`date`)
+  date         DateTime? @db.Date           // una sola vez: el día
+  time         String                       // "HH:mm" (hora de Andorra)
+  active       Boolean  @default(true)
+  lastDone     String?                      // "AAAA-MM-DD" del último aviso marcado como hecho
+  snoozedUntil DateTime?                    // «Recordar en 1 h»
+  createdAt    DateTime @default(now())
+}

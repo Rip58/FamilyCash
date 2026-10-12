@@ -155,6 +155,9 @@ export default async function Page({
         <Link href="/informe/empleado" aria-label="Historial y notas" className={reportIconBtn}>
           <Icon name="search" className="h-[22px] w-[22px]" strokeWidth={2.2} />
         </Link>
+        <Link href="/informe/recordatorios" aria-label="Recordatorios" className={reportIconBtn}>
+          <Icon name="bell" className="h-[22px] w-[22px]" strokeWidth={2.2} />
+        </Link>
         {share}
       </div>
       {body}
