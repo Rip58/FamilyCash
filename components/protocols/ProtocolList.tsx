@@ -27,7 +27,7 @@ import type { ProtocolStepView } from "@/lib/planogram-format";
 import { normalize, protocolPlainText } from "@/lib/protocol-markdown";
 import { Highlight, ProtocolBody } from "./ProtocolBody";
 import { ProtocolSteps } from "./ProtocolSteps";
-import { ProtocolTabs } from "./ProtocolTabs";
+import { ProtocolsHeader } from "./ProtocolTabs";
 
 export interface ProtocolItem {
   id: string;
@@ -247,19 +247,7 @@ export function ProtocolList({ initial }: { initial: ProtocolItem[] }) {
 
   return (
     <div className="pb-6">
-      <div className="flex items-center justify-between gap-3 pt-3">
-        <h1 className="text-[24px] font-bold tracking-tight">Protocolos</h1>
-        <Link
-          href="/protocolos/nuevo"
-          className="flex h-11 shrink-0 items-center"
-        >
-          <span className="flex h-9 items-center gap-1 rounded-full bg-accent pl-2.5 pr-3.5 text-[14px] font-semibold text-accent-fg">
-            <Icon name="plus" className="h-4 w-4" strokeWidth={2.4} />
-            Protocolo
-          </span>
-        </Link>
-      </div>
-      <ProtocolTabs active="protocolos" />
+      <ProtocolsHeader active="protocolos" />
 
       {!showEmptyAll && (
         <div className="mt-3 flex items-center gap-2">

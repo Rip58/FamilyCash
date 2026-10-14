@@ -8,7 +8,6 @@ import { PhotoViewer } from "@/components/reports/PhotoViewer";
 import { ConfirmButton, PrimaryButton, inputClass, notify, useRun } from "@/components/settings/kit";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { cn } from "@/components/ui/cn";
-import { Icon } from "@/components/ui/icons";
 import { type DateStr, formatDayMonth } from "@/lib/dates";
 import {
   type LocationOption,
@@ -17,7 +16,7 @@ import {
   untilLabel,
   untilState,
 } from "@/lib/planogram-format";
-import { ProtocolTabs } from "./ProtocolTabs";
+import { ProtocolsHeader, useCleanNewParam } from "./ProtocolTabs";
 
 const NONE = "Sin ubicación";
 
@@ -39,12 +38,16 @@ export function PlanogramBoard({
   planograms,
   locations,
   today,
+  startCreating = false,
 }: {
   planograms: PlanogramView[];
   locations: LocationOption[];
   today: DateStr;
+  /** Abrir «Nuevo lineal» al entrar (desde «+ Nuevo» en otra pestaña). */
+  startCreating?: boolean;
 }) {
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(startCreating);
+  useCleanNewParam(startCreating);
   const [editing, setEditing] = useState<PlanogramView | null>(null);
   const [showExpired, setShowExpired] = useState(false);
   const current = planograms.filter((p) => untilState(p.until, today) !== "expired");
@@ -54,16 +57,7 @@ export function PlanogramBoard({
 
   return (
     <div className="pb-6">
-      <div className="flex items-center justify-between gap-3 pt-3">
-        <h1 className="text-[24px] font-bold tracking-tight">Protocolos</h1>
-        <button type="button" onClick={() => setCreating(true)} className="flex h-11 shrink-0 items-center">
-          <span className="flex h-9 items-center gap-1 rounded-full bg-accent pl-2.5 pr-3.5 text-[14px] font-semibold text-accent-fg">
-            <Icon name="plus" className="h-4 w-4" strokeWidth={2.4} />
-            Lineal
-          </span>
-        </button>
-      </div>
-      <ProtocolTabs active="lineales" />
+      <ProtocolsHeader active="lineales" onNew={() => setCreating(true)} />
 
       {activeLocations.length === 0 && (
         <p className="mt-3 rounded-card bg-surface px-4 py-3 text-[14px] text-muted">

@@ -2,20 +2,23 @@
 import { db } from "./db";
 import { fromDbDate } from "./dates";
 import { absenceHistoryItem, entryHistoryItems, mergeAbsenceItems } from "./employee-history-entry";
-import { type HistoryItem, noteHistoryItem } from "./employee-history";
+import { type HistoryItem, meetingHistoryItem, noteHistoryItem } from "./employee-history";
+import { findMeetingTopics } from "./meeting-queries";
+import { meetingWho } from "./meetings";
 import { findNotes } from "./note-queries";
 import { noteWho } from "./notes";
 import { getEmployees, getSettings, getStatusTypes, toEntryLite } from "./queries";
 import { getEffectiveDay } from "./schedule";
 
 export async function loadEmployeeHistory(employeeId: string): Promise<HistoryItem[]> {
-  const [employees, statusTypes, settings, entries, notes, absences] = await Promise.all([
+  const [employees, statusTypes, settings, entries, notes, absences, meetings] = await Promise.all([
     getEmployees(),
     getStatusTypes(),
     getSettings(),
     db.dayEntry.findMany({ where: { employeeId }, include: { segments: { orderBy: { sortOrder: "asc" } } } }),
     findNotes({ employeeId }),
     db.absence.findMany({ where: { employeeId }, orderBy: { date: "asc" } }),
+    findMeetingTopics({ employeeId }),
   ]);
   const employee = employees.find((e) => e.id === employeeId);
   if (!employee) return [];
@@ -31,6 +34,7 @@ export async function loadEmployeeHistory(employeeId: string): Promise<HistoryIt
     absences.map((a) => absenceHistoryItem({ ...a, date: fromDbDate(a.date) })),
   );
   for (const n of notes) items.push(noteHistoryItem(n, n.departmentName));
+  for (const t of meetings) items.push(meetingHistoryItem(t, t.departmentName));
   return items;
 }
 
@@ -44,6 +48,9 @@ export async function loadNotesHistory(scope: NotesScope): Promise<HistoryItem[]
       : scope.kind === "department"
         ? { departmentId: scope.departmentId }
         : {};
-  const notes = await findNotes(where);
-  return notes.map((n) => noteHistoryItem(n, scope.kind === "general" ? null : noteWho(n)));
+  const [notes, meetings] = await Promise.all([findNotes(where), findMeetingTopics(where)]);
+  return [
+    ...notes.map((n) => noteHistoryItem(n, scope.kind === "general" ? null : noteWho(n))),
+    ...meetings.map((t) => meetingHistoryItem(t, scope.kind === "general" ? null : meetingWho(t).label)),
+  ];
 }

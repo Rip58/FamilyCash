@@ -1,6 +1,7 @@
 // Historial de un empleado (Informe → buscar empleado): todo lo apuntado o hablado con él, agrupado por noche.
 // Puro y sin zod (se usa también en el cliente para exportar).
 import { type DateStr, formatDayLong } from "./dates";
+import { type MeetingTopicView } from "./meetings";
 import { NOTE_TYPE_META, type NoteType, type NoteView, noteLabel } from "./notes";
 
 export type HistoryKind =
@@ -10,6 +11,7 @@ export type HistoryKind =
   | "praise" // felicitación
   | "talk" // conversación
   | "request" // petición (fiesta, vacaciones…): una nota más, sin seguimiento
+  | "meeting" // tema de reunión (Protocolos → Reuniones)
   | "absence" // faltó (tocaba trabajar y no vino, o «Falta»)
   | "leave" // vacaciones, baja, permiso (ausencias previstas)
   | "time" // llegó tarde / se fue antes / se quedó más
@@ -45,6 +47,7 @@ export const KIND_META: Record<HistoryKind, { label: string; color: string }> = 
   praise: { label: "Felicitaciones", color: NOTE_TYPE_META.PRAISE.color },
   talk: { label: "Conversaciones", color: NOTE_TYPE_META.TALK.color },
   request: { label: "Peticiones", color: NOTE_TYPE_META.REQUEST.color },
+  meeting: { label: "Reuniones", color: "#7c3aed" },
   absence: { label: "Faltas", color: "#dc2626" },
   leave: { label: "Vacaciones y bajas", color: "#3b82f6" },
   time: { label: "Horario", color: "#d97706" },
@@ -52,7 +55,7 @@ export const KIND_META: Record<HistoryKind, { label: string; color: string }> = 
 };
 
 /** Orden dentro de una noche: primero lo hablado (notas), luego lo que pasó. */
-const ORDER: HistoryKind[] = ["talk", "incident", "praise", "request", "note", "task", "absence", "leave", "time", "overtime"];
+const ORDER: HistoryKind[] = ["meeting", "talk", "incident", "praise", "request", "note", "task", "absence", "leave", "time", "overtime"];
 
 const NOTE_KIND: Record<NoteType, HistoryKind> = {
   NOTE: "note",
@@ -62,6 +65,18 @@ const NOTE_KIND: Record<NoteType, HistoryKind> = {
   TALK: "talk",
   REQUEST: "request",
 };
+
+/** Un tema de reunión: el día que se trató (con la valoración) o, si está pendiente, el día que se apuntó. */
+export function meetingHistoryItem(t: MeetingTopicView, who?: string | null): HistoryItem {
+  return {
+    date: t.doneOn ?? t.createdOn,
+    kind: "meeting",
+    label: t.doneOn ? "Reunión" : "Para la reunión",
+    text: t.outcome ? `${t.text} → ${t.outcome}` : t.text,
+    color: KIND_META.meeting.color,
+    who: who ?? null,
+  };
+}
 
 /** Una nota como apunte del historial. `who` = quién/dónde (en los listados de varias personas). */
 export function noteHistoryItem(n: NoteView, who?: string | null): HistoryItem {

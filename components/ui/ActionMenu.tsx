@@ -18,7 +18,18 @@ export interface ActionItem {
  * Un solo botón (⋯) que despliega varias acciones. Se cierra al elegir, al tocar fuera o con Escape.
  * Entra desde su esquina (escala 0,95 → 1 + opacidad, 150 ms ease-out); sin animación al cerrar.
  */
-export function ActionMenu({ items, label, badge }: { items: ActionItem[]; label: string; badge?: boolean }) {
+export function ActionMenu({
+  items,
+  label,
+  badge,
+  pill,
+}: {
+  items: ActionItem[];
+  label: string;
+  badge?: boolean;
+  /** Botón con texto («+ Nuevo») en lugar del ⋯. */
+  pill?: string;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -38,20 +49,37 @@ export function ActionMenu({ items, label, badge }: { items: ActionItem[]; label
 
   return (
     <div ref={ref} className="relative shrink-0">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-label={label}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        className={cn(
-          "press relative flex h-11 w-11 items-center justify-center rounded-full text-accent [touch-action:manipulation]",
-          open ? "bg-accent text-accent-fg" : "bg-accent/15",
-        )}
-      >
-        <Icon name="more" className="h-[22px] w-[22px]" />
-        {badge && !open && <span aria-hidden className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-bg bg-accent" />}
-      </button>
+      {pill ? (
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-label={label}
+          aria-expanded={open}
+          aria-haspopup="menu"
+          className="press flex h-11 items-center [touch-action:manipulation]"
+        >
+          <span className="flex h-9 items-center gap-1 rounded-full bg-accent pl-2.5 pr-3 text-[14px] font-semibold text-accent-fg">
+            <Icon name="plus" className="h-4 w-4" strokeWidth={2.4} />
+            {pill}
+            <Icon name="chevron" className={cn("h-3.5 w-3.5 transition-transform duration-150", open ? "-rotate-90" : "rotate-90")} strokeWidth={2.6} />
+          </span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-label={label}
+          aria-expanded={open}
+          aria-haspopup="menu"
+          className={cn(
+            "press relative flex h-11 w-11 items-center justify-center rounded-full text-accent [touch-action:manipulation]",
+            open ? "bg-accent text-accent-fg" : "bg-accent/15",
+          )}
+        >
+          <Icon name="more" className="h-[22px] w-[22px]" />
+          {badge && !open && <span aria-hidden className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-bg bg-accent" />}
+        </button>
+      )}
       {open && (
         <div
           role="menu"

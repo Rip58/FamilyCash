@@ -31,6 +31,7 @@ model Department {          // Droguería, Botellería, ...
   employees   Employee[]
   sections    Section[]
   nightNotes  NightNote[]
+  meetingTopics MeetingTopic[]
 }
 
 model Section {             // pasillos / tareas: Cerveza, Chocolate, ...
@@ -69,6 +70,7 @@ model Employee {
   notes               String?               // nota permanente
   days                DayEntry[]
   nightNotes          NightNote[]
+  meetingTopics       MeetingTopic[]
   absences            Absence[]
 }
 
@@ -272,4 +274,17 @@ model Reminder {            // recordatorio (Informe → 🔔): cada semana cier
   lastDone     String?                      // "AAAA-MM-DD" del último aviso marcado como hecho
   snoozedUntil DateTime?                    // «Recordar en 1 h»
   createdAt    DateTime @default(now())
+}
+model MeetingTopic {         // tema para tratar en una reunión (Protocolos → Reuniones)
+  id           String      @id @default(cuid())
+  text         String
+  employeeId   String?
+  employee     Employee?   @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  departmentId String?                       // sin persona ni departamento = general
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  doneOn       DateTime?   @db.Date          // día de la reunión en que se trató (null = pendiente)
+  outcome      String?                       // valoración / qué se acordó
+  createdAt    DateTime    @default(now())   // día en que se apuntó
+  updatedAt    DateTime    @default(now()) @updatedAt
+  @@index([doneOn])
 }
