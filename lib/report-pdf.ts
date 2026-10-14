@@ -1,5 +1,5 @@
 // PDF del informe (solo cliente): 1.ª página = el informe (la misma imagen que se comparte) y después una página por
-// nota con fotos: quién, las fotos y la nota DEBAJO, para que cada foto vaya con lo que se escribió.
+// FOTO: quién, la foto y la nota justo DEBAJO (si una nota tiene varias fotos, cada una lleva su texto debajo).
 import { buildImagePdf, type PdfImagePage } from "./pdf";
 import { C, type Ctx, PAD, W, canvasBlob, font, renderReportCanvas, roundRect, wrap } from "./report-image";
 import type { ShareModel } from "./report-share";
@@ -16,9 +16,8 @@ export interface PdfPhotoNote {
   photos: Blob[];
 }
 
-/** Alto máximo de una foto (px): una sola, grande; varias, algo menores para que la página no sea eterna. */
+/** Alto máximo de la foto (px). */
 const MAX_PHOTO_H = 1500;
-const MAX_PHOTO_H_MANY = 1100;
 const JPEG_QUALITY = 0.85;
 
 function loadImage(blob: Blob): Promise<HTMLImageElement> {
@@ -37,8 +36,8 @@ function loadImage(blob: Blob): Promise<HTMLImageElement> {
   });
 }
 
-/** Página de una nota: cabecera, fotos una debajo de otra y el texto de la nota en una tarjeta. */
-function paintNotePage(ctx: Ctx, n: PdfPhotoNote, imgs: HTMLImageElement[], draw: boolean): number {
+/** Página de una foto: cabecera (quién · tipo · noche y «Foto 1 de 2»), la foto y el texto de su nota en una tarjeta. */
+function paintPhotoPage(ctx: Ctx, n: PdfPhotoNote, img: HTMLImageElement | null, index: number, draw: boolean): number {
   const inner = W - PAD * 2;
   let y = PAD;
   font(ctx, 40, 700);
@@ -50,11 +49,11 @@ function paintNotePage(ctx: Ctx, n: PdfPhotoNote, imgs: HTMLImageElement[], draw
   font(ctx, 28, 400);
   if (draw) {
     ctx.fillStyle = C.muted;
-    ctx.fillText(`${n.label} · ${n.when}`, PAD, y + 30);
+    ctx.fillText(`${n.label} · ${n.when}${n.photos.length > 1 ? ` · Foto ${index + 1} de ${n.photos.length}` : ""}`, PAD, y + 30);
   }
   y += 56;
-  for (const img of imgs) {
-    const scale = Math.min(inner / img.naturalWidth, (imgs.length > 1 ? MAX_PHOTO_H_MANY : MAX_PHOTO_H) / img.naturalHeight);
+  if (img) {
+    const scale = Math.min(inner / img.naturalWidth, MAX_PHOTO_H / img.naturalHeight);
     const w = Math.round(img.naturalWidth * scale);
     const h = Math.round(img.naturalHeight * scale);
     if (draw) {
@@ -79,11 +78,11 @@ function paintNotePage(ctx: Ctx, n: PdfPhotoNote, imgs: HTMLImageElement[], draw
   return y + boxH + PAD;
 }
 
-async function notePage(n: PdfPhotoNote): Promise<HTMLCanvasElement> {
-  const imgs = (await Promise.all(n.photos.map((b) => loadImage(b).catch(() => null)))).filter((i): i is HTMLImageElement => !!i);
+async function photoPage(n: PdfPhotoNote, index: number): Promise<HTMLCanvasElement> {
+  const img = await loadImage(n.photos[index]!).catch(() => null);
   const probe = document.createElement("canvas").getContext("2d");
   if (!probe) throw new Error("Canvas no disponible");
-  const height = Math.ceil(paintNotePage(probe, n, imgs, false));
+  const height = Math.ceil(paintPhotoPage(probe, n, img, index, false));
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = height;
@@ -91,7 +90,7 @@ async function notePage(n: PdfPhotoNote): Promise<HTMLCanvasElement> {
   if (!ctx) throw new Error("Canvas no disponible");
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, W, height);
-  paintNotePage(ctx, n, imgs, true);
+  paintPhotoPage(ctx, n, img, index, true);
   return canvas;
 }
 
@@ -100,9 +99,9 @@ async function toPage(canvas: HTMLCanvasElement): Promise<PdfImagePage> {
   return { jpeg: new Uint8Array(await blob.arrayBuffer()), width: canvas.width, height: canvas.height };
 }
 
-/** PDF: informe + una página por nota con fotos. */
+/** PDF: informe + una página por foto, cada una con el texto de su nota debajo (en el orden de las notas). */
 export async function renderReportPdf(m: ShareModel, notes: PdfPhotoNote[], title: string): Promise<Blob> {
   const pages = [await toPage(renderReportCanvas(m))];
-  for (const n of notes) pages.push(await toPage(await notePage(n)));
+  for (const n of notes) for (let i = 0; i < n.photos.length; i++) pages.push(await toPage(await photoPage(n, i)));
   return new Blob([buildImagePdf(pages, title) as BlobPart], { type: "application/pdf" });
 }
