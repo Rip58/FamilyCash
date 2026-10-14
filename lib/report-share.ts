@@ -13,6 +13,8 @@ export interface ShareDepartment {
   name: string;
   color: string;
   members: ShareMember[];
+  /** «Sin departamento» (va siempre al final y a lo ancho). */
+  unassigned?: boolean;
 }
 
 export interface ShareMissing {
@@ -64,6 +66,19 @@ export function colorEmoji(hex: string): string {
   return "🟪";
 }
 
+/** A partir de cuántas personas un departamento va a lo ancho en la imagen; los demás, en 2 columnas. */
+export const WIDE_DEPARTMENT_MIN = 3;
+
+/** Imagen: primero los departamentos grandes a lo ancho, luego los pequeños en 2 columnas y «Sin departamento» al final. */
+export function workingLayout(working: ShareDepartment[]): { wide: ShareDepartment[]; grid: ShareDepartment[]; rest: ShareDepartment[] } {
+  const named = working.filter((d) => !d.unassigned);
+  return {
+    wide: named.filter((d) => d.members.length >= WIDE_DEPARTMENT_MIN),
+    grid: named.filter((d) => d.members.length < WIDE_DEPARTMENT_MIN),
+    rest: working.filter((d) => d.unassigned),
+  };
+}
+
 export function buildShareModel(report: DayReport): ShareModel {
   const late = new Map(report.lateArrivals.map((l) => [l.name, l]));
   const member = (m: DayReport["unassigned"][number]): ShareMember => {
@@ -77,10 +92,11 @@ export function buildShareModel(report: DayReport): ShareModel {
   const working: ShareDepartment[] = report.departments.map((d) => ({
     name: d.name,
     color: d.color,
-    members: d.members.map(member),
+    // Los que vienen a cubrirlo también (p. ej. hace Droguería y además Cervezas), sin repetir sus horarios.
+    members: [...d.members.map(member), ...d.covering.map((m) => ({ name: m.name, tags: [] }))],
   }));
   if (report.unassigned.length > 0) {
-    working.push({ name: "Sin departamento", color: "#8e8e93", members: report.unassigned.map(member) });
+    working.push({ name: "Sin departamento", color: "#8e8e93", members: report.unassigned.map(member), unassigned: true });
   }
 
   // Faltan = les tocaba trabajar y no han venido, o tienen «Falta» (ABSENT). Fiesta, vacaciones y bajas son normales.

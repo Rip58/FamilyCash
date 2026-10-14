@@ -1,5 +1,5 @@
 // Imagen PNG del informe (canvas, solo cliente). Mismo contenido y orden que el texto: trabajan → fiesta → vacaciones/bajas → faltan (en rojo).
-import type { ShareModel } from "./report-share";
+import { type ShareModel, workingLayout } from "./report-share";
 
 export const W = 1080;
 export const PAD = 48;
@@ -114,6 +114,21 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
     y += lh + 8;
   };
 
+  /** Celda de la cuadrícula de departamentos en (x, y) con ancho `w`: [color] **Departamento** y debajo las personas. Devuelve el alto sin mover `y`. */
+  const cellAt = (x: number, w: number, label: string, people: string[], swatch: string): number => {
+    const top = y;
+    if (draw) {
+      ctx.fillStyle = swatch;
+      roundRect(ctx, x, y + 6, 26, 26, 7);
+      ctx.fill();
+    }
+    text(label, x + 40, 28, 700, C.fg, w - 40);
+    for (const p of people) text(p, x + 40, 28, 400, C.fg, w - 40);
+    const h = y - top;
+    y = top;
+    return h;
+  };
+
   /** Tarjeta con cabecera de color; `body` dibuja dentro y avanza `y`. */
   const card = (title: string, color: string, bg: string, body: () => void) => {
     const top = y;
@@ -206,12 +221,22 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
   y += 88 + 28;
 
   if (m.working.length > 0) {
+    // El detalle va pegado al nombre (espacio duro) para que no se parta en dos líneas.
+    const names = (d: ShareModel["working"][number]) =>
+      d.members.map((p) => (p.tags.length > 0 ? `${p.name}\u00a0(${p.tags.join(",\u00a0").replace(/ /g, "\u00a0")})` : p.name));
+    const title = (d: ShareModel["working"][number]) => (d.members.length > 1 ? `${d.name} (${d.members.length})` : d.name);
+    const { wide, grid, rest } = workingLayout(m.working);
     card(`Trabajan (${m.counts.working})`, C.green, C.greenBg, () => {
-      for (const d of m.working) {
-        // El detalle va pegado al nombre (espacio duro) para que no se parta en dos líneas.
-        const names = d.members.map((p) => (p.tags.length > 0 ? `${p.name}\u00a0(${p.tags.join(",\u00a0").replace(/ /g, "\u00a0")})` : p.name));
-        inline(d.members.length > 1 ? `${d.name} (${d.members.length})` : d.name, names.join(", "), d.color);
+      for (const d of wide) inline(title(d), names(d).join(", "), d.color);
+      // Los de 1–2 personas, en 2 columnas: nombre del departamento y debajo las personas.
+      const colGap = 24;
+      const colW = (inner - 56 - colGap) / 2;
+      for (let i = 0; i < grid.length; i += 2) {
+        const hs = grid.slice(i, i + 2).map((d, k) => cellAt(PAD + 28 + k * (colW + colGap), colW, title(d), names(d), d.color));
+        y += Math.max(...hs) + 10;
       }
+      if (grid.length > 0 && rest.length > 0) y += 4;
+      for (const d of rest) inline(title(d), names(d).join(", "), d.color);
     });
   }
 

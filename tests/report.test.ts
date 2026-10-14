@@ -1,4 +1,4 @@
-import { buildShareModel, colorEmoji, shareModelToText } from "@/lib/report-share";
+import { buildShareModel, colorEmoji, shareModelToText, workingLayout } from "@/lib/report-share";
 import { describe, expect, it } from "vitest";
 import type { NoteView } from "@/lib/notes";
 import {
@@ -242,5 +242,21 @@ describe("exportación visual", () => {
     const order = ["TRABAJAN", "FIESTA", "VACACIONES Y BAJAS", "FALTAN (3)"].map((k) => t.indexOf(k));
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(order[0]).toBeGreaterThan(0);
+  });
+  it("quien cubre otros departamentos sale también en ellos (Edwin: Droguería + Cervezas y Aceitunas)", () => {
+    const deps = [...departments, dep("cer", "Cervezas", 2, 1), dep("ace", "Aceitunas", 3, 1)];
+    const employees = [emp("Ana"), emp("Luis"), emp("Marta"), emp("Edwin", { defaultExtraDepartmentIds: ["cer", "ace"] }), emp("Pau", { defaultDepartmentId: "bot" })];
+    const entries = employees.map((e) => entry(e.id, MON, WORK));
+    const roster = getDayRoster({ date: MON, employees, entries, departments: deps, statusTypes });
+    const m = buildShareModel(buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments: deps }));
+    const byName = Object.fromEntries(m.working.map((d) => [d.name, d.members.map((x) => x.name)]));
+    expect(byName).toEqual({ Droguería: ["Ana", "Edwin", "Luis", "Marta"], Botellería: ["Pau"], Cervezas: ["Edwin"], Aceitunas: ["Edwin"] });
+    // Se cuentan personas, no puestos.
+    expect(m.counts.working).toBe(5);
+    expect(shareModelToText(m)).toContain("Cervezas: Edwin");
+    // Imagen: Droguería (4) a lo ancho; los de una persona en 2 columnas.
+    const l = workingLayout(m.working);
+    expect(l.wide.map((d) => d.name)).toEqual(["Droguería"]);
+    expect(l.grid.map((d) => d.name)).toEqual(["Botellería", "Cervezas", "Aceitunas"]);
   });
 });
