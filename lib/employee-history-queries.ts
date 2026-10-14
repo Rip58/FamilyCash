@@ -1,8 +1,8 @@
 /** Historial de un empleado y listados de notas (Informe → lupa y ficha del empleado; solo servidor). */
 import { db } from "./db";
-import { fromDbDate } from "./dates";
+import { fromDbDate, operationalToday } from "./dates";
 import { absenceHistoryItem, entryHistoryItems, mergeAbsenceItems } from "./employee-history-entry";
-import { type HistoryItem, meetingHistoryItem, noteHistoryItem } from "./employee-history";
+import { type HistoryItem, meetingHistoryItem, noteHistoryItem, pastHistoryOnly } from "./employee-history";
 import { findMeetingTopics } from "./meeting-queries";
 import { meetingWho } from "./meetings";
 import { findNotes } from "./note-queries";
@@ -35,7 +35,7 @@ export async function loadEmployeeHistory(employeeId: string): Promise<HistoryIt
   );
   for (const n of notes) items.push(noteHistoryItem(n, n.departmentName));
   for (const t of meetings) items.push(meetingHistoryItem(t, t.departmentName));
-  return items;
+  return pastHistoryOnly(items, operationalToday(new Date(), settings.dayRolloverHour));
 }
 
 /** Listados de notas que no son de una persona: todas, las generales o las de un departamento. */
@@ -48,9 +48,9 @@ export async function loadNotesHistory(scope: NotesScope): Promise<HistoryItem[]
       : scope.kind === "department"
         ? { departmentId: scope.departmentId }
         : {};
-  const [notes, meetings] = await Promise.all([findNotes(where), findMeetingTopics(where)]);
-  return [
+  const [notes, meetings, settings] = await Promise.all([findNotes(where), findMeetingTopics(where), getSettings()]);
+  return pastHistoryOnly([
     ...notes.map((n) => noteHistoryItem(n, scope.kind === "general" ? null : noteWho(n))),
     ...meetings.map((t) => meetingHistoryItem(t, scope.kind === "general" ? null : meetingWho(t).label)),
-  ];
+  ], operationalToday(new Date(), settings.dayRolloverHour));
 }

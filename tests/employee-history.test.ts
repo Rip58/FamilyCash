@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type HistoryItem, groupHistory, noteHistoryItem, historyCounts, historyToText } from "@/lib/employee-history";
+import { type HistoryItem, groupHistory, noteHistoryItem, historyCounts, historyToText, pastHistoryOnly } from "@/lib/employee-history";
 import { entryHistoryItems } from "@/lib/employee-history-entry";
 import { DEFAULT_SHIFT } from "@/lib/report";
 import { type DayEntryLite, type EmployeeLite, type StatusTypeLite, getEffectiveDay } from "@/lib/schedule";
@@ -81,5 +81,13 @@ describe("notas en el historial", () => {
     expect(inc.note?.id).toBe("n");
     expect(noteHistoryItem({ ...base, type: "TASK", done: true, photos: [] })).toMatchObject({ kind: "task", label: "Tarea hecha", photos: undefined });
     expect(noteHistoryItem({ ...base, type: "REQUEST" }).kind).toBe("request");
+  });
+});
+
+describe("solo lo pasado y sin ausencias previstas", () => {
+  it("quita vacaciones/bajas (leave) y lo que es de después de hoy; deja faltas y notas", () => {
+    const it_ = (date: string, kind: HistoryItem["kind"]): HistoryItem => ({ date, kind, label: kind, text: "", color: "#000" });
+    const items = [it_("2026-10-10", "incident"), it_("2026-10-11", "leave"), it_("2026-10-12", "absence"), it_("2026-10-20", "note"), it_("2026-10-25", "leave")];
+    expect(pastHistoryOnly(items, "2026-10-14").map((i) => `${i.date} ${i.kind}`)).toEqual(["2026-10-10 incident", "2026-10-12 absence"]);
   });
 });

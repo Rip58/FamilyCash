@@ -66,6 +66,14 @@ const NOTE_KIND: Record<NoteType, HistoryKind> = {
   REQUEST: "request",
 };
 
+/**
+ * Lo que sale en el historial: solo lo que ya ha pasado (hasta hoy) y sin las ausencias previstas del planning
+ * (vacaciones, bajas, permisos: no son apuntes sobre la persona). Las faltas sí salen.
+ */
+export function pastHistoryOnly(items: HistoryItem[], today: DateStr): HistoryItem[] {
+  return items.filter((i) => i.kind !== "leave" && i.date <= today);
+}
+
 /** Un tema de reunión: el día que se trató (con la valoración) o, si está pendiente, el día que se apuntó. */
 export function meetingHistoryItem(t: MeetingTopicView, who?: string | null): HistoryItem {
   return {
