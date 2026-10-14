@@ -66,6 +66,18 @@ export function colorEmoji(hex: string): string {
   return "🟪";
 }
 
+/**
+ * 1.ª página del PDF: igual que la imagen pero sin las notas con foto (ya van en las páginas siguientes, cada foto con
+ * su nota debajo); en su lugar, una línea que lo dice.
+ */
+export function pdfShareModel(report: DayReport): ShareModel {
+  const withPhotos = report.notes.filter((n) => n.photos.length > 0).length;
+  const m = buildShareModel({ ...report, notes: report.notes.filter((n) => n.photos.length === 0) });
+  if (withPhotos === 0) return m;
+  const line = `📷 ${withPhotos === 1 ? "1 nota con foto" : `${withPhotos} notas con foto`}: en las páginas siguientes`;
+  return { ...m, notes: [...m.notes, { who: null, items: [line] }] };
+}
+
 /** A partir de cuántas personas un departamento va a lo ancho en la imagen; los demás, en 2 columnas. */
 export const WIDE_DEPARTMENT_MIN = 3;
 

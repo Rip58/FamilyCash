@@ -1,4 +1,4 @@
-import { buildShareModel, colorEmoji, shareModelToText, workingLayout } from "@/lib/report-share";
+import { buildShareModel, colorEmoji, pdfShareModel, shareModelToText, workingLayout } from "@/lib/report-share";
 import { describe, expect, it } from "vitest";
 import type { NoteView } from "@/lib/notes";
 import {
@@ -258,5 +258,15 @@ describe("exportación visual", () => {
     const l = workingLayout(m.working);
     expect(l.wide.map((d) => d.name)).toEqual(["Droguería"]);
     expect(l.grid.map((d) => d.name)).toEqual(["Botellería", "Cervezas", "Aceitunas"]);
+  });
+  it("PDF: las notas con foto no se repiten en la 1.ª página (van con su foto)", () => {
+    const roster = getDayRoster({ date: MON, employees: [emp("Ana")], entries: [entry("Ana", MON, WORK)], departments, statusTypes });
+    const photo = { id: "p", url: "/api/files/x.webp", width: 10, height: 10 } as NoteView["photos"][number];
+    const notes = [note({ id: "a", text: "Sin foto" }), note({ id: "b", text: "Palé roto", photos: [photo] }), note({ id: "c", text: "Cámara", photos: [photo] })];
+    const report = buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments, notes });
+    const all = buildShareModel(report).notes.flatMap((g) => g.items).join("|");
+    expect(all).toContain("Palé roto");
+    const pdf = pdfShareModel(report).notes.flatMap((g) => g.items);
+    expect(pdf).toEqual(["Sin foto", "📷 2 notas con foto: en las páginas siguientes"]);
   });
 });

@@ -6,7 +6,7 @@ import { ReportTabs } from "@/components/report/ReportTabs";
 import { ShareButton } from "@/components/report/ShareButton";
 import { Icon } from "@/components/ui/icons";
 import { reportIconBtn } from "@/components/report/header-button";
-import { buildShareModel } from "@/lib/report-share";
+import { buildShareModel, pdfShareModel } from "@/lib/report-share";
 import { WeekSummaryView } from "@/components/report/WeekSummaryView";
 import { WeekTasks } from "@/components/report/WeekTasks";
 import {
@@ -94,6 +94,7 @@ export default async function Page({
         <ShareButton
           text={reportToText(report)}
           model={buildShareModel(report)}
+          pdfModel={pdfShareModel(report)}
           fileName={`informe-noche-${date}.png`}
           photoNotes={report.notes
             .filter((n) => n.photos.length > 0)

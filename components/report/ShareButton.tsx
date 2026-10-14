@@ -50,11 +50,14 @@ export interface SharePhotoNote {
 export function ShareButton({
   text,
   model,
+  pdfModel = model,
   fileName,
   photoNotes = [],
 }: {
   text: string;
   model: ShareModel;
+  /** 1.ª página del PDF (sin las notas con foto, que van después con su foto). */
+  pdfModel?: ShareModel;
   fileName: string;
   photoNotes?: SharePhotoNote[];
 }) {
@@ -112,13 +115,13 @@ export function ShareButton({
     const notes = photoNotes
       .map((n) => ({ ...n, photos: n.photos.flatMap((p) => byName.get(p.name) ?? []) }))
       .filter((n) => n.photos.length > 0);
-    renderReportPdf(model, notes, pdfName.replace(/\.pdf$/, ""))
+    renderReportPdf(pdfModel, notes, pdfName.replace(/\.pdf$/, ""))
       .then((blob) => alive && setPdf(new File([blob], pdfName, { type: "application/pdf" })))
       .catch(() => alive && setPdfFailed(true));
     return () => {
       alive = false;
     };
-  }, [open, pdf, pdfFailed, photoFiles, photoNotes, model, pdfName]);
+  }, [open, pdf, pdfFailed, photoFiles, photoNotes, pdfModel, pdfName]);
 
   async function sharePdf() {
     if (!pdf) return;
