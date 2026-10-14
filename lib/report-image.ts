@@ -1,10 +1,10 @@
 // Imagen PNG del informe (canvas, solo cliente). Mismo contenido y orden que el texto: trabajan → fiesta → vacaciones/bajas → faltan (en rojo).
 import type { ShareModel } from "./report-share";
 
-const W = 1080;
-const PAD = 48;
+export const W = 1080;
+export const PAD = 48;
 const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-const C = {
+export const C = {
   bg: "#f2f2f7",
   card: "#ffffff",
   fg: "#1c1c1e",
@@ -22,14 +22,14 @@ const C = {
   amberBg: "#fff1dc",
 };
 
-type Ctx = CanvasRenderingContext2D;
+export type Ctx = CanvasRenderingContext2D;
 
-function font(ctx: Ctx, size: number, weight = 400) {
+export function font(ctx: Ctx, size: number, weight = 400) {
   ctx.font = `${weight} ${size}px ${FONT}`;
 }
 
 /** Parte un texto en líneas que caben en `max` px. */
-function wrap(ctx: Ctx, text: string, max: number): string[] {
+export function wrap(ctx: Ctx, text: string, max: number): string[] {
   const out: string[] = [];
   let line = "";
   for (const word of text.split(/\s+/)) {
@@ -44,7 +44,7 @@ function wrap(ctx: Ctx, text: string, max: number): string[] {
   return out;
 }
 
-function roundRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: number) {
+export function roundRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.arcTo(x + w, y, x + w, y + h, r);
@@ -261,8 +261,8 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
   return y + PAD - 24;
 }
 
-/** PNG del informe. */
-export async function renderReportImage(m: ShareModel): Promise<Blob> {
+/** El informe dibujado en un canvas (ancho 1080 px, alto el justo). */
+export function renderReportCanvas(m: ShareModel): HTMLCanvasElement {
   const probe = document.createElement("canvas").getContext("2d");
   if (!probe) throw new Error("Canvas no disponible");
   const height = Math.ceil(paint(probe, m, false));
@@ -274,7 +274,16 @@ export async function renderReportImage(m: ShareModel): Promise<Blob> {
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, W, height);
   paint(ctx, m, true);
+  return canvas;
+}
+
+export function canvasBlob(canvas: HTMLCanvasElement, type: "image/png" | "image/jpeg", quality?: number): Promise<Blob> {
   return new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("No se pudo generar la imagen"))), "image/png"),
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("No se pudo generar la imagen"))), type, quality),
   );
+}
+
+/** PNG del informe. */
+export async function renderReportImage(m: ShareModel): Promise<Blob> {
+  return canvasBlob(renderReportCanvas(m), "image/png");
 }

@@ -20,7 +20,7 @@ import {
   weekDays,
 } from "@/lib/dates";
 import { getNotes, getPendingTasksBefore } from "@/lib/note-queries";
-import { noteLine } from "@/lib/notes";
+import { noteLabel, noteLine, noteWho } from "@/lib/notes";
 import { getDepartments, getEmployees, getEntriesBetween, getSections, getSettings, getStatusTypes } from "@/lib/queries";
 import { buildDayReport, buildWeekSummary, reportToText } from "@/lib/report";
 import { getDayRoster, getWeekGrid } from "@/lib/schedule";
@@ -95,9 +95,18 @@ export default async function Page({
           text={reportToText(report)}
           model={buildShareModel(report)}
           fileName={`informe-noche-${date}.png`}
-          photos={report.notes.flatMap((n) =>
-            n.photos.map((ph, i) => ({ url: ph.url, name: `${date}-${(n.employeeName ?? "nota").replace(/\s+/g, "-")}-${i + 1}.${ph.url.split(".").pop() ?? "webp"}` })),
-          )}
+          photoNotes={report.notes
+            .filter((n) => n.photos.length > 0)
+            .map((n, k) => ({
+              who: noteWho(n),
+              label: noteLabel(n),
+              when: `${formatDayLong(n.date)}${n.time ? ` · ${n.time}` : ""}`,
+              text: n.text,
+              photos: n.photos.map((ph, i) => ({
+                url: ph.url,
+                name: `${date}-${(n.employeeName ?? "nota").replace(/\s+/g, "-")}-${k + 1}-${i + 1}.${ph.url.split(".").pop() ?? "webp"}`,
+              })),
+            }))}
         />
       );
   } else {

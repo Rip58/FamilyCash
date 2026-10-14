@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { deleteMeetingTopic, saveMeetingTopic, setMeetingTopicDone } from "@/app/actions/meetings";
 import { DepartmentGrid } from "@/components/day/DepartmentGrid";
 import { BottomSheet } from "@/components/ui/BottomSheet";
+import { Segmented } from "@/components/ui/Segmented";
 import { Toggle } from "@/components/ui/Toggle";
 import { cn } from "@/components/ui/cn";
 import { notify } from "@/components/ui/toast";
@@ -16,6 +17,8 @@ import {
   pastWhoOptions,
 } from "@/lib/meetings";
 import { ProtocolsHeader, useCleanNewParam } from "./ProtocolTabs";
+
+const ALL = "__all";
 
 type Opt = { id: string; name: string; color?: string | null };
 
@@ -99,22 +102,15 @@ export function MeetingBoard({
         </p>
       ) : (
         <>
-          <div role="group" aria-label="Filtrar reuniones" className="no-scrollbar -mx-4 mt-2 flex gap-1.5 overflow-x-auto px-4">
-            {[{ key: null as string | null, label: "Todas" }, ...whoOptions].map((o) => (
-              <button
-                key={o.key ?? "all"}
-                type="button"
-                aria-pressed={filter === o.key}
-                onClick={() => setWho(o.key)}
-                className={cn(
-                  "press min-h-9 shrink-0 rounded-full px-3 text-[13px] font-semibold",
-                  filter === o.key ? "bg-fg text-bg" : "bg-surface text-muted",
-                )}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            scroll
+            compact
+            aria-label="Filtrar reuniones"
+            className="mt-2"
+            value={filter ?? ALL}
+            onChange={(v) => setWho(v === ALL ? null : v)}
+            options={[{ value: ALL, label: "Todas" }, ...whoOptions.map((o) => ({ value: o.key, label: o.label }))]}
+          />
           <ul className="mt-2 flex flex-col gap-2">
             {past.map((m, i) => (
               <li key={m.date}>
