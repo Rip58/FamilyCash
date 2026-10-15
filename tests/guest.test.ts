@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GUEST_TOKEN_RE, guestNight, sameToken, secondsUntilGuestEnd } from "@/lib/guest";
+import { GUEST_PIN_RE, afterWrongPin, guestNight, sameToken, secondsUntilGuestEnd } from "@/lib/guest";
 
 // Octubre 2026: Madrid = UTC+2.
 const at = (iso: string) => new Date(iso);
@@ -22,7 +22,20 @@ describe("enlace del compañero: noche en curso hasta las 09:30", () => {
     expect(sameToken("abc", "abc")).toBe(true);
     expect(sameToken("abc", "abd")).toBe(false);
     expect(sameToken(null, "abc")).toBe(false);
-    expect(GUEST_TOKEN_RE.test("a".repeat(32))).toBe(true);
-    expect(GUEST_TOKEN_RE.test("a/b")).toBe(false);
+  });
+});
+
+describe("PIN del compañero", () => {
+  const now = new Date("2026-10-15T22:00:00+02:00");
+  it("4 dígitos", () => {
+    expect(GUEST_PIN_RE.test("0427")).toBe(true);
+    expect(GUEST_PIN_RE.test("427")).toBe(false);
+    expect(GUEST_PIN_RE.test("04a7")).toBe(false);
+  });
+  it("cada 5 fallos seguidos, 15 min de bloqueo; a los 20 se apaga", () => {
+    expect(afterWrongPin(0, now)).toEqual({ fails: 1, lockedUntil: null, disable: false });
+    expect(afterWrongPin(4, now).lockedUntil?.toISOString()).toBe("2026-10-15T20:15:00.000Z");
+    expect(afterWrongPin(5, now).lockedUntil).toBeNull();
+    expect(afterWrongPin(19, now).disable).toBe(true);
   });
 });

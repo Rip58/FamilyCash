@@ -47,9 +47,8 @@ export const getSettings = refCache(async (): Promise<SettingsData> => {
   // Lectura primero: evita una escritura (upsert) en cada carga de página.
   const s = (await db.settings.findUnique({ where: { id: 1 } })) ?? (await db.settings.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } }));
   // Ni la contraseña ni el código del enlace del compañero viajan con los ajustes (se leen aparte cuando hace falta).
-  const { passwordHash: _omit, guestToken: _guest, aiModels, ...rest } = s;
-  void _omit;
-  void _guest;
+  const { passwordHash: _omit, guestToken: _guest, guestPinHash: _pin, guestFails: _f, guestLockedUntil: _l, aiModels, ...rest } = s;
+  void [_omit, _guest, _pin, _f, _l];
   const models: Partial<Record<string, string>> = {};
   if (aiModels && typeof aiModels === "object" && !Array.isArray(aiModels)) {
     for (const [k, v] of Object.entries(aiModels)) if (typeof v === "string" && v) models[k] = v;

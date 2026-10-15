@@ -30,5 +30,19 @@ export function sameToken(a: string | null | undefined, b: string | null | undef
   return diff === 0;
 }
 
-/** Formato del código del enlace (base64url, 32 caracteres). */
-export const GUEST_TOKEN_RE = /^[A-Za-z0-9_-]{32}$/;
+// ---- PIN del compañero ------------------------------------------------------
+
+/** PIN de 4 dígitos. */
+export const GUEST_PIN_RE = /^\d{4}$/;
+/** Cada 5 fallos seguidos, bloqueo de 15 min; a los 20, el acceso se apaga hasta poner un PIN nuevo. */
+export const GUEST_LOCK_EVERY = 5;
+export const GUEST_LOCK_MINUTES = 15;
+export const GUEST_MAX_FAILS = 20;
+
+/** Qué pasa tras un PIN incorrecto (con `fails` = fallos seguidos que había). */
+export function afterWrongPin(fails: number, now: Date): { fails: number; lockedUntil: Date | null; disable: boolean } {
+  const next = fails + 1;
+  if (next >= GUEST_MAX_FAILS) return { fails: next, lockedUntil: null, disable: true };
+  const lock = next % GUEST_LOCK_EVERY === 0 ? new Date(now.getTime() + GUEST_LOCK_MINUTES * 60_000) : null;
+  return { fails: next, lockedUntil: lock, disable: false };
+}

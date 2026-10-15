@@ -1,7 +1,7 @@
 /**
- * Enlace del compañero en el servidor: cookie `guest` (la pone /t/<código>) y permisos de las acciones de Hoy.
- * El dueño (con sesión) puede todo; el compañero solo la noche en curso (`guestNight`, hasta las 09:30) y mientras el
- * enlace siga activo y sea el mismo (cambiarlo o apagarlo en Ajustes lo invalida al momento).
+ * Acceso del compañero en el servidor: cookie `guest` (la pone `enterGuestPin` al acertar el PIN en /turno) y permisos
+ * de las acciones de Hoy. El dueño (con sesión) puede todo; el compañero solo la noche en curso (`guestNight`, hasta las
+ * 09:30) y mientras el acceso siga activo con el mismo PIN (cambiarlo o apagarlo en Ajustes lo invalida al momento).
  */
 import "server-only";
 import { cookies } from "next/headers";

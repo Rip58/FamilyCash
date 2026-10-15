@@ -9,9 +9,9 @@ export async function proxy(req: NextRequest) {
   if (pathname === "/api/refresh") return NextResponse.next();
   // Copia diaria (cron de Vercel): se protege en la propia ruta con CRON_SECRET.
   if (pathname === "/api/cron/backup") return NextResponse.next();
-  // Enlace del compañero: la entrada /t/<código>, su página /turno y la subida de fotos no piden sesión. Cada una (y
-  // cada Server Action) comprueba el enlace y que sea la noche en curso; todo lo demás sigue pidiendo sesión.
-  if (pathname === "/turno" || pathname.startsWith("/t/") || pathname === "/api/upload/photo") return NextResponse.next();
+  // Compañero: /turno (pide su PIN) y la subida de fotos no piden sesión. Cada una (y cada Server Action) comprueba
+  // el acceso del compañero y que sea la noche en curso; todo lo demás sigue pidiendo sesión.
+  if (pathname === "/turno" || pathname === "/api/upload/photo") return NextResponse.next();
   if (pathname === "/login") {
     if (ok) return NextResponse.redirect(new URL("/hoy", req.url));
     return NextResponse.next();

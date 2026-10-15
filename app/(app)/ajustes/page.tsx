@@ -52,7 +52,7 @@ export default async function Page() {
       title: "App",
       items: [
         { href: "/ajustes/datos", label: "Datos y fotos", detail: "Copias, CSV", icon: "database", color: "#22c55e" },
-        { href: "/ajustes/companero", label: "Enlace del compañero", detail: guestOn ? "Activo" : "Apagado", icon: "users", color: "#0ea5e9" },
+        { href: "/ajustes/companero", label: "Acceso del compañero", detail: guestOn ? "Activo" : "Apagado", icon: "users", color: "#0ea5e9" },
         { href: "/ajustes/seguridad", label: "Seguridad", icon: "lock", color: "#64748b" },
       ],
     },

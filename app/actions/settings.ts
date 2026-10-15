@@ -371,18 +371,20 @@ export async function changePassword(input: z.input<typeof passwordSchema>): Pro
   return done();
 }
 
-// ---- Enlace del compañero ------------------------------------------------
+// ---- Acceso del compañero (/turno + PIN) -----------------------------------
 
 /**
- * Enlace del compañero (Hoy de la noche en curso, sin contraseña). `on` = crear uno nuevo (el anterior deja de
- * funcionar al momento) o apagarlo (null).
+ * Acceso del compañero: PIN de 4 dígitos para /turno (Hoy de la noche en curso). Poner un PIN nuevo crea también un
+ * secreto nuevo, así que quien entró con el anterior tiene que volver a meter el PIN. `pin: null` = apagar.
  */
-export async function setGuestLink(input: { on: boolean }): Promise<ActionResult<{ token: string | null }>> {
+export async function setGuestPin(input: { pin: string | null }): Promise<ActionResult> {
   await requireOwner();
-  const p = z.object({ on: z.boolean() }).safeParse(input);
-  if (!p.success) return { ok: false, error: "Datos no válidos." };
-  const token = p.data.on ? randomBytes(24).toString("base64url") : null;
-  await db.settings.upsert({ where: { id: 1 }, update: { guestToken: token }, create: { id: 1, guestToken: token } });
+  const p = z.object({ pin: z.string().regex(/^\d{4}$/, "El PIN son 4 números.").nullable() }).safeParse(input);
+  if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Datos no válidos." };
+  const data = p.data.pin
+    ? { guestPinHash: await bcrypt.hash(p.data.pin, 10), guestToken: randomBytes(24).toString("base64url"), guestFails: 0, guestLockedUntil: null }
+    : { guestPinHash: null, guestToken: null, guestFails: 0, guestLockedUntil: null };
+  await db.settings.upsert({ where: { id: 1 }, update: data, create: { id: 1, ...data } });
   revalidatePath("/ajustes", "layout");
-  return done({ token });
+  return done();
 }

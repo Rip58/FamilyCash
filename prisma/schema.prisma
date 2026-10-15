@@ -11,7 +11,10 @@ model Settings {            // fila única id=1
   id              Int     @id @default(1)
   shiftStart      String  @default("21:30")
   shiftEnd        String  @default("06:30")
-  guestToken      String?                     // enlace del compañero (/t/<token>): Hoy de la noche en curso sin contraseña; null = apagado
+  guestToken      String?                     // acceso del compañero (/turno + PIN): secreto que guarda su cookie; null = apagado (cambia con el PIN)
+  guestPinHash    String?                     // PIN de 4 dígitos del compañero (bcrypt)
+  guestFails      Int     @default(0)         // intentos fallidos seguidos del PIN (20 = se apaga solo)
+  guestLockedUntil DateTime?                  // bloqueo temporal tras 5 fallos seguidos
   breakStart      String  @default("02:00")
   breakEnd        String  @default("03:00")
   dayRolloverHour Int     @default(12)   // antes de esta hora "Hoy" = noche anterior

@@ -1,4 +1,5 @@
 import { DayView } from "@/components/day/DayView";
+import { GuestPinForm } from "@/components/day/GuestPinForm";
 import { getLoggedAbsences } from "@/lib/absence-log";
 import { addDays, formatDayLong, formatDayShort } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -14,19 +15,12 @@ export const metadata = { title: "Turno de esta noche", robots: { index: false, 
 export const dynamic = "force-dynamic";
 
 /**
- * Hoy para el compañero (enlace sin contraseña, /t/<código>): SOLO la noche en curso, editable hasta las 09:30 del
- * día siguiente. Sin navegación a otras noches ni pantallas; cada acción vuelve a comprobarlo en el servidor.
+ * Hoy para el compañero (/turno + PIN de 4 dígitos): SOLO la noche en curso, editable hasta las 09:30 del día
+ * siguiente. Sin navegación a otras noches ni pantallas; cada acción vuelve a comprobarlo en el servidor.
  */
 export default async function Page() {
   const night = (await guestNightNow()) ?? ((await isOwner()) ? guestNight(new Date()) : null);
-  if (!night) {
-    return (
-      <div className="flex min-h-[70dvh] flex-col items-center justify-center gap-2 px-6 text-center">
-        <h1 className="text-[20px] font-bold">Enlace no válido</h1>
-        <p className="text-[15px] text-muted">Abre de nuevo el enlace que te pasaron. Si no funciona, pide el enlace nuevo.</p>
-      </div>
-    );
-  }
+  if (!night) return <GuestPinForm />;
 
   const [settings, employees, departments, statusTypes, sections, entries, notes, pendingDelays, groupCovers, loggedAbsences] =
     await Promise.all([
