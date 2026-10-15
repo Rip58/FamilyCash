@@ -46,7 +46,7 @@ export function compactNames(people: { name: string; alias?: string | null }[]):
 
 /** ¿Tiene datos además de estado/departamento/motivo? (nota, horario, tramos) */
 export function hasExtraData(e: DayEntryLite): boolean {
-  return !!(e.arrivedAt || e.leftAt || e.timeReason || (e.extraMinutes ?? 0) > 0 || e.extraNote || e.present === true || !!e.actualStatusTypeId || e.segments.length > 0);
+  return !!(e.arrivedAt || e.leftAt || e.timeReason || !!e.extraMinutes || e.extraNote || e.present === true || !!e.actualStatusTypeId || e.segments.length > 0);
 }
 
 /** ¿El estado coincide con el que da el patrón (días fijos) ese día? */
@@ -286,7 +286,7 @@ export function weekSummary(
       text: `${counts.get(s.id)}${statusAbbr(s)}`,
       dayOff: !s.isWorking && (s.code === "OFF" || s.code === "PAID_OFF"),
     }));
-  if (extra > 0) tokens.push({ key: "extra", text: `${formatHoursShort(extra)}X`, dayOff: false });
+  if (extra !== 0) tokens.push({ key: "extra", text: `${formatHoursShort(extra)}X`, dayOff: false });
   return tokens;
 }
 

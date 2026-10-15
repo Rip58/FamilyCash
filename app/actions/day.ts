@@ -64,7 +64,7 @@ const setTimesSchema = z.object({
 const extraMinutesSchema = z
   .number()
   .int()
-  .refine(isValidOvertime, "Horas extra no válidas (0–720 min, de 15 en 15).");
+  .refine(isValidOvertime, "Horas no válidas (de −8 h a 12 h, de 15 en 15 min).");
 const setOvertimeSchema = z.object({
   ...base,
   extraMinutes: extraMinutesSchema,

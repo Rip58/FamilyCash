@@ -312,7 +312,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
         </p>
         <ActionMenu
           label="Opciones del día"
-          badge={closeHighlight || nightExtra > 0}
+          badge={closeHighlight || nightExtra !== 0}
           items={[
             { icon: "note", label: "Añadir nota o foto", onSelect: () => openNote(null) },
             {
@@ -323,7 +323,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
             {
               icon: "clockMoon",
               label: "Cierre de turno",
-              hint: nightExtra > 0 ? formatOvertime(nightExtra, true) : undefined,
+              hint: nightExtra !== 0 ? formatOvertime(nightExtra, true) : undefined,
               highlight: closeHighlight,
               onSelect: () => setCloseSheet((s) => ({ open: true, n: s.n + 1 })),
             },

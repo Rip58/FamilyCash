@@ -97,6 +97,9 @@ export function OvertimeSheet({ open, onClose, groups, shift, onSave }: Overtime
             {total === 0 ? "0" : formatOvertime(total)}
           </span>
         </p>
+        <p className="px-1 text-[13px] text-muted">
+          Por debajo de 0 es <span className="font-medium text-danger">retraso</span> (p. ej. si llega tarde): resta horas.
+        </p>
         {error && (
           <p role="alert" className="rounded-control bg-danger/10 px-3 py-2 text-[14px] text-danger">
             {error}

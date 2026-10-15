@@ -181,7 +181,7 @@ export function applyEntryPatch(
       e.timeReason = clean(patch.timeReason);
       break;
     case "overtime":
-      e.extraMinutes = patch.extraMinutes && patch.extraMinutes > 0 ? patch.extraMinutes : null;
+      e.extraMinutes = patch.extraMinutes ? patch.extraMinutes : null; // negativo = retraso
       e.extraNote = clean(patch.extraNote);
       break;
     case "segmentAdd":
@@ -220,7 +220,7 @@ export function isEntryRedundant(
     !entry.arrivedAt &&
     !entry.leftAt &&
     !clean(entry.timeReason) &&
-    !(entry.extraMinutes && entry.extraMinutes > 0) &&
+    !entry.extraMinutes &&
     !clean(entry.extraNote) &&
     entry.present !== true &&
     !entry.actualStatusTypeId &&

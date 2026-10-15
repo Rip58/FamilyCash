@@ -33,9 +33,10 @@ export function entryHistoryItems(day: EffectiveDay, shift: ShiftConfig): Histor
       add("time", d > 0 ? "Se queda más" : "Se va antes", `${what} (sale a las ${day.leftAt})${day.timeReason ? ` — ${day.timeReason}` : ""}`);
     }
   }
-  if (day.isWorking && ((day.extraMinutes ?? 0) > 0 || day.extraNote)) {
-    const t = (day.extraMinutes ?? 0) > 0 ? formatOvertime(day.extraMinutes!, true) : "sin tiempo";
-    add("overtime", "Horas extra", `${t}${day.extraNote ? ` — ${day.extraNote}` : ""}`);
+  if (day.isWorking && (day.extraMinutes || day.extraNote)) {
+    const t = day.extraMinutes ? formatOvertime(day.extraMinutes, true) : "sin tiempo";
+    const late = (day.extraMinutes ?? 0) < 0;
+    add("overtime", late ? "Retraso" : "Horas extra", `${t}${day.extraNote ? ` — ${day.extraNote}` : ""}`);
   }
   return out;
 }

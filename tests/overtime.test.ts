@@ -14,11 +14,17 @@ describe("formatOvertime", () => {
     expect(formatOvertime(15, true)).toBe("+15 min");
     expect(formatOvertime(0)).toBe("0 min");
   });
+  it("negativo = retraso, con signo menos", () => {
+    expect(formatOvertime(-30)).toBe("−30 min");
+    expect(formatOvertime(-90, true)).toBe("−1 h 30 min");
+  });
 });
 
 describe("clamp / validación", () => {
-  it("ajusta a múltiplos de 15 entre 0 y 720", () => {
-    expect(clampOvertime(-15)).toBe(0);
+  it("ajusta a múltiplos de 15 entre −480 (retraso) y 720", () => {
+    expect(clampOvertime(-15)).toBe(-15);
+    expect(clampOvertime(-1000)).toBe(-480);
+    expect(Object.is(clampOvertime(-5), 0)).toBe(true);
     expect(clampOvertime(20)).toBe(15);
     expect(clampOvertime(2000)).toBe(720);
   });
@@ -27,7 +33,9 @@ describe("clamp / validación", () => {
     expect(isValidOvertime(720)).toBe(true);
     expect(isValidOvertime(735)).toBe(false);
     expect(isValidOvertime(20)).toBe(false);
-    expect(isValidOvertime(-15)).toBe(false);
+    expect(isValidOvertime(-15)).toBe(true);
+    expect(isValidOvertime(-480)).toBe(true);
+    expect(isValidOvertime(-495)).toBe(false);
     expect(isValidOvertime(7.5)).toBe(false);
   });
 });
@@ -61,5 +69,12 @@ describe("sumas", () => {
   it("total y por empleado", () => {
     expect(totalOvertime(items)).toBe(105);
     expect([...sumOvertimeByEmployee(items)]).toEqual([["a", 90], ["d", 15]]);
+  });
+});
+
+describe("retrasos", () => {
+  it("los totales son netos: el retraso resta", () => {
+    expect(totalOvertime([{ extraMinutes: 60 }, { extraMinutes: -30 }, { extraMinutes: null }])).toBe(30);
+    expect(sumOvertimeByEmployee([{ employeeId: "a", extraMinutes: -30 }]).get("a")).toBe(-30);
   });
 });

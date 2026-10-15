@@ -107,7 +107,7 @@ export function DayReportView({ report, options }: { report: DayReport; options:
                   {o.note && <span className="text-muted"> — {o.note}</span>}
                 </span>
                 <span className="shrink-0 font-semibold tabular-nums">
-                  {o.minutes > 0 ? formatOvertime(o.minutes, true) : "—"}
+                  {o.minutes !== 0 ? formatOvertime(o.minutes, true) : "—"}
                 </span>
               </li>
             ))}

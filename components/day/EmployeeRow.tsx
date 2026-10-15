@@ -96,8 +96,8 @@ export function EmployeeRow({ member, sectionNames, departments, shift, onOpen, 
               {leftKind(day.leftAt, shift) === "more" ? "➕" : "➖"} {day.leftAt}
             </span>
           )}
-          {day.isWorking && (day.extraMinutes ?? 0) > 0 && (
-            <span title="Horas extra" className="font-medium text-accent">
+          {day.isWorking && !!day.extraMinutes && (
+            <span title={day.extraMinutes < 0 ? "Retraso" : "Horas extra"} className={day.extraMinutes < 0 ? "font-medium text-danger" : "font-medium text-accent"}>
               ⏱ {formatOvertime(day.extraMinutes!, true)}
             </span>
           )}

@@ -50,7 +50,7 @@ export function WeekSummaryView({ summary }: { summary: WeekSummary }) {
           <li className="flex min-h-8 items-center justify-between">
             <span className="text-[14px] text-muted">Horas extra de la semana</span>
             <span className="text-[17px] font-semibold tabular-nums" data-testid="week-overtime-total">
-              {summary.totalExtraMinutes > 0 ? formatOvertime(summary.totalExtraMinutes) : "0"}
+              {summary.totalExtraMinutes !== 0 ? formatOvertime(summary.totalExtraMinutes) : "0"}
             </span>
           </li>
         </ul>
@@ -91,7 +91,7 @@ export function WeekSummaryView({ summary }: { summary: WeekSummary }) {
                       {e.lateArrivals || <span className="text-muted">·</span>}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-center tabular-nums">
-                      {e.extraMinutes > 0 ? formatOvertime(e.extraMinutes, true) : <span className="text-muted">·</span>}
+                      {e.extraMinutes !== 0 ? formatOvertime(e.extraMinutes, true) : <span className="text-muted">·</span>}
                     </td>
                   </tr>
                 ))}

@@ -219,7 +219,7 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
       arrivedAt: d.arrivedAt,
       leftAt: d.leftAt,
       timeReason: d.timeReason,
-      extraMinutes: d.extraMinutes && d.extraMinutes > 0 ? d.extraMinutes : null,
+      extraMinutes: d.extraMinutes ? d.extraMinutes : null,
       extraNote: d.extraNote,
       segments,
     };
@@ -363,7 +363,7 @@ export function buildWeekSummary(input: BuildWeekSummaryInput): WeekSummary {
     let late = 0;
     let extra = 0;
     for (const cell of row.cells) {
-      if (cell.isWorking && cell.extraMinutes && cell.extraMinutes > 0) extra += cell.extraMinutes;
+      if (cell.isWorking && cell.extraMinutes) extra += cell.extraMinutes;
       if (!cell.isWorking) {
         counts[cell.status.id] = (counts[cell.status.id] ?? 0) + 1;
         totals.set(cell.status.id, (totals.get(cell.status.id) ?? 0) + 1);

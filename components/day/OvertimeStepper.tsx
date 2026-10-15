@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/components/ui/cn";
-import { OVERTIME_MAX, OVERTIME_STEP, clampOvertime, formatOvertime } from "@/lib/overtime";
+import { OVERTIME_MAX, OVERTIME_MIN, OVERTIME_STEP, clampOvertime, formatOvertime } from "@/lib/overtime";
 
 interface OvertimeStepperProps {
   minutes: number;
@@ -16,7 +16,7 @@ interface OvertimeStepperProps {
 const btn =
   "flex h-11 w-11 shrink-0 items-center justify-center rounded-control bg-surface-2 text-[22px] font-medium leading-none text-accent active:opacity-70 disabled:opacity-30";
 
-/** Stepper −/valor/+ en pasos de 15 min. */
+/** Stepper −/valor/+ en pasos de 15 min. Por debajo de 0 = retraso (en rojo). */
 export function OvertimeStepper({ minutes, onChange, compact, label, suggested }: OvertimeStepperProps) {
   return (
     <div className="flex items-center gap-1.5" role="group" aria-label={label}>
@@ -24,7 +24,7 @@ export function OvertimeStepper({ minutes, onChange, compact, label, suggested }
         type="button"
         className={btn}
         aria-label={`Quitar ${OVERTIME_STEP} minutos`}
-        disabled={minutes <= 0}
+        disabled={minutes <= OVERTIME_MIN}
         onClick={() => onChange(clampOvertime(minutes - OVERTIME_STEP))}
       >
         −
@@ -34,6 +34,7 @@ export function OvertimeStepper({ minutes, onChange, compact, label, suggested }
           "text-center text-[16px] font-semibold tabular-nums",
           compact ? "min-w-[64px]" : "min-w-[92px]",
           minutes === 0 && "text-muted",
+          minutes < 0 && "text-danger",
           suggested && "italic text-accent",
         )}
         aria-live="polite"

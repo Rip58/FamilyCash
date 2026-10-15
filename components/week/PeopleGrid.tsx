@@ -383,7 +383,7 @@ function CellSheetBody({
               value={extraNote}
               maxLength={200}
               onChange={(e) => setExtraNote(e.target.value)}
-              placeholder="Motivo de las horas extra (opcional)"
+              placeholder="Motivo (opcional; en negativo = retraso)"
               className="min-h-11 rounded-control bg-surface-2 px-3 text-[16px] outline-none focus:ring-2 focus:ring-accent"
             />
           )}
@@ -402,7 +402,7 @@ function CellSheetBody({
             {
               statusId,
               reason: reason.trim() || null,
-              extraMinutes: working && extra > 0 ? extra : null,
+              extraMinutes: working && extra !== 0 ? extra : null,
               extraNote: working && extra > 0 ? extraNote.trim() || null : null,
             },
             span,
