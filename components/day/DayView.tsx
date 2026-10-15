@@ -41,6 +41,7 @@ import { EmployeeSheet } from "./EmployeeSheet";
 import { MoveSheet } from "./MoveSheet";
 import { OvertimeSheet, type OvertimeGroup } from "./OvertimeSheet";
 import { GuestModeContext } from "./guest-mode";
+import { useLiveNight } from "./useLiveNight";
 import type { SectionLite, SheetOps } from "./types";
 
 interface DayViewProps {
@@ -94,6 +95,7 @@ export function DayView({
   guestChanges = [],
 }: DayViewProps) {
   const [pending, startTransition] = useTransition();
+  useLiveNight(date, pending);
   const [error, setError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ id: string; open: boolean } | null>(null);
   const [move, setMove] = useState<{ id: string; open: boolean; checkIn?: boolean } | null>(null);

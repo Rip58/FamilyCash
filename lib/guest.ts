@@ -1,5 +1,5 @@
 /**
- * Enlace del compañero (sin contraseña): solo la noche en curso, editable hasta las 09:30 de la mañana siguiente.
+ * Acceso del compañero (/turno + PIN): solo la noche en curso, editable hasta las 09:30 de la mañana siguiente.
  * Puro (sin BD ni cookies): se usa en el servidor y en los tests.
  */
 import { type DateStr, addDays, madridParts } from "./dates";
