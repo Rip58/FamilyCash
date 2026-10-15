@@ -257,6 +257,8 @@ export interface WeekSummaryToken {
   text: string;
   /** Pertenece a los días libres (para avisar si no cuadran con los esperados). */
   dayOff: boolean;
+  /** Horas extra en negativo (retraso): se pinta en rojo. */
+  negative?: boolean;
 }
 
 /** Horas en formato corto con coma decimal: 120 → "2", 90 → "1,5", 45 → "0,75". */
@@ -286,7 +288,7 @@ export function weekSummary(
       text: `${counts.get(s.id)}${statusAbbr(s)}`,
       dayOff: !s.isWorking && (s.code === "OFF" || s.code === "PAID_OFF"),
     }));
-  if (extra !== 0) tokens.push({ key: "extra", text: `${formatHoursShort(extra)}X`, dayOff: false });
+  if (extra !== 0) tokens.push({ key: "extra", text: `${formatHoursShort(extra)}X`, dayOff: false, negative: extra < 0 });
   return tokens;
 }
 

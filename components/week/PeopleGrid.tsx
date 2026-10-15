@@ -37,14 +37,15 @@ function CellButton({
   status,
   label,
   hasReason,
-  hasExtra,
+  extraMinutes,
   actual,
   onTap,
 }: {
   status: GridStatus;
   label: string;
   hasReason: boolean;
-  hasExtra: boolean;
+  /** Horas extra de la casilla (negativo = retraso: «X» en rojo). */
+  extraMinutes: number;
   /** En Hoy pasó otra cosa distinta al planning. */
   actual: boolean;
   onTap: () => void;
@@ -73,11 +74,14 @@ function CellButton({
       {hasReason && (
         <span aria-hidden="true" className="absolute right-0.5 top-1.5 h-1.5 w-1.5 rounded-full bg-fg/60" />
       )}
-      {hasExtra && (
+      {extraMinutes !== 0 && (
         <span
           aria-hidden="true"
           data-extra-dot
-          className="absolute left-0 top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-accent px-0.5 text-[9px] font-bold leading-none text-accent-fg"
+          className={cn(
+            "absolute left-0 top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 text-[9px] font-bold leading-none",
+            extraMinutes < 0 ? "bg-danger text-white" : "bg-accent text-accent-fg",
+          )}
         >
           X
         </span>
@@ -376,7 +380,7 @@ function CellSheetBody({
               </button>
             ))}
           </div>
-          {extra > 0 && (
+          {extra !== 0 && (
             <input
               type="text"
               aria-label="Motivo de las horas extra"
@@ -403,7 +407,7 @@ function CellSheetBody({
               statusId,
               reason: reason.trim() || null,
               extraMinutes: working && extra !== 0 ? extra : null,
-              extraNote: working && extra > 0 ? extraNote.trim() || null : null,
+              extraNote: working && extra !== 0 ? extraNote.trim() || null : null,
             },
             span,
           )
@@ -623,7 +627,7 @@ export function PeopleGrid({ data, flat = false }: { data: PeopleGridData; flat?
                         key={d}
                         status={status}
                         hasReason={!!v.reason}
-                        hasExtra={(v.extraMinutes ?? 0) > 0}
+                        extraMinutes={v.extraMinutes ?? 0}
                         actual={!!actualByKey[keyOf(r.employeeId, d)]}
                         label={`${r.name}, ${formatDayLong(d)}: ${status.label}${v.reason ? ` (${v.reason})` : ""}${v.extraMinutes ? `, ${formatOvertime(v.extraMinutes)} extra` : ""}${actualByKey[keyOf(r.employeeId, d)] ? `. Hoy: ${actualByKey[keyOf(r.employeeId, d)]}` : ""}`}
                         onTap={() => setSheet({ target, open: true })}
@@ -639,7 +643,7 @@ export function PeopleGrid({ data, flat = false }: { data: PeopleGridData; flat?
                       <span
                         key={t.key}
                         className={cn(
-                          t.key === "extra" ? "text-accent" : "text-muted",
+                          t.key === "extra" ? (t.negative ? "text-danger" : "text-accent") : "text-muted",
                           warn && t.dayOff && "rounded bg-warning/25 px-0.5 text-warning",
                         )}
                       >
