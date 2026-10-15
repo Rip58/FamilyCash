@@ -1,16 +1,14 @@
 /** Retrasos pendientes de recuperar (solo servidor). */
-import { type DateStr, fromDbDate, payMonthOf, payPeriodDays, toDbDate } from "./dates";
+import { type DateStr, fromDbDate, toDbDate } from "./dates";
 import { db } from "./db";
 import { type PendingDelay, delayBalance } from "./overtime";
-import { getPayrollConfig } from "./payroll-queries";
 
 /**
- * Por empleado, los retrasos que aún debe ANTES de la noche `date` (solo quien debe algo). Solo cuenta el mes de
- * nómina de esa noche (con su día de cierre): lo que no se recupera en el mes se arregla en la nómina.
+ * Por empleado, los retrasos que aún debe ANTES de la noche `date` (solo quien debe algo). Solo cuenta el mes
+ * natural de esa noche (del día 1): lo que no se recupera en el mes se arregla en la nómina.
  */
 export async function getPendingDelays(date: DateStr): Promise<Record<string, PendingDelay[]>> {
-  const cutoff = (await getPayrollConfig()).cutoffDay;
-  const first = payPeriodDays(payMonthOf(date, cutoff), cutoff)[0]!;
+  const first = `${date.slice(0, 7)}-01`;
   if (first >= date) return {};
   const rows = await db.dayEntry.findMany({
     where: {
