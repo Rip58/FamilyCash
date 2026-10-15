@@ -4,6 +4,7 @@ import { DayView } from "@/components/day/DayView";
 import { cn } from "@/components/ui/cn";
 import { addDays, formatDayLong, isDateStr, operationalToday } from "@/lib/dates";
 import { getNotes } from "@/lib/note-queries";
+import { getPendingDelays } from "@/lib/overtime-queries";
 import { getDepartments, getEmployees, getEntriesBetween, getSections, getSettings, getStatusTypes } from "@/lib/queries";
 
 export const metadata = { title: "Hoy" };
@@ -21,7 +22,7 @@ export default async function Page({ params }: { params: Promise<{ date?: string
   const date = segs ? segs[0]! : today;
   const isToday = date === today;
 
-  const [employees, departments, statusTypes, sections, entries, notes] = await Promise.all([
+  const [employees, departments, statusTypes, sections, entries, notes, pendingDelays] = await Promise.all([
     getEmployees(),
     getDepartments(),
     getStatusTypes(),
@@ -29,6 +30,7 @@ export default async function Page({ params }: { params: Promise<{ date?: string
     // ±7 días: una fiesta pegada a vacaciones sale como vacaciones (vacationWeekDay).
     getEntriesBetween(addDays(date, -7), addDays(date, 7)),
     getNotes(date, date),
+    getPendingDelays(date),
   ]);
 
   const title = `${formatDayLong(date)} · ${settings.shiftStart}–${settings.shiftEnd}`;
@@ -81,6 +83,7 @@ export default async function Page({ params }: { params: Promise<{ date?: string
           .map((s) => ({ id: s.id, name: s.name, departmentId: s.departmentId }))}
         entries={entries}
         notes={notes}
+        pendingDelays={pendingDelays}
       />
     </div>
   );

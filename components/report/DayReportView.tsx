@@ -104,6 +104,8 @@ export function DayReportView({ report, options }: { report: DayReport; options:
               <li key={o.name} className="flex items-baseline justify-between gap-3">
                 <span className="min-w-0">
                   <b>{o.name}</b>
+                  {o.minutes < 0 && <span className="text-danger"> · retraso</span>}
+                  {o.recovers && <span className="text-success"> · recupera retraso</span>}
                   {o.note && <span className="text-muted"> — {o.note}</span>}
                 </span>
                 <span className="shrink-0 font-semibold tabular-nums">

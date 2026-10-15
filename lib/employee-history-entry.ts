@@ -36,7 +36,7 @@ export function entryHistoryItems(day: EffectiveDay, shift: ShiftConfig): Histor
   if (day.isWorking && (day.extraMinutes || day.extraNote)) {
     const t = day.extraMinutes ? formatOvertime(day.extraMinutes, true) : "sin tiempo";
     const late = (day.extraMinutes ?? 0) < 0;
-    add("overtime", late ? "Retraso" : "Horas extra", `${t}${day.extraNote ? ` — ${day.extraNote}` : ""}`);
+    add("overtime", late ? "Retraso" : day.extraRecovers ? "Recupera retraso" : "Horas extra", `${t}${day.extraNote ? ` — ${day.extraNote}` : ""}`);
   }
   return out;
 }

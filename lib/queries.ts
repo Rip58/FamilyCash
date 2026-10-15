@@ -91,6 +91,7 @@ export function toEntryLite(r: EntryRow): DayEntryLite {
     present: r.present,
     actualStatusTypeId: r.actualStatusTypeId,
     extraNote: r.extraNote,
+    extraRecovers: r.extraRecovers,
     segments: [...r.segments]
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .map((s) => ({

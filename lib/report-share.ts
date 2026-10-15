@@ -161,7 +161,7 @@ export function buildShareModel(report: DayReport): ShareModel {
             total: formatOvertime(report.overtime.totalMinutes),
             items: report.overtime.items.map(
               (o) =>
-                `${o.name}: ${o.minutes !== 0 ? formatOvertime(o.minutes, true) : "sin tiempo"}${o.minutes < 0 ? " (retraso)" : ""}${o.note ? ` — ${o.note}` : ""}`,
+                `${o.name}: ${o.minutes !== 0 ? formatOvertime(o.minutes, true) : "sin tiempo"}${o.minutes < 0 ? " (retraso)" : o.recovers ? " (recupera retraso)" : ""}${o.note ? ` — ${o.note}` : ""}`,
             ),
           }
         : null,

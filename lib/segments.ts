@@ -98,7 +98,7 @@ export type EntryPatch =
   /** `extraDepartmentIds` = otros departamentos que también cubre (ausente = no cambiarlos). */
   | { kind: "department"; departmentId: string | null; extraDepartmentIds?: string[] }
   | { kind: "times"; arrivedAt: string | null; leftAt: string | null; timeReason: string | null }
-  | { kind: "overtime"; extraMinutes: number | null; extraNote: string | null }
+  | { kind: "overtime"; extraMinutes: number | null; extraNote: string | null; extraRecovers?: boolean }
   | { kind: "attendance"; present: boolean }
   | { kind: "segmentAdd"; segment: SegmentWithId }
   | { kind: "segmentUpdate"; segment: SegmentWithId }
@@ -124,6 +124,7 @@ export function baseEntry(employee: EmployeeLite, date: DateStr, statusTypes: St
     timeReason: null,
     extraMinutes: null,
     extraNote: null,
+    extraRecovers: false,
     present: null,
     actualStatusTypeId: null,
     segments: [],
@@ -182,6 +183,8 @@ export function applyEntryPatch(
       break;
     case "overtime":
       e.extraMinutes = patch.extraMinutes ? patch.extraMinutes : null; // negativo = retraso
+      // Solo horas positivas pueden recuperar un retraso; sin indicarlo se conserva lo que había.
+      e.extraRecovers = (e.extraMinutes ?? 0) > 0 && (patch.extraRecovers ?? e.extraRecovers ?? false);
       e.extraNote = clean(patch.extraNote);
       break;
     case "segmentAdd":

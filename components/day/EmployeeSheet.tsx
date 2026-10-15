@@ -195,6 +195,7 @@ export function EmployeeSheet({
               <div className="flex items-center gap-2">
                 <p className="min-w-0 flex-1 text-[15px]">
                   {extra !== 0 ? <b className={extra < 0 ? "text-danger" : undefined}>{formatOvertime(extra, true)}</b> : <span className="text-muted">Ninguna</span>}
+                  {day.extraRecovers && <span className="text-success"> · recupera retraso</span>}
                   {day.extraNote && <span className="text-muted"> — {day.extraNote}</span>}
                   {extra === 0 && suggestion !== null && <span className="text-accent"> · salió a las {day.leftAt}</span>}
                 </p>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  clampOvertime, formatOvertime, isValidOvertime, proposeOvertime, sumOvertimeByEmployee, totalOvertime,
+  clampOvertime, delayBalance, formatOvertime, isValidOvertime, proposeOvertime, sumOvertimeByEmployee, totalOvertime,
 } from "@/lib/overtime";
 
 const shift = { shiftStart: "21:30", shiftEnd: "06:30" };
@@ -76,5 +76,32 @@ describe("retrasos", () => {
   it("los totales son netos: el retraso resta", () => {
     expect(totalOvertime([{ extraMinutes: 60 }, { extraMinutes: -30 }, { extraMinutes: null }])).toBe(30);
     expect(sumOvertimeByEmployee([{ employeeId: "a", extraMinutes: -30 }]).get("a")).toBe(-30);
+  });
+});
+
+describe("recuperar retrasos (delayBalance)", () => {
+  it("un retraso de 30 min se recupera con 30 min otro día", () => {
+    const b = delayBalance([
+      { date: "2026-10-13", extraMinutes: -30 },
+      { date: "2026-10-15", extraMinutes: 30, extraRecovers: true },
+    ]);
+    expect(b.owed).toBe(0);
+    expect(b.recoveredFor.get("2026-10-15")).toEqual(["2026-10-13"]);
+  });
+  it("paga primero el más antiguo y deja el resto pendiente", () => {
+    const b = delayBalance([
+      { date: "2026-10-14", extraMinutes: -15 },
+      { date: "2026-10-12", extraMinutes: -30 },
+      { date: "2026-10-16", extraMinutes: 30, extraRecovers: true },
+    ]);
+    expect(b.owed).toBe(15);
+    expect(b.pending).toEqual([{ date: "2026-10-14", minutes: 15 }]);
+  });
+  it("las horas extra normales no recuperan", () => {
+    const b = delayBalance([
+      { date: "2026-10-13", extraMinutes: -30 },
+      { date: "2026-10-15", extraMinutes: 60 },
+    ]);
+    expect(b.owed).toBe(30);
   });
 });

@@ -94,6 +94,7 @@ export interface ReportMember {
   timeReason: string | null;
   extraMinutes: number | null;
   extraNote: string | null;
+  extraRecovers: boolean;
   segments: ReportSegment[];
 }
 
@@ -116,6 +117,8 @@ export interface OvertimeItem {
   name: string;
   minutes: number;
   note: string | null;
+  /** Las horas recuperan un retraso de otra noche (no son horas extra). */
+  recovers?: boolean;
 }
 
 export interface AbsenceGroup {
@@ -221,6 +224,7 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
       timeReason: d.timeReason,
       extraMinutes: d.extraMinutes ? d.extraMinutes : null,
       extraNote: d.extraNote,
+      extraRecovers: d.extraRecovers,
       segments,
     };
   };
@@ -263,7 +267,7 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
   }
   const overtimeItems: OvertimeItem[] = everyone
     .filter((m) => m.extraMinutes || m.extraNote)
-    .map((m) => ({ name: m.name, minutes: m.extraMinutes ?? 0, note: m.extraNote }))
+    .map((m) => ({ name: m.name, minutes: m.extraMinutes ?? 0, note: m.extraNote, recovers: m.extraRecovers }))
     .sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name, "es"));
   lateArrivals.sort((a, b) => a.arrivedAt.localeCompare(b.arrivedAt));
 

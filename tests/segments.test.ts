@@ -173,3 +173,14 @@ describe("Hoy no cambia el planning", () => {
     expect(sat.present).toBe(true);
   });
 });
+
+describe("horas que recuperan un retraso", () => {
+  it("se guarda la marca, se conserva al cambiar los minutos y se pierde si dejan de ser positivas", () => {
+    const a = applyEntryPatch(undefined, emp, MON, statusTypes, { kind: "overtime", extraMinutes: 30, extraNote: null, extraRecovers: true }, "21:30");
+    expect(a.extraRecovers).toBe(true);
+    const b = applyEntryPatch(a, emp, MON, statusTypes, { kind: "overtime", extraMinutes: 45, extraNote: null }, "21:30");
+    expect(b.extraRecovers).toBe(true);
+    const c = applyEntryPatch(b, emp, MON, statusTypes, { kind: "overtime", extraMinutes: -15, extraNote: null, extraRecovers: true }, "21:30");
+    expect(c.extraRecovers).toBe(false);
+  });
+});

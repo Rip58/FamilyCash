@@ -69,11 +69,14 @@ const setOvertimeSchema = z.object({
   ...base,
   extraMinutes: extraMinutesSchema,
   extraNote: optText(200).optional(),
+  extraRecovers: z.boolean().optional(),
 });
 const setOvertimeBulkSchema = z.object({
   date: dateSchema,
   items: z
-    .array(z.object({ employeeId: idSchema, extraMinutes: extraMinutesSchema, extraNote: optText(200).optional() }))
+    .array(
+      z.object({ employeeId: idSchema, extraMinutes: extraMinutesSchema, extraNote: optText(200).optional(), extraRecovers: z.boolean().optional() }),
+    )
     .min(1)
     .max(200),
 });
@@ -106,6 +109,7 @@ function toLite(
     timeReason: string | null;
     extraMinutes: number | null;
     extraNote: string | null;
+    extraRecovers: boolean;
     present: boolean | null;
     actualStatusTypeId: string | null;
     segments: {
@@ -132,6 +136,7 @@ function toLite(
     timeReason: row.timeReason,
     extraMinutes: row.extraMinutes,
     extraNote: row.extraNote,
+    extraRecovers: row.extraRecovers,
     present: row.present,
     actualStatusTypeId: row.actualStatusTypeId,
     segments: row.segments.map((s) => ({ ...s })),
@@ -222,6 +227,7 @@ async function mutateScalar(employeeId: string, date: DateStr, patch: EntryPatch
         timeReason: next.timeReason,
         extraMinutes: next.extraMinutes ?? null,
         extraNote: next.extraNote ?? null,
+        extraRecovers: !!next.extraRecovers,
         present: next.present ?? null,
         actualStatusTypeId: next.actualStatusTypeId ?? null,
       };
@@ -293,7 +299,7 @@ export async function setAttendance(input: z.input<typeof setAttendanceSchema>):
 async function applyOvertime(
   tx: Tx,
   date: DateStr,
-  item: { employeeId: string; extraMinutes: number; extraNote?: string | null },
+  item: { employeeId: string; extraMinutes: number; extraNote?: string | null; extraRecovers?: boolean },
 ) {
   const ctx = await loadContext(tx, item.employeeId, date);
   const next = applyEntryPatch(
@@ -301,7 +307,7 @@ async function applyOvertime(
     ctx.employee,
     date,
     ctx.statusTypes,
-    { kind: "overtime", extraMinutes: item.extraMinutes, extraNote: item.extraNote ?? null },
+    { kind: "overtime", extraMinutes: item.extraMinutes, extraNote: item.extraNote ?? null, extraRecovers: item.extraRecovers },
     ctx.shift.shiftStart,
   );
   await tx.dayEntry.upsert({
@@ -312,8 +318,9 @@ async function applyOvertime(
       statusTypeId: next.statusTypeId,
       extraMinutes: next.extraMinutes ?? null,
       extraNote: next.extraNote ?? null,
+      extraRecovers: !!next.extraRecovers,
     },
-    update: { extraMinutes: next.extraMinutes ?? null, extraNote: next.extraNote ?? null },
+    update: { extraMinutes: next.extraMinutes ?? null, extraNote: next.extraNote ?? null, extraRecovers: !!next.extraRecovers },
   });
   await pruneIfRedundant(tx, item.employeeId, date);
 }

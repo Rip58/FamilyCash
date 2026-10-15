@@ -72,6 +72,8 @@ export interface DayEntryLite {
   /** Horas extra de la noche en minutos (null/ausente = sin horas extra). */
   extraMinutes?: number | null;
   extraNote?: string | null;
+  /** Las horas (positivas) recuperan un retraso de otro día en vez de ser horas extra. */
+  extraRecovers?: boolean;
   /** Hoy: true = validado (ha venido / ausencia confirmada); null/ausente = sin validar. */
   present?: boolean | null;
   /** Hoy: lo que pasó de verdad si no cuadra con el planning (`statusTypeId`); null = como el planning. */
@@ -97,6 +99,8 @@ export interface EffectiveDay {
   timeReason: string | null;
   extraMinutes: number | null;
   extraNote: string | null;
+  /** Recupera un retraso (ver `delayBalance` en lib/overtime.ts). */
+  extraRecovers: boolean;
   /** Validado en Hoy (ha venido, o la ausencia está confirmada). */
   present: boolean;
   /** Estado del planning (Semana) si lo que pasó de verdad no cuadra con él (null = cuadra). */
@@ -172,6 +176,7 @@ export function getEffectiveDay(
     timeReason: entry?.timeReason ?? null,
     extraMinutes: entry?.extraMinutes ?? null,
     extraNote: entry?.extraNote ?? null,
+    extraRecovers: !!entry?.extraRecovers && (entry?.extraMinutes ?? 0) > 0,
     present: entry?.present === true,
     planned: status.id !== plan.id ? plan : null,
     segments: entry ? [...entry.segments].sort((a, b) => a.sortOrder - b.sortOrder) : [],

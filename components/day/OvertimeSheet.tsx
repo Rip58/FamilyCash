@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import type { ActionResult } from "@/app/actions/day";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { cn } from "@/components/ui/cn";
-import { formatOvertime, proposeOvertime, totalOvertime } from "@/lib/overtime";
+import { formatDayMonth } from "@/lib/dates";
+import { type PendingDelay, formatOvertime, proposeOvertime, totalOvertime } from "@/lib/overtime";
 import type { RosterMember } from "@/lib/schedule";
 import type { ShiftTimes } from "@/lib/segments";
 import { OvertimeStepper } from "./OvertimeStepper";
@@ -21,7 +22,11 @@ interface OvertimeSheetProps {
   onClose: () => void;
   groups: OvertimeGroup[];
   shift: ShiftTimes;
-  onSave: (items: { employeeId: string; extraMinutes: number; extraNote: string | null }[]) => Promise<ActionResult>;
+  /** Retrasos de noches anteriores que aún deben recuperar, por empleado. */
+  pendingDelays?: Record<string, PendingDelay[]>;
+  onSave: (
+    items: { employeeId: string; extraMinutes: number; extraNote: string | null; extraRecovers: boolean }[],
+  ) => Promise<ActionResult>;
 }
 
 interface Row {
@@ -29,10 +34,24 @@ interface Row {
   note: string;
   suggested: boolean;
   noteOpen: boolean;
+  /** Las horas (positivas) recuperan su retraso pendiente en vez de ser horas extra. */
+  recovers: boolean;
 }
 
-/** Cierre de turno: horas extra de todos los que trabajan esa noche. */
-export function OvertimeSheet({ open, onClose, groups, shift, onSave }: OvertimeSheetProps) {
+/** «Debe 30 min (13 oct)» o, si las horas de esta noche lo recuperan, lo que queda / «recuperado». */
+function owedLine(p: PendingDelay[], recovering: number): { text: string; done: boolean } {
+  const owed = p.reduce((n, d) => n + d.minutes, 0);
+  const days = p.map((d) => formatDayMonth(d.date)).join(", ");
+  const left = owed - recovering;
+  if (recovering > 0 && left <= 0) return { text: `Recupera el retraso del ${days}`, done: true };
+  return { text: `Debe ${formatOvertime(left)} (retraso del ${days})`, done: false };
+}
+
+/**
+ * Cierre de turno: horas extra (o retraso, en negativo) de todos los que trabajan esa noche. Quien debe un retraso de
+ * otra noche lo ve bajo su nombre, y sus horas positivas pueden marcarse «Recupera retraso» (no son horas extra).
+ */
+export function OvertimeSheet({ open, onClose, groups, shift, pendingDelays = {}, onSave }: OvertimeSheetProps) {
   const initial = useMemo(() => {
     const m = new Map<string, Row>();
     for (const g of groups) {
@@ -44,6 +63,7 @@ export function OvertimeSheet({ open, onClose, groups, shift, onSave }: Overtime
           note: day.extraNote ?? "",
           suggested: !!proposal,
           noteOpen: !!day.extraNote,
+          recovers: stored > 0 ? day.extraRecovers : !!pendingDelays[employee.id],
         });
       }
     }
@@ -58,16 +78,21 @@ export function OvertimeSheet({ open, onClose, groups, shift, onSave }: Overtime
     setRows((cur) => new Map(cur).set(id, { ...cur.get(id)!, ...p }));
 
   const total = totalOvertime([...rows.values()].map((r) => ({ extraMinutes: r.minutes })));
+  const recovering = [...rows.entries()].reduce(
+    (n, [id, r]) => n + (r.minutes > 0 && r.recovers && (pendingDelays[id] || groups.some((g) => g.members.some((m) => m.employee.id === id && m.day.extraRecovers))) ? r.minutes : 0),
+    0,
+  );
 
   const changes = () => {
-    const out: { employeeId: string; extraMinutes: number; extraNote: string | null }[] = [];
+    const out: { employeeId: string; extraMinutes: number; extraNote: string | null; extraRecovers: boolean }[] = [];
     for (const g of groups) {
       for (const { employee, day } of g.members) {
         const r = rows.get(employee.id);
         if (!r) continue;
         const note = r.note.trim();
-        if (r.minutes !== (day.extraMinutes ?? 0) || note !== (day.extraNote ?? "")) {
-          out.push({ employeeId: employee.id, extraMinutes: r.minutes, extraNote: note || null });
+        const recovers = r.minutes > 0 && r.recovers;
+        if (r.minutes !== (day.extraMinutes ?? 0) || note !== (day.extraNote ?? "") || recovers !== day.extraRecovers) {
+          out.push({ employeeId: employee.id, extraMinutes: r.minutes, extraNote: note || null, extraRecovers: recovers });
         }
       }
     }
@@ -97,6 +122,9 @@ export function OvertimeSheet({ open, onClose, groups, shift, onSave }: Overtime
             {total === 0 ? "0" : formatOvertime(total)}
           </span>
         </p>
+        {recovering > 0 && (
+          <p className="px-1 text-[13px] text-success">Incluye {formatOvertime(recovering)} que recuperan retrasos (no son horas extra).</p>
+        )}
         <p className="px-1 text-[13px] text-muted">
           Por debajo de 0 es <span className="font-medium text-danger">retraso</span> (p. ej. si llega tarde): resta horas.
         </p>
@@ -113,8 +141,11 @@ export function OvertimeSheet({ open, onClose, groups, shift, onSave }: Overtime
               {g.name}
             </h3>
             <ul className="divide-y divide-line">
-              {g.members.map(({ employee }) => {
+              {g.members.map(({ employee, day }) => {
                 const r = rows.get(employee.id)!;
+                const owed = pendingDelays[employee.id];
+                // El interruptor sale si debe algo o si ya estaba guardado como recuperación.
+                const canRecover = r.minutes > 0 && (!!owed || day.extraRecovers);
                 return (
                   <li key={employee.id} className="py-1.5">
                     <div className="flex items-center gap-2">
@@ -123,6 +154,11 @@ export function OvertimeSheet({ open, onClose, groups, shift, onSave }: Overtime
                         {r.suggested && (
                           <span className="block text-[12px] text-accent">Sugerido por hora de salida</span>
                         )}
+                        {owed &&
+                          (() => {
+                            const l = owedLine(owed, r.recovers && r.minutes > 0 ? r.minutes : 0);
+                            return <span className={cn("block text-[12px]", l.done ? "text-success" : "text-danger")}>{l.text}</span>;
+                          })()}
                       </span>
                       <OvertimeStepper
                         compact
@@ -144,6 +180,24 @@ export function OvertimeSheet({ open, onClose, groups, shift, onSave }: Overtime
                         <span aria-hidden>💬</span>
                       </button>
                     </div>
+                    {canRecover && (
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={r.recovers}
+                        onClick={() => patch(employee.id, { recovers: !r.recovers })}
+                        className={cn(
+                          "mt-1.5 flex min-h-11 w-full items-center gap-2 rounded-control px-3 text-left text-[14px] font-medium",
+                          r.recovers ? "bg-success/15 text-success" : "bg-surface-2 text-muted",
+                        )}
+                      >
+                        <span aria-hidden className="text-[16px]">↺</span>
+                        <span className="flex-1">
+                          {r.recovers ? "Recupera retraso (no son horas extra)" : "¿Es para recuperar el retraso?"}
+                        </span>
+                        <span aria-hidden>{r.recovers ? "Sí" : "No"}</span>
+                      </button>
+                    )}
                     {r.noteOpen && (
                       <input
                         type="text"

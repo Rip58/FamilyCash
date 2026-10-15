@@ -20,7 +20,7 @@ import {
   type ActionResult,
 } from "@/app/actions/day";
 import { type DateStr, madridParts } from "@/lib/dates";
-import { formatOvertime, totalOvertime } from "@/lib/overtime";
+import { type PendingDelay, formatOvertime, totalOvertime } from "@/lib/overtime";
 import type { NoteView } from "@/lib/notes";
 import { statusAbbr } from "@/lib/week";
 import {
@@ -52,6 +52,8 @@ interface DayViewProps {
   notes: NoteView[];
   /** La fecha mostrada es la noche operativa actual. */
   isToday?: boolean;
+  /** Retrasos que aún deben recuperar (de noches anteriores), por empleado. */
+  pendingDelays?: Record<string, PendingDelay[]>;
 }
 
 const subscribeNever = () => () => {};
@@ -64,7 +66,7 @@ interface OptimisticAction {
   patch: EntryPatch;
 }
 
-export function DayView({ date, shift, employees, departments, statusTypes, sections, entries, notes, isToday = false }: DayViewProps) {
+export function DayView({ date, shift, employees, departments, statusTypes, sections, entries, notes, isToday = false, pendingDelays = {} }: DayViewProps) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ id: string; open: boolean } | null>(null);
@@ -468,6 +470,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
           onClose={() => setCloseSheet((s) => ({ ...s, open: false }))}
           groups={closeGroups}
           shift={shift}
+          pendingDelays={pendingDelays}
           onSave={async (items) => {
             const r = await setOvertimeBulkAction({ date, items });
             if (!r.ok) setError(r.error);

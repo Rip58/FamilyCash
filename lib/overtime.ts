@@ -68,3 +68,59 @@ export function sumOvertimeByEmployee(entries: WithExtra[]): Map<string, number>
   }
   return out;
 }
+
+// ---- Retrasos y su recuperación -------------------------------------------
+
+export interface DelayEntry {
+  date: string;
+  extraMinutes: number | null | undefined;
+  extraRecovers?: boolean;
+}
+
+export interface PendingDelay {
+  date: string;
+  /** Minutos que aún faltan por recuperar de ese retraso. */
+  minutes: number;
+}
+
+export interface DelayBalance {
+  /** Total que aún debe (minutos, ≥ 0). */
+  owed: number;
+  /** Retrasos con algo pendiente, del más antiguo al más nuevo. */
+  pending: PendingDelay[];
+  /** Para cada día que recupera: los días de retraso que paga. */
+  recoveredFor: Map<string, string[]>;
+}
+
+/**
+ * Retrasos (minutos negativos) y lo que los recupera (minutos positivos marcados `extraRecovers`) de una persona.
+ * La recuperación paga primero el retraso más antiguo; lo que sobre no cuenta como deuda negativa.
+ */
+export function delayBalance(entries: DelayEntry[]): DelayBalance {
+  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+  const pending: PendingDelay[] = [];
+  const recoveredFor = new Map<string, string[]>();
+  let credit = 0; // recuperado por adelantado (sin retraso que pagar todavía)
+  for (const e of sorted) {
+    const m = e.extraMinutes ?? 0;
+    if (m < 0) {
+      const use = Math.min(credit, -m);
+      credit -= use;
+      if (-m - use > 0) pending.push({ date: e.date, minutes: -m - use });
+    } else if (m > 0 && e.extraRecovers) {
+      let left = m;
+      const paid: string[] = [];
+      while (left > 0 && pending.length > 0) {
+        const d = pending[0]!;
+        const use = Math.min(left, d.minutes);
+        d.minutes -= use;
+        left -= use;
+        if (!paid.includes(d.date)) paid.push(d.date);
+        if (d.minutes === 0) pending.shift();
+      }
+      credit += left;
+      recoveredFor.set(e.date, paid);
+    }
+  }
+  return { owed: pending.reduce((n, d) => n + d.minutes, 0), pending, recoveredFor };
+}
