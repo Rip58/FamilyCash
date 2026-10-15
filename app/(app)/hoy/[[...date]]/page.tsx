@@ -4,6 +4,8 @@ import { DayView } from "@/components/day/DayView";
 import { cn } from "@/components/ui/cn";
 import { addDays, formatDayLong, isDateStr, operationalToday } from "@/lib/dates";
 import { getNotes } from "@/lib/note-queries";
+import { getLoggedAbsences } from "@/lib/absence-log";
+import { db } from "@/lib/db";
 import { getGroupCovers } from "@/lib/group-covers";
 import { getPendingDelays } from "@/lib/overtime-queries";
 import { getDepartments, getEmployees, getEntriesBetween, getSections, getSettings, getStatusTypes } from "@/lib/queries";
@@ -23,7 +25,7 @@ export default async function Page({ params }: { params: Promise<{ date?: string
   const date = segs ? segs[0]! : today;
   const isToday = date === today;
 
-  const [employees, departments, statusTypes, sections, entries, notes, pendingDelays, groupCovers] = await Promise.all([
+  const [employees, departments, statusTypes, sections, entries, notes, pendingDelays, groupCovers, loggedAbsences] = await Promise.all([
     getEmployees(),
     getDepartments(),
     getStatusTypes(),
@@ -33,6 +35,7 @@ export default async function Page({ params }: { params: Promise<{ date?: string
     getNotes(date, date),
     getPendingDelays(date),
     getGroupCovers(date, date),
+    getLoggedAbsences(db, date, date),
   ]);
 
   const title = `${formatDayLong(date)} · ${settings.shiftStart}–${settings.shiftEnd}`;
@@ -87,6 +90,7 @@ export default async function Page({ params }: { params: Promise<{ date?: string
         notes={notes}
         pendingDelays={pendingDelays}
         groupDepartmentIds={groupCovers.map((g) => g.departmentId)}
+        loggedAbsences={loggedAbsences}
       />
     </div>
   );

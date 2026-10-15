@@ -249,6 +249,36 @@ export interface DayRosterInput {
   statusTypes: StatusTypeLite[];
   /** Marcas «Grupo» (departamento sin nadie que hacen los compañeros); pueden venir de otros días. */
   groupCovers?: { date: DateStr; departmentId: string }[];
+  /** Registro de faltas (`Absence`): una falta ya resuelta en Semana sigue saliendo como falta esa noche. */
+  loggedAbsences?: LoggedAbsence[];
+}
+
+/** Una falta del registro, para mostrarla en Hoy e Informe aunque luego el planning la cambiara a fiesta. */
+export interface LoggedAbsence {
+  employeeId: string;
+  date: DateStr;
+  statusLabel: string;
+  reason: string | null;
+  notified: boolean | null;
+  resolution: string | null;
+  resolutionNote: string | null;
+}
+
+/**
+ * FALTA QUE QUEDA: si una noche alguien faltó y después se resolvió en Semana (cambiada por su fiesta, 2 días de
+ * fiesta…), el planning ya dice fiesta, pero en Hoy e Informe esa noche SIGUE saliendo como falta (con si avisó y cómo
+ * se resolvió). Solo al mostrar: Semana y nómina siguen con el planning.
+ */
+export function withLoggedAbsence(day: EffectiveDay, a: LoggedAbsence | undefined, statusTypes: StatusTypeLite[]): EffectiveDay {
+  if (!a || !a.resolution || day.isWorking) return day;
+  // Ya sale como falta (sin resolver todavía): nada que hacer.
+  if (day.status.code === "ABSENT" || day.planned?.isWorking) return day;
+  const status =
+    statusTypes.find((s) => !s.isWorking && s.label === a.statusLabel) ?? statusTypes.find((s) => s.code === "ABSENT");
+  if (!status) return day;
+  const notice = a.notified === false ? "no avisó" : a.notified === true ? "avisó" : null;
+  const reason = [a.reason, notice, a.resolutionNote].filter(Boolean).join(" · ") || null;
+  return { ...day, status, isWorking: false, isDayOff: false, reason, planned: null };
 }
 
 /**
@@ -289,11 +319,16 @@ export function getDayRoster(input: DayRosterInput): DayRoster {
   const departments = input.departments.filter((d) => d.active !== false).sort(byOrderThenName);
   const deptIds = new Set(departments.map((d) => d.id));
   const byGroupIds = new Set((input.groupCovers ?? []).filter((g) => g.date === date).map((g) => g.departmentId));
+  const logged = new Map((input.loggedAbsences ?? []).filter((a) => a.date === date).map((a) => [a.employeeId, a]));
   const employees = input.employees.filter((e) => e.active).sort(byOrderThenName);
 
   const members: RosterMember[] = employees.map((employee) => ({
     employee,
-    day: vacationWeekDay(employee, getEffectiveDay(employee, date, entries.get(`${employee.id}|${date}`), statusTypes), allEntries, statusTypes),
+    day: withLoggedAbsence(
+      vacationWeekDay(employee, getEffectiveDay(employee, date, entries.get(`${employee.id}|${date}`), statusTypes), allEntries, statusTypes),
+      logged.get(employee.id),
+      statusTypes,
+    ),
   }));
 
   const deptRosters: DepartmentRoster[] = departments.map((department) => {

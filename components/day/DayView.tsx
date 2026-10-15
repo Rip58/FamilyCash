@@ -27,6 +27,7 @@ import {
   type DayEntryLite,
   type DepartmentLite,
   type EmployeeLite,
+  type LoggedAbsence,
   type RosterMember,
   type StatusTypeLite,
   getDayRoster,
@@ -57,6 +58,8 @@ interface DayViewProps {
   pendingDelays?: Record<string, PendingDelay[]>;
   /** Departamentos sin nadie que esta noche hace el «Grupo». */
   groupDepartmentIds?: string[];
+  /** Faltas del registro de esta noche (una falta resuelta en Semana sigue saliendo como falta). */
+  loggedAbsences?: LoggedAbsence[];
 }
 
 const subscribeNever = () => () => {};
@@ -81,6 +84,7 @@ export function DayView({
   isToday = false,
   pendingDelays = {},
   groupDepartmentIds = [],
+  loggedAbsences = [],
 }: DayViewProps) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -137,8 +141,9 @@ export function DayView({
         departments,
         statusTypes,
         groupCovers: groupIds.map((departmentId) => ({ date, departmentId })),
+        loggedAbsences,
       }),
-    [date, employees, optEntries, departments, statusTypes, groupIds],
+    [date, employees, optEntries, departments, statusTypes, groupIds, loggedAbsences],
   );
   const deptMap = useMemo(() => new Map(departments.map((d) => [d.id, d])), [departments]);
   const sectionNames = useMemo(() => new Map(sections.map((s) => [s.id, s.name])), [sections]);

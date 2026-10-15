@@ -288,4 +288,24 @@ describe("exportación visual", () => {
     const roster = getDayRoster({ date: MON, employees, entries: [entry("Ana", MON, WORK)], departments, statusTypes, groupCovers: [{ date: MON, departmentId: "drog" }] });
     expect(roster.groupDepartments).toEqual([]);
   });
+  it("una falta resuelta en Semana (cambiada por su fiesta) sigue saliendo como falta esa noche", () => {
+    // El planning ya dice fiesta (resuelta) y se quitó lo de Hoy; el registro de faltas guarda que faltó sin avisar.
+    const employees = [emp("Cintya")];
+    const entries = [entry("Cintya", MON, OFF)];
+    const loggedAbsences = [
+      { employeeId: "Cintya", date: MON, statusLabel: "Falta", reason: null, notified: false, resolution: "SWAP", resolutionNote: "cambiada por la fiesta del jue 1 oct" },
+    ];
+    const roster = getDayRoster({ date: MON, employees, entries, departments, statusTypes, loggedAbsences });
+    const day = roster.absentByStatus.flatMap((g) => g.members)[0]!.day;
+    expect(day.status.code).toBe("ABSENT");
+    expect(day.reason).toBe("no avisó · cambiada por la fiesta del jue 1 oct");
+    const m = buildShareModel(buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments }));
+    expect(m.off).toEqual([]);
+    expect(m.missing.map((x) => x.name)).toEqual(["Cintya"]);
+    // Sin resolver todavía (sin resolution) o si al final trabajó, no se toca.
+    const sinResolver = getDayRoster({ date: MON, employees, entries, departments, statusTypes, loggedAbsences: [{ ...loggedAbsences[0]!, resolution: null }] });
+    expect(sinResolver.absentByStatus.flatMap((g) => g.members)[0]!.day.status.code).toBe("OFF");
+    const trabajo = getDayRoster({ date: MON, employees, entries: [entry("Cintya", MON, WORK)], departments, statusTypes, loggedAbsences });
+    expect(trabajo.presentCount).toBe(1);
+  });
 });

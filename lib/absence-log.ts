@@ -1,8 +1,8 @@
 /** Registro de faltas (`Absence`, solo servidor): queda constancia aunque luego se cambie el día. */
 import type { db } from "./db";
 import { type AbsenceResolution, absenceSyncAction } from "./absence";
-import { type DateStr, toDbDate } from "./dates";
-import type { EffectiveDay } from "./schedule";
+import { type DateStr, fromDbDate, toDbDate } from "./dates";
+import type { EffectiveDay, LoggedAbsence } from "./schedule";
 
 type Db = Pick<typeof db, "absence">;
 
@@ -70,4 +70,13 @@ export async function setAbsenceNotified(
       update: { notified: input.notified },
     }),
   );
+}
+
+/** Faltas del registro entre dos fechas (para Hoy e Informe: `getDayRoster({ loggedAbsences })`). */
+export async function getLoggedAbsences(database: Pick<typeof db, "absence">, from: DateStr, to: DateStr): Promise<LoggedAbsence[]> {
+  const rows = await database.absence.findMany({
+    where: { date: { gte: toDbDate(from), lte: toDbDate(to) } },
+    select: { employeeId: true, date: true, statusLabel: true, reason: true, notified: true, resolution: true, resolutionNote: true },
+  });
+  return rows.map((r) => ({ ...r, date: fromDbDate(r.date) }));
 }

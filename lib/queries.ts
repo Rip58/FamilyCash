@@ -4,6 +4,7 @@
  */
 import { unstable_cache } from "next/cache";
 import { db } from "./db";
+import { getLoggedAbsences } from "./absence-log";
 import { getGroupCovers } from "./group-covers";
 import { type DateStr, addDays, fromDbDate, toDbDate, weekDays } from "./dates";
 import {
@@ -124,7 +125,8 @@ export async function loadDayRoster(date: DateStr): Promise<DayRoster> {
     getStatusTypes(),
     getEntriesBetween(addDays(date, -7), addDays(date, 7)),
   ]);
-  return getDayRoster({ date, employees, entries, departments, statusTypes, groupCovers: await getGroupCovers(date, date) });
+  const [groupCovers, loggedAbsences] = await Promise.all([getGroupCovers(date, date), getLoggedAbsences(db, date, date)]);
+  return getDayRoster({ date, employees, entries, departments, statusTypes, groupCovers, loggedAbsences });
 }
 
 /** Cuadrícula empleados x 7 días de la semana que contiene `date`. */
