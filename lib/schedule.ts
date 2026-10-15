@@ -216,6 +216,8 @@ export interface DepartmentRoster {
   isEmpty: boolean;
   /** Hay alguien pero menos que `targetStaff` (0 < cubierto < plazas). */
   isUnderStaffed: boolean;
+  /** Sin nadie, pero marcado «Grupo»: esa noche lo hacen entre los compañeros (no es vacío). */
+  byGroup: boolean;
 }
 
 export interface AbsentGroup {
@@ -235,6 +237,8 @@ export interface DayRoster {
   countsByStatus: { status: StatusTypeLite; count: number }[];
   emptyDepartments: DepartmentLite[];
   underStaffedDepartments: DepartmentLite[];
+  /** Departamentos sin nadie que esa noche hace el «Grupo». */
+  groupDepartments: DepartmentLite[];
 }
 
 export interface DayRosterInput {
@@ -243,6 +247,8 @@ export interface DayRosterInput {
   entries: DayEntryLite[];
   departments: DepartmentLite[];
   statusTypes: StatusTypeLite[];
+  /** Marcas «Grupo» (departamento sin nadie que hacen los compañeros); pueden venir de otros días. */
+  groupCovers?: { date: DateStr; departmentId: string }[];
 }
 
 /**
@@ -282,6 +288,7 @@ export function getDayRoster(input: DayRosterInput): DayRoster {
   const entries = entryMap(input.entries.filter((e) => e.date === date));
   const departments = input.departments.filter((d) => d.active !== false).sort(byOrderThenName);
   const deptIds = new Set(departments.map((d) => d.id));
+  const byGroupIds = new Set((input.groupCovers ?? []).filter((g) => g.date === date).map((g) => g.departmentId));
   const employees = input.employees.filter((e) => e.active).sort(byOrderThenName);
 
   const members: RosterMember[] = employees.map((employee) => ({
@@ -295,6 +302,8 @@ export function getDayRoster(input: DayRosterInput): DayRoster {
     const absent = mine.filter((m) => !m.day.isWorking);
     const covering = members.filter((m) => m.day.isWorking && m.day.extraDepartmentIds.includes(department.id));
     const staffed = present.length + covering.length;
+    // «Grupo» solo cuenta si de verdad no hay nadie (si luego se pone a alguien, manda la persona).
+    const byGroup = staffed === 0 && byGroupIds.has(department.id);
     return {
       department,
       present,
@@ -303,8 +312,9 @@ export function getDayRoster(input: DayRosterInput): DayRoster {
       staffed,
       targetStaff: department.targetStaff,
       // Los secundarios (tareas de todos) nunca dan aviso de vacío o de faltar gente.
-      isEmpty: staffed === 0 && !department.secondary,
+      isEmpty: staffed === 0 && !department.secondary && !byGroup,
       isUnderStaffed: !department.secondary && staffed > 0 && staffed < department.targetStaff,
+      byGroup,
     };
   });
 
@@ -340,6 +350,7 @@ export function getDayRoster(input: DayRosterInput): DayRoster {
     countsByStatus,
     emptyDepartments: deptRosters.filter((d) => d.isEmpty).map((d) => d.department),
     underStaffedDepartments: deptRosters.filter((d) => d.isUnderStaffed).map((d) => d.department),
+    groupDepartments: deptRosters.filter((d) => d.byGroup).map((d) => d.department),
   };
 }
 

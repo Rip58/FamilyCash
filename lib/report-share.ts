@@ -105,7 +105,9 @@ export function buildShareModel(report: DayReport): ShareModel {
     name: d.name,
     color: d.color,
     // Los que vienen a cubrirlo también (p. ej. hace Droguería y además Cervezas), sin repetir sus horarios.
-    members: [...d.members.map(member), ...d.covering.map((m) => ({ name: m.name, tags: [] }))],
+    members: d.byGroup
+      ? [{ name: "Grupo", tags: [] }]
+      : [...d.members.map(member), ...d.covering.map((m) => ({ name: m.name, tags: [] }))],
   }));
   if (report.unassigned.length > 0) {
     working.push({ name: "Sin departamento", color: "#8e8e93", members: report.unassigned.map(member), unassigned: true });

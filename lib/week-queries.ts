@@ -3,6 +3,7 @@
  * los 7 días; la cuadrícula y los rosters diarios salen de lib/schedule.ts.
  */
 import { db } from "./db";
+import { getGroupCovers } from "./group-covers";
 import { type DateStr, addDays, fromDbDate, operationalToday, toDbDate, weekDays } from "./dates";
 import { getDepartments, getEmployees, getEntriesBetween, getSettings, getStatusTypes } from "./queries";
 import { type DayRoster, type WeekGrid, getDayRoster, getWeekGrid } from "./schedule";
@@ -46,7 +47,8 @@ export async function loadWeekData(requested: DateStr | null): Promise<WeekData>
     statusTypes,
     daysOffPerWeek: settings.daysOffPerWeek,
   });
-  const rosters = days.map((d) => getDayRoster({ date: d, employees, entries, departments, statusTypes }));
+  const groupCovers = await getGroupCovers(days[0]!, days[6]!);
+  const rosters = days.map((d) => getDayRoster({ date: d, employees, entries, departments, statusTypes, groupCovers }));
   return {
     weekStart: days[0]!,
     days,

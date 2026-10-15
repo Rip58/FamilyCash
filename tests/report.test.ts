@@ -269,4 +269,23 @@ describe("exportación visual", () => {
     const pdf = pdfShareModel(report).notes.flatMap((g) => g.items);
     expect(pdf).toEqual(["Sin foto", "📷 2 notas con foto: en las páginas siguientes"]);
   });
+  it("«Grupo»: departamento sin nadie que hacen los compañeros: no es vacío, sale en el informe y no cuenta como persona", () => {
+    const deps = [...departments, dep("cer", "Cervezas", 2, 1)];
+    const employees = [emp("Ana"), emp("Pau", { defaultDepartmentId: "bot" })];
+    const entries = employees.map((e) => entry(e.id, MON, WORK));
+    const sinGrupo = getDayRoster({ date: MON, employees, entries, departments: deps, statusTypes });
+    expect(sinGrupo.emptyDepartments.map((d) => d.name)).toEqual(["Cervezas"]);
+    const roster = getDayRoster({ date: MON, employees, entries, departments: deps, statusTypes, groupCovers: [{ date: MON, departmentId: "cer" }, { date: "2026-09-29", departmentId: "bot" }] });
+    expect(roster.emptyDepartments).toEqual([]);
+    expect(roster.groupDepartments.map((d) => d.name)).toEqual(["Cervezas"]);
+    const m = buildShareModel(buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments: deps }));
+    expect(m.working.find((d) => d.name === "Cervezas")?.members.map((x) => x.name)).toEqual(["Grupo"]);
+    expect(m.counts.working).toBe(2);
+    expect(shareModelToText(m)).toContain("Cervezas: Grupo");
+  });
+  it("«Grupo» no cuenta si al final hay alguien en el departamento", () => {
+    const employees = [emp("Ana")];
+    const roster = getDayRoster({ date: MON, employees, entries: [entry("Ana", MON, WORK)], departments, statusTypes, groupCovers: [{ date: MON, departmentId: "drog" }] });
+    expect(roster.groupDepartments).toEqual([]);
+  });
 });

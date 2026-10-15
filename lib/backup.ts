@@ -43,6 +43,7 @@ export const BACKUP_TABLES = [
   "absence",
   "reminder",
   "meetingTopic",
+  "groupCover",
 ] as const;
 
 export type BackupTable = (typeof BACKUP_TABLES)[number];
@@ -78,6 +79,7 @@ export async function exportBackup(db: PrismaClient): Promise<BackupFile> {
     nightNotePhoto: () => db.nightNotePhoto.findMany(),
     reminder: () => db.reminder.findMany(),
     meetingTopic: () => db.meetingTopic.findMany(),
+    groupCover: () => db.groupCover.findMany(),
     absence: () => db.absence.findMany(),
   };
   const tables = {} as Record<BackupTable, Row[]>;
@@ -130,6 +132,7 @@ export async function restoreBackup(db: PrismaClient, backup: BackupFile): Promi
     nightNotePhoto: (tx) => tx.nightNotePhoto.createMany({ data: t.nightNotePhoto as any }),
     reminder: (tx) => tx.reminder.createMany({ data: t.reminder as any }),
     meetingTopic: (tx) => tx.meetingTopic.createMany({ data: t.meetingTopic as any }),
+    groupCover: (tx) => tx.groupCover.createMany({ data: t.groupCover as any }),
     absence: (tx) => tx.absence.createMany({ data: (t.absence ?? []) as any }),
   };
   /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -153,6 +156,7 @@ export async function restoreBackup(db: PrismaClient, backup: BackupFile): Promi
     nightNotePhoto: (tx) => tx.nightNotePhoto.deleteMany(),
     reminder: (tx) => tx.reminder.deleteMany(),
     meetingTopic: (tx) => tx.meetingTopic.deleteMany(),
+    groupCover: (tx) => tx.groupCover.deleteMany(),
     absence: (tx) => tx.absence.deleteMany(),
   };
   return db.$transaction(

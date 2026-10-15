@@ -142,6 +142,8 @@ export interface ReportDepartment {
   members: ReportMember[];
   /** Vienen de otro departamento a cubrir también éste (`extraDepartmentIds`); ya cuentan en el suyo. */
   covering: ReportMember[];
+  /** Sin nadie: esa noche lo hace el «Grupo» (los compañeros). No cuenta como persona. */
+  byGroup: boolean;
 }
 
 export interface DayReport {
@@ -230,7 +232,7 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
   };
 
   const departments: ReportDepartment[] = roster.departments
-    .filter((r) => r.present.length > 0 || r.covering.length > 0)
+    .filter((r) => r.present.length > 0 || r.covering.length > 0 || r.byGroup)
     .map((r) => ({
       id: r.department.id,
       name: r.department.name,
@@ -239,6 +241,7 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
       targetStaff: r.targetStaff,
       members: r.present.map(toMember),
       covering: r.covering.map(toMember),
+      byGroup: r.byGroup,
     }));
   const unassigned = roster.unassigned.map(toMember);
 

@@ -19,6 +19,7 @@ import {
   operationalToday,
   weekDays,
 } from "@/lib/dates";
+import { getGroupCovers } from "@/lib/group-covers";
 import { getNotes, getPendingTasksBefore } from "@/lib/note-queries";
 import { noteLabel, noteLine, noteWho } from "@/lib/notes";
 import { getDepartments, getEmployees, getEntriesBetween, getSections, getSettings, getStatusTypes } from "@/lib/queries";
@@ -80,7 +81,7 @@ export default async function Page({
 
   if (view === "dia") {
     const [entries, notes] = await Promise.all([getEntriesBetween(addDays(date, -7), addDays(date, 7)), getNotes(date, date)]);
-    const roster = getDayRoster({ date, employees, entries, departments, statusTypes });
+    const roster = getDayRoster({ date, employees, entries, departments, statusTypes, groupCovers: await getGroupCovers(date, date) });
     const report = buildDayReport({ roster, shift: settings, sections, departments, notes });
     title = formatDayLong(date);
     subtitle = `Turno ${settings.shiftStart}–${settings.shiftEnd} · ${report.presentCount} trabajan`;
@@ -129,7 +130,8 @@ export default async function Page({
       statusTypes,
       daysOffPerWeek: settings.daysOffPerWeek,
     });
-    const rosters = days.map((d) => getDayRoster({ date: d, employees, entries, departments, statusTypes }));
+    const groupCovers = await getGroupCovers(days[0]!, days[6]!);
+    const rosters = days.map((d) => getDayRoster({ date: d, employees, entries, departments, statusTypes, groupCovers }));
     const summary = buildWeekSummary({ date, grid, statusTypes, rosters, shift: settings, notes });
     title = `Semana ${isoWeekNumber(days[0]!)}`;
     subtitle = formatWeekRange(date);

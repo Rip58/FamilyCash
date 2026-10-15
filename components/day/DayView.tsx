@@ -6,7 +6,7 @@ import { NoteSheet } from "@/components/notes/NoteSheet";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/components/ui/cn";
 import { ActionMenu } from "@/components/ui/ActionMenu";
-import { tint } from "@/components/ui/icons";
+import { Icon, tint } from "@/components/ui/icons";
 import {
   addSegment as addSegmentAction,
   deleteSegment as deleteSegmentAction,
@@ -33,6 +33,7 @@ import {
 } from "@/lib/schedule";
 import { type EntryPatch, type ShiftTimes, applyEntryPatch } from "@/lib/segments";
 import { setAbsenceNotice } from "@/app/actions/absences";
+import { setGroupCover } from "@/app/actions/group";
 import { AbsentSheet } from "./AbsentSheet";
 import { EmployeeRow } from "./EmployeeRow";
 import { EmployeeSheet } from "./EmployeeSheet";
@@ -54,6 +55,8 @@ interface DayViewProps {
   isToday?: boolean;
   /** Retrasos que aún deben recuperar (de noches anteriores), por empleado. */
   pendingDelays?: Record<string, PendingDelay[]>;
+  /** Departamentos sin nadie que esta noche hace el «Grupo». */
+  groupDepartmentIds?: string[];
 }
 
 const subscribeNever = () => () => {};
@@ -66,7 +69,19 @@ interface OptimisticAction {
   patch: EntryPatch;
 }
 
-export function DayView({ date, shift, employees, departments, statusTypes, sections, entries, notes, isToday = false, pendingDelays = {} }: DayViewProps) {
+export function DayView({
+  date,
+  shift,
+  employees,
+  departments,
+  statusTypes,
+  sections,
+  entries,
+  notes,
+  isToday = false,
+  pendingDelays = {},
+  groupDepartmentIds = [],
+}: DayViewProps) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ id: string; open: boolean } | null>(null);
@@ -102,9 +117,28 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
     return existing ? cur.map((e) => (e === existing ? next : e)) : [...cur, next];
   });
 
+  // «Grupo»: departamentos sin nadie que hacen entre los compañeros (con respuesta inmediata al tocar).
+  const [groupIds, applyGroup] = useOptimistic(groupDepartmentIds, (cur: string[], a: { id: string; on: boolean }) =>
+    a.on ? [...cur.filter((x) => x !== a.id), a.id] : cur.filter((x) => x !== a.id),
+  );
+  const setGroup = (departmentId: string, on: boolean) =>
+    startTransition(async () => {
+      applyGroup({ id: departmentId, on });
+      const r = await setGroupCover({ date, departmentId, on });
+      if (!r.ok) setError(r.error);
+    });
+
   const roster = useMemo(
-    () => getDayRoster({ date, employees, entries: optEntries, departments, statusTypes }),
-    [date, employees, optEntries, departments, statusTypes],
+    () =>
+      getDayRoster({
+        date,
+        employees,
+        entries: optEntries,
+        departments,
+        statusTypes,
+        groupCovers: groupIds.map((departmentId) => ({ date, departmentId })),
+      }),
+    [date, employees, optEntries, departments, statusTypes, groupIds],
   );
   const deptMap = useMemo(() => new Map(departments.map((d) => [d.id, d])), [departments]);
   const sectionNames = useMemo(() => new Map(sections.map((s) => [s.id, s.name])), [sections]);
@@ -249,7 +283,7 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
   // Una burbuja por departamento (donde trabaja hoy) + "Sin departamento".
   const groups = [
     ...roster.departments
-      .filter((d) => d.present.length > 0 || d.covering.length > 0 || d.isEmpty)
+      .filter((d) => d.present.length > 0 || d.covering.length > 0 || d.isEmpty || d.byGroup)
       // Los que se han quedado sin nadie, arriba (son los que hay que resolver).
       .sort((a, b) => Number(b.isEmpty) - Number(a.isEmpty))
       .map((d) => ({
@@ -262,9 +296,10 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
         target: d.targetStaff,
         isEmpty: d.isEmpty,
         isUnder: d.isUnderStaffed,
+        byGroup: d.byGroup,
       })),
     ...(roster.unassigned.length > 0
-      ? [{ id: "none", name: "Sin departamento", color: null, members: [...roster.unassigned].sort(byOrder), staffed: roster.unassigned.length, target: 0, isEmpty: false, isUnder: false }]
+      ? [{ id: "none", name: "Sin departamento", color: null, members: [...roster.unassigned].sort(byOrder), staffed: roster.unassigned.length, target: 0, isEmpty: false, isUnder: false, byGroup: false }]
       : []),
   ];
   const confirmed = expected.filter((m) => m.day.present).length;
@@ -404,16 +439,47 @@ export function DayView({ date, shift, employees, departments, statusTypes, sect
                         ✓ {came}/{g.members.length}
                       </span>
                     )}
-                    {g.target > 0 && (
-                      <span className={cn(g.isEmpty ? "text-danger" : g.isUnder && "text-warning")}>
-                        {g.staffed}/{g.target} plazas
-                      </span>
+                    {g.byGroup ? (
+                      <span className="text-success">Grupo</span>
+                    ) : (
+                      g.target > 0 && (
+                        <span className={cn(g.isEmpty ? "text-danger" : g.isUnder && "text-warning")}>
+                          {g.staffed}/{g.target} plazas
+                        </span>
+                      )
                     )}
                   </>
                 }
               >
                 {g.isEmpty ? (
-                  <p className="px-3.5 py-2 text-[14px] font-semibold text-danger">Sin personal</p>
+                  <div className="flex items-center gap-2 px-3.5 py-1">
+                    <p className="flex-1 text-[14px] font-semibold text-danger">Sin personal</p>
+                    <button
+                      type="button"
+                      onClick={() => setGroup(g.id, true)}
+                      className="press flex min-h-11 items-center gap-1.5 rounded-control bg-accent/15 px-3 text-[14px] font-semibold text-accent"
+                    >
+                      <Icon name="users" className="h-4 w-4" strokeWidth={2.2} />
+                      Lo hace el grupo
+                    </button>
+                  </div>
+                ) : g.byGroup ? (
+                  <div className="flex items-center gap-2 px-3.5 py-1">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-success text-white">
+                      <Icon name="users" className="h-3.5 w-3.5" strokeWidth={2.4} />
+                    </span>
+                    <p className="min-w-0 flex-1 text-[14px]">
+                      <b>Grupo</b> <span className="text-muted">· lo hacen los compañeros</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setGroup(g.id, false)}
+                      aria-label={`Quitar «Grupo» de ${g.name}`}
+                      className="min-h-11 px-2 text-[13px] font-medium text-muted"
+                    >
+                      Quitar
+                    </button>
+                  </div>
                 ) : (
                   g.members.map((m) => row(m, g.id))
                 )}
