@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { isDateStr, isMonthStr, toDbDate } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { requireOwner } from "@/lib/session";
 
 export type PayrollActionResult = { ok: true } | { ok: false; error: string };
 
@@ -62,6 +63,7 @@ function revalidate() {
 }
 
 export async function savePayrollSettings(input: z.input<typeof settingsSchema>): Promise<PayrollActionResult> {
+  await requireOwner();
   const p = settingsSchema.safeParse(input);
   if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Datos no válidos." };
   if (p.data.employeeId && !(await db.employee.findUnique({ where: { id: p.data.employeeId } }))) {
@@ -74,6 +76,7 @@ export async function savePayrollSettings(input: z.input<typeof settingsSchema>)
 
 /** Guarda el registro del mes; si todo queda vacío (automático), lo borra. */
 export async function savePayslip(input: z.input<typeof payslipSchema>): Promise<PayrollActionResult> {
+  await requireOwner();
   const p = payslipSchema.safeParse(input);
   if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Datos no válidos." };
   const { month, ...data } = p.data;
@@ -87,6 +90,7 @@ export async function savePayslip(input: z.input<typeof payslipSchema>): Promise
 }
 
 export async function savePayrollPeriod(input: z.input<typeof periodSchema>): Promise<PayrollActionResult> {
+  await requireOwner();
   const p = periodSchema.safeParse(input);
   if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Datos no válidos." };
   const { id, from, to, ...money } = p.data;
@@ -98,6 +102,7 @@ export async function savePayrollPeriod(input: z.input<typeof periodSchema>): Pr
 }
 
 export async function deletePayrollPeriod(id: string): Promise<PayrollActionResult> {
+  await requireOwner();
   const p = z.string().min(1).max(64).safeParse(id);
   if (!p.success) return { ok: false, error: "Datos no válidos." };
   await db.payrollPeriod.deleteMany({ where: { id: p.data } });

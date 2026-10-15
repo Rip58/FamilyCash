@@ -6,6 +6,7 @@ import { z } from "zod";
 import { isDateStr, madridToday, toDbDate } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { MAX_MEETING_TEXT } from "@/lib/meetings";
+import { requireOwner } from "@/lib/session";
 
 export type MeetingResult = { ok: true } | { ok: false; error: string };
 
@@ -26,6 +27,7 @@ function revalidate() {
 }
 
 export async function saveMeetingTopic(input: z.input<typeof saveSchema>): Promise<MeetingResult> {
+  await requireOwner();
   const p = saveSchema.safeParse(input);
   if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Datos no válidos." };
   const { id, doneOn, outcome, ...rest } = p.data;
@@ -42,6 +44,7 @@ export async function saveMeetingTopic(input: z.input<typeof saveSchema>): Promi
 
 /** Casilla: tratado hoy / vuelve a pendiente. */
 export async function setMeetingTopicDone(input: { id: string; done: boolean }): Promise<MeetingResult> {
+  await requireOwner();
   const p = z.object({ id: idSchema, done: z.boolean() }).safeParse(input);
   if (!p.success) return { ok: false, error: "Datos no válidos." };
   await db.meetingTopic.updateMany({
@@ -53,6 +56,7 @@ export async function setMeetingTopicDone(input: { id: string; done: boolean }):
 }
 
 export async function deleteMeetingTopic(id: string): Promise<MeetingResult> {
+  await requireOwner();
   const p = idSchema.safeParse(id);
   if (!p.success) return { ok: false, error: "Datos no válidos." };
   await db.meetingTopic.deleteMany({ where: { id: p.data } });

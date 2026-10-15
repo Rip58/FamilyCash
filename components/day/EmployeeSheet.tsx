@@ -8,6 +8,7 @@ import type { NoteView } from "@/lib/notes";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { TimeInput } from "@/components/ui/TimeInput";
 import { getAbsenceNotice } from "@/app/actions/absences";
+import { useGuestMode } from "./guest-mode";
 import type { DepartmentLite, RosterMember, StatusTypeLite } from "@/lib/schedule";
 import { toggleDepartment } from "@/lib/segments";
 import type { ShiftTimes } from "@/lib/segments";
@@ -70,6 +71,7 @@ export function EmployeeSheet({
   onOvertime,
 }: EmployeeSheetProps) {
   const { employee, day } = member;
+  const guest = useGuestMode();
   const deptMap = new Map(departments.map((d) => [d.id, d]));
   const habitual = employee.defaultDepartmentId ? deptMap.get(employee.defaultDepartmentId) : undefined;
   const statusOptions = statusTypes.filter((s) => s.active !== false || s.id === day.status.id);
@@ -219,12 +221,14 @@ export function EmployeeSheet({
         </Block>
 
         <div className="py-2 text-center">
-          <Link
-            href={`/ajustes/empleados/${employee.id}`}
-            className="inline-flex min-h-11 items-center px-3 text-[14px] text-muted underline-offset-2 active:underline"
-          >
-            Ver ficha
-          </Link>
+          {!guest && (
+            <Link
+              href={`/ajustes/empleados/${employee.id}`}
+              className="inline-flex min-h-11 items-center px-3 text-[14px] text-muted underline-offset-2 active:underline"
+            >
+              Ver ficha
+            </Link>
+          )}
         </div>
       </div>
     </BottomSheet>

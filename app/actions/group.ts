@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { isDateStr, toDbDate } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { authorizeNight, logGuest } from "@/lib/guest-server";
 
 const schema = z.object({
   date: z.string().refine(isDateStr),
@@ -16,6 +17,7 @@ export async function setGroupCover(input: z.input<typeof schema>): Promise<{ ok
   const p = schema.safeParse(input);
   if (!p.success) return { ok: false, error: "Datos no válidos." };
   const { date, departmentId, on } = p.data;
+  const who = await authorizeNight(date);
   const key = { date_departmentId: { date: toDbDate(date), departmentId } };
   try {
     if (on) await db.groupCover.upsert({ where: key, create: { date: toDbDate(date), departmentId }, update: {} });
@@ -24,7 +26,12 @@ export async function setGroupCover(input: z.input<typeof schema>): Promise<{ ok
     return { ok: false, error: "No se pudo guardar. Inténtalo de nuevo." };
   }
   revalidatePath("/hoy", "layout");
+  revalidatePath("/turno");
   revalidatePath("/semana", "layout");
   revalidatePath("/informe", "layout");
+  if (who === "guest") {
+    const dep = (await db.department.findUnique({ where: { id: departmentId }, select: { name: true } }))?.name ?? "Departamento";
+    await logGuest(date, `${dep}: ${on ? "lo hace el grupo" : "quitado «Grupo»"}`);
+  }
   return { ok: true };
 }

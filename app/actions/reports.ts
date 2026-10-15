@@ -2,6 +2,7 @@
 
 /** Fotos subidas que no llegaron a guardarse. */
 import { db } from "@/lib/db";
+import { authorizeOwnerOrGuest } from "@/lib/guest-server";
 import { deleteStoredFiles } from "@/lib/storage";
 import { isSafePathname } from "@/lib/upload-rules";
 
@@ -10,6 +11,7 @@ import { isSafePathname } from "@/lib/upload-rules";
  * cerró el formulario. Nunca toca archivos que ya pertenecen a un registro.
  */
 export async function discardUploadedFiles(input: { pathnames: string[] }): Promise<{ ok: true }> {
+  await authorizeOwnerOrGuest();
   const names = Array.isArray(input?.pathnames) ? input.pathnames.filter((n) => typeof n === "string" && isSafePathname(n)) : [];
   if (names.length === 0) return { ok: true };
   const [usedByNotes, usedByPlanograms, usedBySteps] = await Promise.all([

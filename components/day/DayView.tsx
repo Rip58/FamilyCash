@@ -40,6 +40,7 @@ import { EmployeeRow } from "./EmployeeRow";
 import { EmployeeSheet } from "./EmployeeSheet";
 import { MoveSheet } from "./MoveSheet";
 import { OvertimeSheet, type OvertimeGroup } from "./OvertimeSheet";
+import { GuestModeContext } from "./guest-mode";
 import type { SectionLite, SheetOps } from "./types";
 
 interface DayViewProps {
@@ -60,6 +61,10 @@ interface DayViewProps {
   groupDepartmentIds?: string[];
   /** Faltas del registro de esta noche (una falta resuelta en Semana sigue saliendo como falta). */
   loggedAbsences?: LoggedAbsence[];
+  /** Abierto con el enlace del compañero (sin ficha ni otras noches). */
+  guest?: boolean;
+  /** Lo que ha hecho el compañero esta noche (solo en tu Hoy). */
+  guestChanges?: { text: string; time: string }[];
 }
 
 const subscribeNever = () => () => {};
@@ -85,6 +90,8 @@ export function DayView({
   pendingDelays = {},
   groupDepartmentIds = [],
   loggedAbsences = [],
+  guest = false,
+  guestChanges = [],
 }: DayViewProps) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -323,6 +330,7 @@ export function DayView({
   const allValidated = everyone.length > 0 && validated === everyone.length;
 
   return (
+    <GuestModeContext.Provider value={guest}>
     <div className="flex flex-col gap-2 pb-6">
       <div className="flex items-center gap-1">
         {/* Contadores en una sola línea (si no caben, se deslizan de lado). */}
@@ -408,6 +416,26 @@ export function DayView({
           </ul>
           <p className="pb-1 text-[12px] leading-snug text-muted">Si el planning está mal, corrígelo en Semana.</p>
         </section>
+      )}
+
+      {!guest && guestChanges.length > 0 && (
+        <Card flush aria-label="Cambios del compañero">
+          <details>
+            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-[13px] font-semibold text-accent [&::-webkit-details-marker]:hidden">
+              <Icon name="users" className="h-4 w-4" strokeWidth={2.2} />
+              <span className="flex-1">Cambios del compañero · {guestChanges.length}</span>
+              <span aria-hidden className="text-muted">›</span>
+            </summary>
+            <ul className="divide-y divide-line px-3 pb-2">
+              {guestChanges.map((c, i) => (
+                <li key={i} className="flex gap-2 py-1.5 text-[13px] leading-snug">
+                  <span className="shrink-0 tabular-nums text-muted">{c.time}</span>
+                  <span className="min-w-0 break-words">{c.text}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        </Card>
       )}
 
       {notes.length > 0 && (
@@ -608,6 +636,7 @@ export function DayView({
         options={noteOptions}
       />
     </div>
+    </GuestModeContext.Provider>
   );
 }
 

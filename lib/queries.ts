@@ -38,7 +38,7 @@ export interface SettingsData {
  */
 export const REF_TAG = "ref";
 /** Súbelo si una migración cambia estos datos, para no servir la caché anterior tras el despliegue. */
-const REF_CACHE_VERSION = "ref-v7";
+const REF_CACHE_VERSION = "ref-v8";
 const refCache = <T>(fn: () => Promise<T>, key: string) =>
   unstable_cache(fn, [REF_CACHE_VERSION, key], { tags: [REF_TAG], revalidate: 300 });
 
@@ -46,8 +46,10 @@ const refCache = <T>(fn: () => Promise<T>, key: string) =>
 export const getSettings = refCache(async (): Promise<SettingsData> => {
   // Lectura primero: evita una escritura (upsert) en cada carga de página.
   const s = (await db.settings.findUnique({ where: { id: 1 } })) ?? (await db.settings.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } }));
-  const { passwordHash: _omit, aiModels, ...rest } = s;
+  // Ni la contraseña ni el código del enlace del compañero viajan con los ajustes (se leen aparte cuando hace falta).
+  const { passwordHash: _omit, guestToken: _guest, aiModels, ...rest } = s;
   void _omit;
+  void _guest;
   const models: Partial<Record<string, string>> = {};
   if (aiModels && typeof aiModels === "object" && !Array.isArray(aiModels)) {
     for (const [k, v] of Object.entries(aiModels)) if (typeof v === "string" && v) models[k] = v;

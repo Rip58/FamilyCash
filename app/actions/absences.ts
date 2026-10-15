@@ -5,6 +5,7 @@ import { z } from "zod";
 import { setAbsenceNotified } from "@/lib/absence-log";
 import { isDateStr, toDbDate } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { authorizeNight, employeeName, logGuest } from "@/lib/guest-server";
 import { getStatusTypes } from "@/lib/queries";
 
 export type AbsenceActionResult = { ok: true } | { ok: false; error: string };
@@ -20,10 +21,15 @@ const noticeSchema = keySchema.extend({
 export async function setAbsenceNotice(input: z.input<typeof noticeSchema>): Promise<AbsenceActionResult> {
   const p = noticeSchema.safeParse(input);
   if (!p.success) return { ok: false, error: "Datos no válidos." };
+  const who = await authorizeNight(p.data.date);
   const statusTypes = await getStatusTypes();
   const label = statusTypes.find((s) => s.id === p.data.statusTypeId)?.label ?? statusTypes.find((s) => s.code === "ABSENT")?.label ?? "Falta";
   await setAbsenceNotified(db, { employeeId: p.data.employeeId, date: p.data.date, notified: p.data.notified, statusLabel: label });
   revalidatePath("/informe", "layout");
+  if (who === "guest") {
+    const said = p.data.notified === true ? "avisó" : p.data.notified === false ? "no avisó" : "sin indicar si avisó";
+    await logGuest(p.data.date, `${await employeeName(p.data.employeeId)}: ${said}`);
+  }
   return { ok: true };
 }
 
@@ -31,6 +37,7 @@ export async function setAbsenceNotice(input: z.input<typeof noticeSchema>): Pro
 export async function getAbsenceNotice(employeeId: string, date: string): Promise<{ notified: boolean | null } | null> {
   const p = keySchema.safeParse({ employeeId, date });
   if (!p.success) return null;
+  await authorizeNight(p.data.date);
   const row = await db.absence.findUnique({
     where: { employeeId_date: { employeeId: p.data.employeeId, date: toDbDate(p.data.date) } },
     select: { notified: true },

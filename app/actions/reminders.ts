@@ -7,6 +7,7 @@ import { isDateStr, madridParts, toDbDate } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { listReminders } from "@/lib/reminder-queries";
 import { type ReminderView, dueOccurrence, lastOccurrence } from "@/lib/reminders";
+import { requireOwner } from "@/lib/session";
 
 export type ReminderResult = { ok: true } | { ok: false; error: string };
 
@@ -32,6 +33,7 @@ function revalidate() {
 }
 
 export async function saveReminder(input: z.input<typeof saveSchema>): Promise<ReminderResult> {
+  await requireOwner();
   const p = saveSchema.safeParse(input);
   if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Datos no válidos." };
   const { id, weekdays, date, ...rest } = p.data;
@@ -58,6 +60,7 @@ export async function saveReminder(input: z.input<typeof saveSchema>): Promise<R
 }
 
 export async function deleteReminder(id: string): Promise<ReminderResult> {
+  await requireOwner();
   const p = idSchema.safeParse(id);
   if (!p.success) return { ok: false, error: "Datos no válidos." };
   await db.reminder.deleteMany({ where: { id: p.data } });
@@ -67,6 +70,7 @@ export async function deleteReminder(id: string): Promise<ReminderResult> {
 
 /** Avisos que tocan ahora (al abrir la app, al volver a ella y cada pocos minutos). */
 export async function getDueReminders(): Promise<{ reminder: ReminderView; occurrence: string }[]> {
+  await requireOwner();
   const now = new Date();
   const { date, time } = nowMadrid(now);
   const list = await listReminders();
@@ -78,6 +82,7 @@ export async function getDueReminders(): Promise<{ reminder: ReminderView; occur
 
 /** «Hecho»: no vuelve a avisar hasta el próximo día que toque. */
 export async function markReminderDone(input: { id: string; occurrence: string }): Promise<ReminderResult> {
+  await requireOwner();
   const p = z.object({ id: idSchema, occurrence: z.string().refine(isDateStr) }).safeParse(input);
   if (!p.success) return { ok: false, error: "Datos no válidos." };
   await db.reminder.updateMany({ where: { id: p.data.id }, data: { lastDone: p.data.occurrence, snoozedUntil: null } });
@@ -87,6 +92,7 @@ export async function markReminderDone(input: { id: string; occurrence: string }
 
 /** «Recordar más tarde»: vuelve a salir dentro de `minutes`. */
 export async function snoozeReminder(input: { id: string; minutes: number }): Promise<ReminderResult> {
+  await requireOwner();
   const p = z.object({ id: idSchema, minutes: z.number().int().min(5).max(24 * 60) }).safeParse(input);
   if (!p.success) return { ok: false, error: "Datos no válidos." };
   await db.reminder.updateMany({ where: { id: p.data.id }, data: { snoozedUntil: new Date(Date.now() + p.data.minutes * 60_000) } });

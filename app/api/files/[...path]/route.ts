@@ -1,7 +1,16 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
+import { toDbDate } from "@/lib/dates";
+import { db } from "@/lib/db";
+import { guestNightNow } from "@/lib/guest-server";
 import { readStoredFile } from "@/lib/storage";
+
+async function guestCanSee(pathname: string): Promise<boolean> {
+  const night = await guestNightNow();
+  if (!night) return false;
+  return !!(await db.nightNotePhoto.findFirst({ where: { pathname, note: { date: toDbDate(night) } }, select: { id: true } }));
+}
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +22,12 @@ const TYPES: Record<string, string> = { jpg: "image/jpeg", png: "image/png", web
  */
 export async function GET(_req: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const jar = await cookies();
-  if (!(await verifySessionToken(jar.get(SESSION_COOKIE)?.value))) {
-    return new NextResponse("No autorizado", { status: 401 });
-  }
   const { path } = await params;
   const pathname = path.join("/");
+  // El compañero (enlace sin contraseña) solo ve las fotos de las notas de la noche en curso.
+  if (!(await verifySessionToken(jar.get(SESSION_COOKIE)?.value)) && !(await guestCanSee(pathname))) {
+    return new NextResponse("No autorizado", { status: 401 });
+  }
   const type = TYPES[pathname.split(".").pop() ?? ""];
   const data = type ? await readStoredFile(pathname) : null;
   if (!data || !type) return new NextResponse("No encontrado", { status: 404 });

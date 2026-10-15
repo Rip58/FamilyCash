@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { deleteNote, deleteNotePhoto, saveNote } from "@/app/actions/notes";
 import { DepartmentGrid } from "@/components/day/DepartmentGrid";
+import { useGuestMode } from "@/components/day/guest-mode";
 import { PhotoPicker, usePhotoUploads } from "@/components/reports/PhotoPicker";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Segmented } from "@/components/ui/Segmented";
@@ -81,6 +82,7 @@ function NoteForm({ note, defaults, options, onDone }: { note: NoteView | null; 
   const [time, setTime] = useState(note?.time ?? "");
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const guest = useGuestMode();
   const [pending, start] = useTransition();
   // Lo menos usado, plegado (se abre solo si la nota ya lo tiene).
   const [more, setMore] = useState(!!(note && (note.departmentId || note.sectionId || note.time || note.date !== defaults.date)));
@@ -231,16 +233,19 @@ function NoteForm({ note, defaults, options, onDone }: { note: NoteView | null; 
             )}
           </div>
           <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-            <label className="flex min-w-0 flex-col gap-1.5">
-              <span className={label}>Noche</span>
-              <input type="date" aria-label="Noche" value={date} onChange={(e) => setDate(e.target.value)} className={`${field} min-w-0`} />
-            </label>
+            {/* Con el enlace del compañero solo se apunta en la noche en curso. */}
+            {!guest && (
+              <label className="flex min-w-0 flex-col gap-1.5">
+                <span className={label}>Noche</span>
+                <input type="date" aria-label="Noche" value={date} onChange={(e) => setDate(e.target.value)} className={`${field} min-w-0`} />
+              </label>
+            )}
             <TimeInput label="Hora" clearable value={time} onChange={setTime} />
           </div>
         </div>
       ) : (
         <button type="button" onClick={() => setMore(true)} className="min-h-11 self-start text-[15px] font-medium text-accent">
-          + Departamento, sección, noche u hora
+          {guest ? "+ Departamento, sección u hora" : "+ Departamento, sección, noche u hora"}
         </button>
       )}
 

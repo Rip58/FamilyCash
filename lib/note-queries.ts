@@ -28,6 +28,7 @@ export function toNoteView(r: Row): NoteView {
     sectionId: r.sectionId,
     sectionName: r.section?.name ?? null,
     photos: r.photos.map((p) => ({ id: p.id, url: p.url, width: p.width, height: p.height, size: p.size })),
+    byGuest: r.byGuest,
   };
 }
 

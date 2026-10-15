@@ -76,7 +76,7 @@ function NoteRow({ note, place, compact, onEdit }: { note: NoteView; place: stri
   const [viewer, setViewer] = useState<number | null>(null);
   const meta = NOTE_TYPE_META[note.type];
   const task = note.type === "TASK";
-  const tagged = note.type !== "NOTE" || !!place || !!note.sectionName || !!note.time;
+  const tagged = note.type !== "NOTE" || !!place || !!note.sectionName || !!note.time || !!note.byGuest;
   return (
     <li className={cn("flex items-start gap-1", compact ? "py-0" : "py-0.5", task && !note.done && "-mx-2 rounded-control bg-warning/10 px-2")}>
       {task && <TaskCheck id={note.id} done={note.done} label={note.text} />}
@@ -88,6 +88,9 @@ function NoteRow({ note, place, compact, onEdit }: { note: NoteView; place: stri
                 <span className="rounded px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide" style={{ backgroundColor: tint(meta.color, 16), color: meta.color }}>
                   {noteLabel(note)}
                 </span>
+              )}
+              {note.byGuest && (
+                <span className="rounded bg-accent/15 px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide text-accent">Compañero</span>
               )}
               {place && <span>{place}</span>}
               {note.sectionName && <span>· {note.sectionName}</span>}

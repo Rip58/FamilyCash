@@ -11,6 +11,7 @@ model Settings {            // fila única id=1
   id              Int     @id @default(1)
   shiftStart      String  @default("21:30")
   shiftEnd        String  @default("06:30")
+  guestToken      String?                     // enlace del compañero (/t/<token>): Hoy de la noche en curso sin contraseña; null = apagado
   breakStart      String  @default("02:00")
   breakEnd        String  @default("03:00")
   dayRolloverHour Int     @default(12)   // antes de esta hora "Hoy" = noche anterior
@@ -231,6 +232,7 @@ model NightNote {           // LA nota: de la noche, general o de un empleado / 
   kind       String    @default("INFO")     // INFO | TASK (tarea pendiente de hacer)
   category   String    @default("NOTE")     // INFO: NOTE | INCIDENT | PRAISE | TALK | REQUEST
   doneAt     DateTime?                      // tarea hecha
+  byGuest    Boolean   @default(false)      // la escribió el compañero desde su enlace
   text       String
   photos     NightNotePhoto[]
   createdAt  DateTime  @default(now())
@@ -297,4 +299,11 @@ model GroupCover {           // «Grupo»: esa noche el departamento (sin nadie)
   department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
   createdAt    DateTime   @default(now())
   @@unique([date, departmentId])
+}
+model GuestChange {          // lo que hace el compañero desde su enlace (se ve en Hoy de esa noche)
+  id        String   @id @default(cuid())
+  date      DateTime @db.Date               // noche
+  text      String
+  createdAt DateTime @default(now())
+  @@index([date])
 }

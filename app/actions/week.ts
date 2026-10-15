@@ -9,6 +9,7 @@ import { type AbsenceResolution } from "@/lib/absence";
 import { syncAbsence } from "@/lib/absence-log";
 import { type DayEntryLite, type EmployeeLite, type StatusTypeLite, getEffectiveDay, isDayOffStatus } from "@/lib/schedule";
 import { MAX_RANGE_DAYS, planCopyWeek, planRepeatWeek, planSetCell, rangeDates, remainingMonthWeeks } from "@/lib/week";
+import { requireOwner } from "@/lib/session";
 
 export type WeekActionResult = { ok: true; changed?: number } | { ok: false; error: string };
 
@@ -74,6 +75,7 @@ export async function setCellStatus(
   statusTypeId: string,
   reason?: string | null,
 ): Promise<WeekActionResult> {
+  await requireOwner();
   const parsed = setCellSchema.safeParse({ employeeId, date, statusTypeId, reason });
   if (!parsed.success) return { ok: false, error: "Datos no válidos." };
   const input = parsed.data;
@@ -136,6 +138,7 @@ export async function setCellStatusRange(
   statusTypeId: string,
   reason?: string | null,
 ): Promise<WeekActionResult> {
+  await requireOwner();
   const parsed = rangeSchema.safeParse({ employeeId, date, days, statusTypeId, reason });
   if (!parsed.success) return { ok: false, error: "Datos no válidos." };
   const input = parsed.data;
@@ -185,6 +188,7 @@ const absenceSchema = z.object({ employeeId: z.string().min(1), date: dateSchema
 
 /** Días de fiesta (planning) de esa semana y la siguiente con los que se puede cambiar la falta. */
 export async function absenceSwapOptions(employeeId: string, date: string): Promise<{ date: DateStr; label: string }[]> {
+  await requireOwner();
   const p = absenceSchema.safeParse({ employeeId, date });
   if (!p.success) return [];
   const from = weekStartOf(p.data.date);
@@ -210,6 +214,7 @@ const resolveSchema = absenceSchema.extend({ mode: z.enum(["swap", "off"]), swap
  * En los dos casos se quita lo validado en Hoy para ese día (ya no «no cuadra»). Cambia el planning.
  */
 export async function resolveAbsence(input: z.input<typeof resolveSchema>): Promise<WeekActionResult> {
+  await requireOwner();
   const p = resolveSchema.safeParse(input);
   if (!p.success) return { ok: false, error: "Datos no válidos." };
   const { employeeId, date, mode } = p.data;
@@ -267,6 +272,7 @@ export async function resolveAbsence(input: z.input<typeof resolveSchema>): Prom
 
 /** Copia estado/departamento/motivo de la semana anterior sobre la indicada. */
 export async function copyPreviousWeek(weekStart: string): Promise<WeekActionResult> {
+  await requireOwner();
   const parsed = weekSchema.safeParse({ weekStart });
   if (!parsed.success) return { ok: false, error: "Fecha no válida." };
   const start = weekStartOf(parsed.data.weekStart);
@@ -309,6 +315,7 @@ export async function copyPreviousWeek(weekStart: string): Promise<WeekActionRes
  * (sin repetir vacaciones/bajas puntuales y respetando las que ya hay en destino).
  */
 export async function repeatWeekToMonthEnd(weekStart: string): Promise<WeekActionResult & { weeks?: number }> {
+  await requireOwner();
   const parsed = weekSchema.safeParse({ weekStart });
   if (!parsed.success) return { ok: false, error: "Fecha no válida." };
   const start = weekStartOf(parsed.data.weekStart);
@@ -366,6 +373,7 @@ const importSchema = z.object({
  * Solo toca las celdas con estado; las vacías (null) se dejan como estaban.
  */
 export async function applyImportedWeek(input: z.input<typeof importSchema>): Promise<WeekActionResult> {
+  await requireOwner();
   const parsed = importSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Datos no válidos." };
   const days = weekDays(weekStartOf(parsed.data.weekStart));
@@ -436,6 +444,7 @@ export async function applyImportedWeek(input: z.input<typeof importSchema>): Pr
 
 /** Borra los DayEntry de la semana que no tengan nota, tramos ni horarios. */
 export async function resetWeek(weekStart: string): Promise<WeekActionResult> {
+  await requireOwner();
   const parsed = weekSchema.safeParse({ weekStart });
   if (!parsed.success) return { ok: false, error: "Fecha no válida." };
   const days = weekDays(parsed.data.weekStart);

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { aiProviderLabel } from "@/lib/ai-import-format";
 import { db } from "@/lib/db";
+import { currentGuestToken } from "@/lib/guest-server";
 import { getDepartments, getEmployees, getSections, getSettings, getStatusTypes } from "@/lib/queries";
 import { VersionCard } from "@/components/settings/VersionCard";
 import { Icon, type IconName, tint } from "@/components/ui/icons";
@@ -10,14 +11,16 @@ export const dynamic = "force-dynamic";
 
 export default async function Page() {
   // Los recuentos salen de los datos de referencia en caché: solo 2 consultas reales.
-  const [employees, departments, sections, statuses, locs, settings] = await Promise.all([
+  const [employees, departments, sections, statuses, locs, settings, guestToken] = await Promise.all([
     getEmployees(),
     getDepartments(),
     getSections(),
     getStatusTypes(),
     db.shelfLocation.count({ where: { active: true } }),
     getSettings(),
+    currentGuestToken(),
   ]);
+  const guestOn = !!guestToken;
   const active = (rows: { active?: boolean }[]) => rows.filter((r) => r.active !== false).length;
   const [emps, deps, secs, sts] = [active(employees), active(departments), active(sections), active(statuses)];
   const shift = settings ? `${settings.shiftStart}–${settings.shiftEnd}` : "21:30–06:30";
@@ -49,6 +52,7 @@ export default async function Page() {
       title: "App",
       items: [
         { href: "/ajustes/datos", label: "Datos y fotos", detail: "Copias, CSV", icon: "database", color: "#22c55e" },
+        { href: "/ajustes/companero", label: "Enlace del compañero", detail: guestOn ? "Activo" : "Apagado", icon: "users", color: "#0ea5e9" },
         { href: "/ajustes/seguridad", label: "Seguridad", icon: "lock", color: "#64748b" },
       ],
     },

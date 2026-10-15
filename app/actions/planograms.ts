@@ -14,6 +14,7 @@ import {
 import { nextSortOrder, sortOrderUpdates } from "@/lib/settings-logic";
 import { deleteStoredFiles } from "@/lib/storage";
 import { isSafePathname } from "@/lib/upload-rules";
+import { requireOwner } from "@/lib/session";
 
 export type PlanogramActionResult<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -32,6 +33,7 @@ async function locationExists(id: string | null): Promise<boolean> {
 }
 
 export async function createPlanogram(input: CreatePlanogramInput): Promise<PlanogramActionResult<{ id: string }>> {
+  await requireOwner();
   const p = createPlanogramSchema.safeParse(input);
   if (!p.success) {
     // Si no se puede crear, no dejar fotos huérfanas en el almacenamiento.
@@ -75,6 +77,7 @@ export async function createPlanogram(input: CreatePlanogramInput): Promise<Plan
 }
 
 export async function updatePlanogram(input: z.input<typeof updatePlanogramSchema>): Promise<PlanogramActionResult> {
+  await requireOwner();
   const p = updatePlanogramSchema.safeParse(input);
   if (!p.success) return fail(zodError(p.error));
   const { id, locationId, text, until } = p.data;
@@ -89,6 +92,7 @@ export async function updatePlanogram(input: z.input<typeof updatePlanogramSchem
 }
 
 export async function deletePlanogram(rawId: string): Promise<PlanogramActionResult> {
+  await requireOwner();
   const p = idSchema.safeParse(rawId);
   if (!p.success) return fail("Lineal no válido.");
   const row = await db.planogram.findUnique({ where: { id: p.data }, include: { photos: true } });
@@ -102,6 +106,7 @@ export async function deletePlanogram(rawId: string): Promise<PlanogramActionRes
 // ---------------------------------------------------------------- Ubicaciones
 
 export async function saveLocation(input: z.input<typeof locationSchema>): Promise<PlanogramActionResult<{ id: string }>> {
+  await requireOwner();
   const p = locationSchema.safeParse(input);
   if (!p.success) return fail(zodError(p.error));
   const { id, ...data } = p.data;
@@ -121,6 +126,7 @@ export async function saveLocation(input: z.input<typeof locationSchema>): Promi
 }
 
 export async function reorderLocations(ids: string[]): Promise<PlanogramActionResult> {
+  await requireOwner();
   const p = z.array(idSchema).max(500).safeParse(ids);
   if (!p.success) return fail("Datos no válidos.");
   await db.$transaction(
@@ -131,6 +137,7 @@ export async function reorderLocations(ids: string[]): Promise<PlanogramActionRe
 }
 
 export async function deleteLocation(rawId: string): Promise<PlanogramActionResult> {
+  await requireOwner();
   const p = idSchema.safeParse(rawId);
   if (!p.success) return fail("Ubicación no válida.");
   const used = await db.planogram.count({ where: { locationId: p.data } });

@@ -2,9 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { saveBackup } from "@/lib/backup-store";
+import { requireOwner } from "@/lib/session";
 
 /** «Hacer copia ahora» (Ajustes → Datos y fotos): guarda la copia de hoy en el almacén, sobrescribiendo la de hoy. */
 export async function backupNow(): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireOwner();
   try {
     await saveBackup();
     revalidatePath("/ajustes/datos");

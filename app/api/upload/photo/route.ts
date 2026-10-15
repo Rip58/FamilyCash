@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
+import { guestNightNow } from "@/lib/guest-server";
 import { BLOB_MISSING, blobMissing, saveStoredFile } from "@/lib/storage";
 import { sniffImageType, validateUpload } from "@/lib/upload-rules";
 
@@ -11,7 +12,8 @@ const err = (error: string, status: number) => NextResponse.json({ error }, { st
 /** Recibe una foto ya comprimida (≤ 600 KB) y la guarda en Vercel Blob (privado) o, en desarrollo, en `.uploads/`. */
 export async function POST(req: Request) {
   const jar = await cookies();
-  if (!(await verifySessionToken(jar.get(SESSION_COOKIE)?.value))) return err("No autorizado", 401);
+  // El dueño, o el compañero con su enlace (notas de la noche en curso).
+  if (!(await verifySessionToken(jar.get(SESSION_COOKIE)?.value)) && !(await guestNightNow())) return err("No autorizado", 401);
   // En Vercel el disco es de solo lectura: sin Vercel Blob no hay dónde guardar fotos.
   if (blobMissing()) return err(BLOB_MISSING, 503);
 

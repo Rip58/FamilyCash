@@ -52,6 +52,8 @@ export interface NoteView {
   sectionId: string | null;
   sectionName: string | null;
   photos: ReportPhotoView[];
+  /** La escribió el compañero desde su enlace. */
+  byGuest?: boolean;
 }
 
 /** "Ana · Droguería", "Droguería", "Ana" o "General". */

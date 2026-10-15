@@ -1,5 +1,6 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { revalidatePath, updateTag } from "next/cache";
 import { z } from "zod";
@@ -7,6 +8,7 @@ import { db } from "@/lib/db";
 import { REF_TAG } from "@/lib/queries";
 import { checkPassword } from "@/lib/password";
 import { isHexColor, isTime, isProtectedStatus, nextSortOrder, sortOrderUpdates, uniqueCode } from "@/lib/settings-logic";
+import { requireOwner } from "@/lib/session";
 
 export type ActionResult<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -53,6 +55,7 @@ async function endOfDepartment(departmentId: string | null): Promise<number> {
 }
 
 export async function saveEmployee(input: z.input<typeof employeeSchema>): Promise<ActionResult<{ id: string }>> {
+  await requireOwner();
   const p = employeeSchema.safeParse(input);
   if (!p.success) return fail(zodError(p.error));
   const { id: empId, ...data } = p.data;
@@ -85,6 +88,7 @@ export async function saveEmployee(input: z.input<typeof employeeSchema>): Promi
 }
 
 export async function deleteEmployee(rawId: string): Promise<ActionResult> {
+  await requireOwner();
   const p = id.safeParse(rawId);
   if (!p.success) return fail("Empleado no válido.");
   const [entries, notes] = await Promise.all([
@@ -98,6 +102,7 @@ export async function deleteEmployee(rawId: string): Promise<ActionResult> {
 
 /** Reordena los empleados de un departamento (ids en el orden nuevo). */
 export async function reorderEmployees(ids: string[]): Promise<ActionResult> {
+  await requireOwner();
   const p = idList.safeParse(ids);
   if (!p.success) return fail("Datos no válidos.");
   await db.$transaction(
@@ -109,6 +114,7 @@ export async function reorderEmployees(ids: string[]): Promise<ActionResult> {
 /** Mueve un empleado a otro departamento (al final de la lista). */
 /** Orden de la plantilla "como en el Excel" (Semana sin departamentos). Quien no esté en la lista queda al final. */
 export async function saveRotaOrder(ids: string[]): Promise<ActionResult> {
+  await requireOwner();
   const p = idList.safeParse(ids);
   if (!p.success || new Set(p.data).size !== p.data.length) return fail("Orden no válido.");
   const order = new Map(p.data.map((empId, i) => [empId, i]));
@@ -122,6 +128,7 @@ export async function saveRotaOrder(ids: string[]): Promise<ActionResult> {
 }
 
 export async function moveEmployee(input: { id: string; departmentId: string | null }): Promise<ActionResult> {
+  await requireOwner();
   const p = z.object({ id, departmentId: optionalId }).safeParse(input);
   if (!p.success) return fail("Datos no válidos.");
   await db.employee.update({
@@ -143,6 +150,7 @@ const departmentSchema = z.object({
 });
 
 export async function saveDepartment(input: z.input<typeof departmentSchema>): Promise<ActionResult<{ id: string }>> {
+  await requireOwner();
   const p = departmentSchema.safeParse(input);
   if (!p.success) return fail(zodError(p.error));
   const { id: depId, ...data } = p.data;
@@ -158,6 +166,7 @@ export async function saveDepartment(input: z.input<typeof departmentSchema>): P
 }
 
 export async function reorderDepartments(ids: string[]): Promise<ActionResult> {
+  await requireOwner();
   const p = idList.safeParse(ids);
   if (!p.success) return fail("Datos no válidos.");
   await db.$transaction(
@@ -168,6 +177,7 @@ export async function reorderDepartments(ids: string[]): Promise<ActionResult> {
 
 /** Borra un departamento solo si está vacío de empleados y secciones. */
 export async function deleteDepartment(rawId: string): Promise<ActionResult> {
+  await requireOwner();
   const p = id.safeParse(rawId);
   if (!p.success) return fail("Departamento no válido.");
   const [emps, secs] = await Promise.all([
@@ -189,6 +199,7 @@ const sectionSchema = z.object({
 });
 
 export async function saveSection(input: z.input<typeof sectionSchema>): Promise<ActionResult<{ id: string }>> {
+  await requireOwner();
   const p = sectionSchema.safeParse(input);
   if (!p.success) return fail(zodError(p.error));
   const { id: secId, ...data } = p.data;
@@ -204,6 +215,7 @@ export async function saveSection(input: z.input<typeof sectionSchema>): Promise
 }
 
 export async function reorderSections(ids: string[]): Promise<ActionResult> {
+  await requireOwner();
   const p = idList.safeParse(ids);
   if (!p.success) return fail("Datos no válidos.");
   await db.$transaction(
@@ -213,6 +225,7 @@ export async function reorderSections(ids: string[]): Promise<ActionResult> {
 }
 
 export async function deleteSection(rawId: string): Promise<ActionResult> {
+  await requireOwner();
   const p = id.safeParse(rawId);
   if (!p.success) return fail("Sección no válida.");
   const used = await db.workSegment.count({ where: { sectionId: p.data } });
@@ -232,6 +245,7 @@ const statusSchema = z.object({
 });
 
 export async function saveStatus(input: z.input<typeof statusSchema>): Promise<ActionResult<{ id: string }>> {
+  await requireOwner();
   const p = statusSchema.safeParse(input);
   if (!p.success) return fail(zodError(p.error));
   const { id: stId, ...data } = p.data;
@@ -258,6 +272,7 @@ export async function saveStatus(input: z.input<typeof statusSchema>): Promise<A
 }
 
 export async function reorderStatuses(ids: string[]): Promise<ActionResult> {
+  await requireOwner();
   const p = idList.safeParse(ids);
   if (!p.success) return fail("Datos no válidos.");
   await db.$transaction(
@@ -268,6 +283,7 @@ export async function reorderStatuses(ids: string[]): Promise<ActionResult> {
 
 /** Borra un estado (nunca WORK/OFF) solo si ningún día lo usa. */
 export async function deleteStatus(rawId: string): Promise<ActionResult> {
+  await requireOwner();
   const p = id.safeParse(rawId);
   if (!p.success) return fail("Estado no válido.");
   const st = await db.statusType.findUnique({ where: { id: p.data } });
@@ -292,6 +308,7 @@ const shiftSchema = z.object({
 });
 
 export async function saveShift(input: z.input<typeof shiftSchema>): Promise<ActionResult> {
+  await requireOwner();
   const p = shiftSchema.safeParse(input);
   if (!p.success) return fail(zodError(p.error));
   await db.settings.upsert({ where: { id: 1 }, update: p.data, create: { id: 1, ...p.data } });
@@ -303,6 +320,7 @@ export async function saveShift(input: z.input<typeof shiftSchema>): Promise<Act
 const aiProviderSchema = z.enum(["claude", "openai", "gemini"]);
 
 export async function saveAiProvider(provider: z.input<typeof aiProviderSchema>): Promise<ActionResult> {
+  await requireOwner();
   const p = aiProviderSchema.safeParse(provider);
   if (!p.success) return fail("Proveedor no válido.");
   await db.settings.upsert({ where: { id: 1 }, update: { aiProvider: p.data }, create: { id: 1, aiProvider: p.data } });
@@ -321,6 +339,7 @@ const aiModelSchema = z.object({
 });
 
 export async function saveAiModel(input: z.input<typeof aiModelSchema>): Promise<ActionResult> {
+  await requireOwner();
   const p = aiModelSchema.safeParse(input);
   if (!p.success) return fail(zodError(p.error));
   const row = await db.settings.findUnique({ where: { id: 1 }, select: { aiModels: true } });
@@ -343,10 +362,27 @@ const passwordSchema = z
   .refine((v) => v.next === v.repeat, { message: "Las contraseñas nuevas no coinciden.", path: ["repeat"] });
 
 export async function changePassword(input: z.input<typeof passwordSchema>): Promise<ActionResult> {
+  await requireOwner();
   const p = passwordSchema.safeParse(input);
   if (!p.success) return fail(zodError(p.error));
   if (!(await checkPassword(p.data.current))) return fail("La contraseña actual no es correcta.");
   const passwordHash = await bcrypt.hash(p.data.next, 10);
   await db.settings.upsert({ where: { id: 1 }, update: { passwordHash }, create: { id: 1, passwordHash } });
   return done();
+}
+
+// ---- Enlace del compañero ------------------------------------------------
+
+/**
+ * Enlace del compañero (Hoy de la noche en curso, sin contraseña). `on` = crear uno nuevo (el anterior deja de
+ * funcionar al momento) o apagarlo (null).
+ */
+export async function setGuestLink(input: { on: boolean }): Promise<ActionResult<{ token: string | null }>> {
+  await requireOwner();
+  const p = z.object({ on: z.boolean() }).safeParse(input);
+  if (!p.success) return { ok: false, error: "Datos no válidos." };
+  const token = p.data.on ? randomBytes(24).toString("base64url") : null;
+  await db.settings.upsert({ where: { id: 1 }, update: { guestToken: token }, create: { id: 1, guestToken: token } });
+  revalidatePath("/ajustes", "layout");
+  return done({ token });
 }

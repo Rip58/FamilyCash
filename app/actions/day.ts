@@ -10,7 +10,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { type DateStr, isDateStr, toDbDate } from "@/lib/dates";
-import { isValidOvertime } from "@/lib/overtime";
+import { formatOvertime, isValidOvertime } from "@/lib/overtime";
+import { authorizeNight, employeeName, logGuest } from "@/lib/guest-server";
 import { getSettings } from "@/lib/queries";
 import { syncAbsence } from "@/lib/absence-log";
 import { type DayEntryLite, type EmployeeLite, type StatusTypeLite, getEffectiveDay } from "@/lib/schedule";
@@ -183,6 +184,7 @@ async function pruneIfRedundant(tx: Tx, employeeId: string, date: DateStr) {
 
 function revalidateDay() {
   revalidatePath("/hoy", "layout");
+  revalidatePath("/turno");
   revalidatePath("/semana", "layout");
   revalidatePath("/informe", "layout");
 }
@@ -200,6 +202,21 @@ async function run(fn: () => Promise<void>): Promise<ActionResult> {
 }
 
 const invalid = (): ActionResult => ({ ok: false, error: "Datos no válidos." });
+
+/**
+ * Permiso: el dueño siempre; el compañero (enlace sin contraseña) solo la noche en curso. Si es el compañero, apunta
+ * lo que ha hecho para que salga en tu Hoy de esa noche.
+ */
+async function withNight(date: DateStr, describe: () => Promise<string>, fn: () => Promise<ActionResult>): Promise<ActionResult> {
+  const who = await authorizeNight(date);
+  const r = await fn();
+  if (r.ok && who === "guest") await logGuest(date, await describe());
+  return r;
+}
+
+const statusLabel = async (id: string) => (await db.statusType.findUnique({ where: { id }, select: { label: true } }))?.label ?? "?";
+const departmentNames = async (ids: string[]) =>
+  (await db.department.findMany({ where: { id: { in: ids } }, select: { name: true } })).map((d) => d.name).join(" + ");
 
 /** Cambios escalares (estado, depto, horario, notas). */
 async function mutateScalar(employeeId: string, date: DateStr, patch: EntryPatch): Promise<ActionResult> {
@@ -256,43 +273,62 @@ async function mutateScalar(employeeId: string, date: DateStr, patch: EntryPatch
 export async function setStatus(input: z.input<typeof setStatusSchema>): Promise<ActionResult> {
   const p = setStatusSchema.safeParse(input);
   if (!p.success) return invalid();
-  return mutateScalar(p.data.employeeId, p.data.date, {
-    kind: "status",
-    statusTypeId: p.data.statusTypeId,
-    reason: p.data.reason,
-    present: p.data.present,
-  });
+  const d = p.data;
+  return withNight(
+    d.date,
+    async () => `${await employeeName(d.employeeId)}: ${await statusLabel(d.statusTypeId)}${d.reason ? ` (${d.reason})` : ""}`,
+    () => mutateScalar(d.employeeId, d.date, { kind: "status", statusTypeId: d.statusTypeId, reason: d.reason, present: d.present }),
+  );
 }
 
 export async function setReason(input: z.input<typeof setReasonSchema>): Promise<ActionResult> {
   const p = setReasonSchema.safeParse(input);
   if (!p.success) return invalid();
-  return mutateScalar(p.data.employeeId, p.data.date, { kind: "reason", reason: p.data.reason });
+  const d = p.data;
+  return withNight(
+    d.date,
+    async () => `${await employeeName(d.employeeId)}: motivo «${d.reason ?? ""}»`,
+    () => mutateScalar(d.employeeId, d.date, { kind: "reason", reason: d.reason }),
+  );
 }
 
 /** departmentId null = departamento habitual. */
 export async function setDepartment(input: z.input<typeof setDepartmentSchema>): Promise<ActionResult> {
   const p = setDepartmentSchema.safeParse(input);
   if (!p.success) return invalid();
-  return mutateScalar(p.data.employeeId, p.data.date, {
-    kind: "department",
-    departmentId: p.data.departmentId,
-    extraDepartmentIds: p.data.extraDepartmentIds,
-  });
+  const d = p.data;
+  return withNight(
+    d.date,
+    async () => {
+      const ids = [...(d.departmentId ? [d.departmentId] : []), ...(d.extraDepartmentIds ?? [])];
+      return `${await employeeName(d.employeeId)} → ${ids.length ? await departmentNames(ids) : "su departamento habitual"}`;
+    },
+    () => mutateScalar(d.employeeId, d.date, { kind: "department", departmentId: d.departmentId, extraDepartmentIds: d.extraDepartmentIds }),
+  );
 }
 
 export async function setTimes(input: z.input<typeof setTimesSchema>): Promise<ActionResult> {
   const p = setTimesSchema.safeParse(input);
   if (!p.success) return invalid();
   const { employeeId, date, arrivedAt, leftAt, timeReason } = p.data;
-  return mutateScalar(employeeId, date, { kind: "times", arrivedAt, leftAt, timeReason });
+  return withNight(
+    date,
+    async () =>
+      `${await employeeName(employeeId)}: ${[arrivedAt && `llega ${arrivedAt}`, leftAt && `sale ${leftAt}`].filter(Boolean).join(", ") || "sin horario"}`,
+    () => mutateScalar(employeeId, date, { kind: "times", arrivedAt, leftAt, timeReason }),
+  );
 }
 
 /** Pasar lista: present=true "validado como el planning" (ha venido / ausencia confirmada); false lo deja sin validar. */
 export async function setAttendance(input: z.input<typeof setAttendanceSchema>): Promise<ActionResult> {
   const p = setAttendanceSchema.safeParse(input);
   if (!p.success) return invalid();
-  return mutateScalar(p.data.employeeId, p.data.date, { kind: "attendance", present: p.data.present });
+  const d = p.data;
+  return withNight(
+    d.date,
+    async () => `${await employeeName(d.employeeId)}: ${d.present ? "✓ validado" : "sin validar"}`,
+    () => mutateScalar(d.employeeId, d.date, { kind: "attendance", present: d.present }),
+  );
 }
 
 /** Aplica horas extra dentro de una transacción (0 = sin horas extra). */
@@ -330,9 +366,14 @@ export async function setOvertime(input: z.input<typeof setOvertimeSchema>): Pro
   const p = setOvertimeSchema.safeParse(input);
   if (!p.success) return invalid();
   const { date, ...item } = p.data;
-  return run(async () => {
-    await db.$transaction((tx) => applyOvertime(tx, date, item));
-  });
+  return withNight(
+    date,
+    async () => `${await employeeName(item.employeeId)}: ${item.extraMinutes ? formatOvertime(item.extraMinutes, true) : "sin horas extra"}`,
+    () =>
+      run(async () => {
+        await db.$transaction((tx) => applyOvertime(tx, date, item));
+      }),
+  );
 }
 
 /** Cierre de turno: varias horas extra en una sola transacción. */
@@ -340,11 +381,21 @@ export async function setOvertimeBulk(input: z.input<typeof setOvertimeBulkSchem
   const p = setOvertimeBulkSchema.safeParse(input);
   if (!p.success) return invalid();
   const { date, items } = p.data;
-  return run(async () => {
-    await db.$transaction(async (tx) => {
-      for (const item of items) await applyOvertime(tx, date, item);
-    }, { timeout: 20000, maxWait: 10000 });
-  });
+  return withNight(
+    date,
+    async () => {
+      const parts = await Promise.all(
+        items.map(async (i) => `${await employeeName(i.employeeId)} ${i.extraMinutes ? formatOvertime(i.extraMinutes, true) : "0"}`),
+      );
+      return `Cierre de turno: ${parts.join(", ")}`;
+    },
+    () =>
+      run(async () => {
+        await db.$transaction(async (tx) => {
+          for (const item of items) await applyOvertime(tx, date, item);
+        }, { timeout: 20000, maxWait: 10000 });
+      }),
+  );
 }
 
 // ---- Tramos --------------------------------------------------------------
@@ -381,7 +432,11 @@ export async function addSegment(input: z.input<typeof addSegmentSchema>): Promi
   const p = addSegmentSchema.safeParse(input);
   if (!p.success) return invalid();
   const d = p.data;
-  return run(async () => {
+  return withNight(
+    d.date,
+    async () => `${await employeeName(d.employeeId)}: añade una tarea`,
+    () =>
+      run(async () => {
     checkSegmentBasics(d);
     await db.$transaction(async (tx) => {
       const ctx = await loadContext(tx, d.employeeId, d.date);
@@ -400,14 +455,19 @@ export async function addSegment(input: z.input<typeof addSegmentSchema>): Promi
       await resequence(tx, entryId, ctx.shift.shiftStart);
       await pruneIfRedundant(tx, d.employeeId, d.date);
     });
-  });
+  }),
+  );
 }
 
 export async function updateSegment(input: z.input<typeof updateSegmentSchema>): Promise<ActionResult> {
   const p = updateSegmentSchema.safeParse(input);
   if (!p.success) return invalid();
   const d = p.data;
-  return run(async () => {
+  return withNight(
+    d.date,
+    async () => `${await employeeName(d.employeeId)}: cambia una tarea`,
+    () =>
+      run(async () => {
     checkSegmentBasics(d);
     await db.$transaction(async (tx) => {
       const ctx = await loadContext(tx, d.employeeId, d.date);
@@ -427,14 +487,19 @@ export async function updateSegment(input: z.input<typeof updateSegmentSchema>):
       });
       await resequence(tx, ctx.entryId, ctx.shift.shiftStart);
     });
-  });
+  }),
+  );
 }
 
 export async function deleteSegment(input: z.input<typeof deleteSegmentSchema>): Promise<ActionResult> {
   const p = deleteSegmentSchema.safeParse(input);
   if (!p.success) return invalid();
   const d = p.data;
-  return run(async () => {
+  return withNight(
+    d.date,
+    async () => `${await employeeName(d.employeeId)}: quita una tarea`,
+    () =>
+      run(async () => {
     await db.$transaction(async (tx) => {
       const ctx = await loadContext(tx, d.employeeId, d.date);
       if (!ctx.entryId) return;
@@ -442,6 +507,7 @@ export async function deleteSegment(input: z.input<typeof deleteSegmentSchema>):
       await resequence(tx, ctx.entryId, ctx.shift.shiftStart);
       await pruneIfRedundant(tx, d.employeeId, d.date);
     });
-  });
+  }),
+  );
 }
 

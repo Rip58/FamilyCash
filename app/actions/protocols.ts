@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { removedPathnames, stepsSchema } from "@/lib/planograms";
 import { deleteStoredFiles } from "@/lib/storage";
+import { requireOwner } from "@/lib/session";
 
 export interface ActionResult {
   ok: boolean;
@@ -46,6 +47,7 @@ function fail(e: z.ZodError): ActionResult {
 }
 
 export async function createProtocol(input: unknown): Promise<ActionResult> {
+  await requireOwner();
   const parsed = fieldsSchema.safeParse(input);
   if (!parsed.success) return fail(parsed.error);
   const { steps, ...fields } = parsed.data;
@@ -59,6 +61,7 @@ export async function createProtocol(input: unknown): Promise<ActionResult> {
 }
 
 export async function updateProtocol(id: unknown, input: unknown): Promise<ActionResult> {
+  await requireOwner();
   const pid = idSchema.safeParse(id);
   const parsed = fieldsSchema.safeParse(input);
   if (!pid.success) return { ok: false, error: "Protocolo no válido." };
@@ -85,6 +88,7 @@ export async function updateProtocol(id: unknown, input: unknown): Promise<Actio
 }
 
 export async function deleteProtocol(id: unknown): Promise<ActionResult> {
+  await requireOwner();
   const pid = idSchema.safeParse(id);
   if (!pid.success) return { ok: false, error: "Protocolo no válido." };
   const steps = await db.protocolStep.findMany({ where: { protocolId: pid.data }, select: { photoPathname: true } });
@@ -101,6 +105,7 @@ export async function deleteProtocol(id: unknown): Promise<ActionResult> {
  * ocupaban, sin alterar la posición de las demás categorías.
  */
 export async function reorderProtocols(ids: unknown): Promise<ActionResult> {
+  await requireOwner();
   const parsed = z.array(idSchema).min(1).max(500).safeParse(ids);
   if (!parsed.success) return { ok: false, error: "Orden no válido." };
   const rows = await db.protocol.findMany({

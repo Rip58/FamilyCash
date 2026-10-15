@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DayView } from "@/components/day/DayView";
 import { cn } from "@/components/ui/cn";
-import { addDays, formatDayLong, isDateStr, operationalToday } from "@/lib/dates";
+import { addDays, formatDayLong, isDateStr, madridTime, operationalToday, toDbDate } from "@/lib/dates";
 import { getNotes } from "@/lib/note-queries";
 import { getLoggedAbsences } from "@/lib/absence-log";
 import { db } from "@/lib/db";
@@ -25,7 +25,7 @@ export default async function Page({ params }: { params: Promise<{ date?: string
   const date = segs ? segs[0]! : today;
   const isToday = date === today;
 
-  const [employees, departments, statusTypes, sections, entries, notes, pendingDelays, groupCovers, loggedAbsences] = await Promise.all([
+  const [employees, departments, statusTypes, sections, entries, notes, pendingDelays, groupCovers, loggedAbsences, guestChanges] = await Promise.all([
     getEmployees(),
     getDepartments(),
     getStatusTypes(),
@@ -36,6 +36,7 @@ export default async function Page({ params }: { params: Promise<{ date?: string
     getPendingDelays(date),
     getGroupCovers(date, date),
     getLoggedAbsences(db, date, date),
+    db.guestChange.findMany({ where: { date: toDbDate(date) }, orderBy: { createdAt: "asc" } }),
   ]);
 
   const title = `${formatDayLong(date)} · ${settings.shiftStart}–${settings.shiftEnd}`;
@@ -91,6 +92,7 @@ export default async function Page({ params }: { params: Promise<{ date?: string
         pendingDelays={pendingDelays}
         groupDepartmentIds={groupCovers.map((g) => g.departmentId)}
         loggedAbsences={loggedAbsences}
+        guestChanges={guestChanges.map((c) => ({ text: c.text, time: madridTime(c.createdAt) }))}
       />
     </div>
   );
