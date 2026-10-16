@@ -4,6 +4,8 @@
 export const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // 8 MB
 export const MAX_PHOTOS_PER_REPORT = 6;
+/** Fotos por nota de la noche (los lineales siguen con `MAX_PHOTOS_PER_REPORT`). */
+export const MAX_PHOTOS_PER_NOTE = 15;
 export const UPLOAD_PREFIX = "reports/";
 /** Ruta pública (protegida por sesión) de los archivos en modo local. */
 export const LOCAL_FILES_BASE = "/api/files/";

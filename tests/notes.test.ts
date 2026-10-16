@@ -32,8 +32,8 @@ describe("saveNoteSchema", () => {
     expect(saveNoteSchema.safeParse({ date: "2026-09-29", type: "NOTE", text: "x", time: "25:00" }).success).toBe(false);
     expect(saveNoteSchema.safeParse({ date: "2026-09-29", type: "TALK", text: "x", time: "23:40" }).success).toBe(true);
   });
-  it("máximo 6 fotos", () => {
-    const six = Array.from({ length: 6 }, (_, i) => photo(i));
+  it("máximo 15 fotos", () => {
+    const six = Array.from({ length: 15 }, (_, i) => photo(i));
     expect(saveNoteSchema.safeParse({ date: "2026-09-29", type: "NOTE", text: "x", photos: six }).success).toBe(true);
     expect(saveNoteSchema.safeParse({ date: "2026-09-29", type: "NOTE", text: "x", photos: [...six, photo(9)] }).success).toBe(false);
   });

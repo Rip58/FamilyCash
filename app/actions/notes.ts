@@ -12,7 +12,7 @@ import { type SaveNoteInput, saveNoteSchema } from "@/lib/notes-schema";
 import { getSettings } from "@/lib/queries";
 import { purgeCutoff } from "@/lib/report-format";
 import { deleteStoredFiles } from "@/lib/storage";
-import { MAX_PHOTOS_PER_REPORT } from "@/lib/upload-rules";
+import { MAX_PHOTOS_PER_NOTE } from "@/lib/upload-rules";
 
 export type NoteActionResult<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -83,9 +83,9 @@ export async function saveNote(input: SaveNoteInput): Promise<NoteActionResult<{
     }
     // Editar una nota de otra noche: solo el dueño.
     await authorizeNight(fromDbDate(prev.date));
-    if (prev.photos.length + photos.length > MAX_PHOTOS_PER_REPORT) {
+    if (prev.photos.length + photos.length > MAX_PHOTOS_PER_NOTE) {
       await discardPhotos(p.data);
-      return fail(`Máximo ${MAX_PHOTOS_PER_REPORT} fotos por nota.`);
+      return fail(`Máximo ${MAX_PHOTOS_PER_NOTE} fotos por nota.`);
     }
     const start = prev.photos.reduce((m, x) => Math.max(m, x.sortOrder + 1), 0);
     await db.nightNote.update({

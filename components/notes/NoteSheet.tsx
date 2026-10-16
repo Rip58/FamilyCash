@@ -11,7 +11,7 @@ import { TimeInput } from "@/components/ui/TimeInput";
 import { notify } from "@/components/ui/toast";
 import { type DateStr, isDateStr } from "@/lib/dates";
 import { MAX_NOTE_TEXT, NOTE_TYPES, NOTE_TYPE_META, type NoteType, type NoteView } from "@/lib/notes";
-import { MAX_PHOTOS_PER_REPORT } from "@/lib/upload-rules";
+import { MAX_PHOTOS_PER_NOTE } from "@/lib/upload-rules";
 
 type Opt = { id: string; name: string };
 
@@ -72,7 +72,7 @@ function withCurrent(list: Opt[], id: string | null | undefined, name: string | 
 
 function NoteForm({ note, defaults, options, onDone }: { note: NoteView | null; defaults: NoteDefaults; options: NoteOptions; onDone: () => void }) {
   const existing = note?.photos ?? [];
-  const uploads = usePhotoUploads(Math.max(0, MAX_PHOTOS_PER_REPORT - existing.length));
+  const uploads = usePhotoUploads(Math.max(0, MAX_PHOTOS_PER_NOTE - existing.length));
   const [type, setType] = useState<NoteType>(note?.type ?? defaults.type ?? "NOTE");
   const [text, setText] = useState(note?.text ?? "");
   const [employeeId, setEmployeeId] = useState(note ? (note.employeeId ?? "") : (defaults.employeeId ?? ""));

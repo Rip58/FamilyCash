@@ -3,7 +3,7 @@ import { z } from "zod";
 import { isDateStr } from "./dates";
 import { MAX_NOTE_TEXT, NOTE_TYPES } from "./notes";
 import { photoInputSchema } from "./reports";
-import { MAX_PHOTOS_PER_REPORT } from "./upload-rules";
+import { MAX_PHOTOS_PER_NOTE } from "./upload-rules";
 
 const idSchema = z.string().min(1).max(64);
 const optId = idSchema.nullish().transform((v) => v || null);
@@ -24,7 +24,7 @@ export const saveNoteSchema = z.object({
   departmentId: optId,
   sectionId: optId,
   /** Fotos nuevas (se añaden a las que ya tiene). */
-  photos: z.array(photoInputSchema).max(MAX_PHOTOS_PER_REPORT, `Máximo ${MAX_PHOTOS_PER_REPORT} fotos por nota.`).default([]),
+  photos: z.array(photoInputSchema).max(MAX_PHOTOS_PER_NOTE, `Máximo ${MAX_PHOTOS_PER_NOTE} fotos por nota.`).default([]),
 });
 
 export type SaveNoteInput = z.input<typeof saveNoteSchema>;

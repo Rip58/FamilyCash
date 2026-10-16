@@ -23,6 +23,21 @@ let keySeq = 0;
  * directa, reintento, descarte de lo subido y no enviado). Lo usan las notas,
  * los lineales y los pasos de protocolo.
  */
+/** Subidas a la vez: comprimir muchas fotos juntas agota la memoria del móvil. */
+const PARALLEL_UPLOADS = 3;
+let active = 0;
+const waiting: (() => void)[] = [];
+async function withUploadSlot<T>(fn: () => Promise<T>): Promise<T> {
+  if (active >= PARALLEL_UPLOADS) await new Promise<void>((r) => waiting.push(r));
+  active++;
+  try {
+    return await fn();
+  } finally {
+    active--;
+    waiting.shift()?.();
+  }
+}
+
 export function usePhotoUploads(max: number = MAX_PHOTOS_PER_REPORT) {
   const mode = useStorageMode();
   const [items, setItems] = useState<PhotoItem[]>([]);
@@ -49,10 +64,13 @@ export function usePhotoUploads(max: number = MAX_PHOTOS_PER_REPORT) {
     const ctrl = new AbortController();
     controllers.current.set(item.key, ctrl);
     patch(item.key, { status: "uploading", progress: 0, error: undefined });
-    uploadPhoto(item.file, {
-      mode,
-      signal: ctrl.signal,
-      onProgress: (f) => patch(item.key, { progress: f }),
+    withUploadSlot(() => {
+      if (ctrl.signal.aborted) throw new DOMException("Cancelada", "AbortError");
+      return uploadPhoto(item.file, {
+        mode,
+        signal: ctrl.signal,
+        onProgress: (f) => patch(item.key, { progress: f }),
+      });
     })
       .then((result) => {
         controllers.current.delete(item.key);
