@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { PhotoViewer } from "@/components/reports/PhotoViewer";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Icon } from "@/components/ui/icons";
 import { notify } from "@/components/ui/toast";
 import { renderReportImage } from "@/lib/report-image";
-import { renderReportPdf } from "@/lib/report-pdf";
+import { pagesToPdf, renderReportPages } from "@/lib/report-pdf";
 import type { ShareModel } from "@/lib/report-share";
 
 async function copyText(text: string): Promise<boolean> {
@@ -53,6 +55,7 @@ export function ShareButton({
   pdfModel = model,
   fileName,
   photoNotes = [],
+  editHref,
 }: {
   text: string;
   model: ShareModel;
@@ -60,6 +63,8 @@ export function ShareButton({
   pdfModel?: ShareModel;
   fileName: string;
   photoNotes?: SharePhotoNote[];
+  /** Dónde corregir lo que falte (Hoy de esa noche). */
+  editHref?: string;
 }) {
   const photos = photoNotes.flatMap((n) => n.photos);
   const [open, setOpen] = useState(false);
@@ -67,6 +72,9 @@ export function ShareButton({
   const [photoFiles, setPhotoFiles] = useState<File[] | null>(photos.length === 0 ? [] : null);
   const [pdf, setPdf] = useState<File | null>(null);
   const [pdfFailed, setPdfFailed] = useState(false);
+  /** Vista previa de las páginas del PDF (la 1.ª es el informe). */
+  const [pageUrls, setPageUrls] = useState<{ url: string; width: number; height: number }[]>([]);
+  const [zoom, setZoom] = useState<number | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -115,13 +123,32 @@ export function ShareButton({
     const notes = photoNotes
       .map((n) => ({ ...n, photos: n.photos.flatMap((p) => byName.get(p.name) ?? []) }))
       .filter((n) => n.photos.length > 0);
-    renderReportPdf(pdfModel, notes, pdfName.replace(/\.pdf$/, ""))
-      .then((blob) => alive && setPdf(new File([blob], pdfName, { type: "application/pdf" })))
+    renderReportPages(pdfModel, notes)
+      .then(async (pages) => {
+        const blob = await pagesToPdf(pages, pdfName.replace(/\.pdf$/, ""));
+        if (!alive) return;
+        setPageUrls(pages.map((p) => ({ url: URL.createObjectURL(p.jpeg), width: p.width, height: p.height })));
+        setPdf(new File([blob], pdfName, { type: "application/pdf" }));
+      })
       .catch(() => alive && setPdfFailed(true));
     return () => {
       alive = false;
     };
   }, [open, pdf, pdfFailed, photoFiles, photoNotes, pdfModel, pdfName]);
+
+  useEffect(() => () => pageUrls.forEach((p) => URL.revokeObjectURL(p.url)), [pageUrls]);
+
+  // Lo que se ve en la vista previa: las páginas del PDF si lo hay; si no, la imagen del informe.
+  const preview = useMemo(
+    () =>
+      pageUrls.length > 0
+        ? pageUrls.map((p, i) => ({ id: `p${i}`, url: p.url, width: p.width, height: p.height, size: 0 }))
+        : url
+          ? [{ id: "img", url, width: 1080, height: 1920, size: 0 }]
+          : [],
+    [pageUrls, url],
+  );
+  const previewPending = photos.length > 0 ? !pdf && !pdfFailed : !url && !failed;
 
   async function sharePdf() {
     if (!pdf) return;
@@ -193,57 +220,85 @@ export function ShareButton({
       </button>
       <BottomSheet open={open} onClose={() => setOpen(false)} title="Compartir informe">
         <div className="space-y-3 pb-2">
-          <div className="flex max-h-[32vh] justify-center overflow-hidden rounded-card bg-surface-2">
-            {url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={url} alt="Vista previa del informe" className="h-auto max-h-[32vh] w-auto object-contain object-top" />
-            ) : (
-              <p className="py-10 text-[14px] text-muted">{failed ? "No se pudo generar la imagen" : "Generando imagen…"}</p>
+          <div className="flex items-baseline justify-between gap-2">
+            <h3 className="text-[13px] font-semibold uppercase tracking-wide text-muted">
+              Vista previa{preview.length > 1 ? ` · ${preview.length} páginas` : ""}
+            </h3>
+            {editHref && (
+              <Link href={editHref} className="press min-h-11 content-center text-[15px] font-medium text-accent">
+                Editar en Hoy
+              </Link>
             )}
           </div>
-          {photos.length > 0 && (
-            <button
-              type="button"
-              onClick={sharePdf}
-              disabled={!pdf}
-              className="press flex min-h-12 w-full flex-col items-center justify-center rounded-control bg-accent py-1.5 text-accent-fg disabled:opacity-50"
-            >
-              <span className="text-[16px] font-semibold">
-                {pdf ? "Compartir PDF" : pdfFailed ? "No se pudo crear el PDF" : "Preparando PDF…"}
-              </span>
-              <span className="text-[12px] opacity-90">Informe y cada foto con su nota debajo</span>
-            </button>
+          {preview.length === 0 || previewPending ? (
+            <p className="rounded-card bg-surface-2 py-16 text-center text-[14px] text-muted">
+              {failed ? "No se pudo generar la imagen" : "Preparando la vista previa…"}
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {preview.map((p, i) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setZoom(i)}
+                  aria-label={`Ampliar página ${i + 1}`}
+                  className="block w-full overflow-hidden rounded-card border border-line bg-surface-2"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={p.url} alt={i === 0 ? "Informe" : `Página ${i + 1}`} className="h-auto w-full" />
+                </button>
+              ))}
+              <p className="text-center text-[13px] text-muted">
+                Toca una página para ampliarla. ¿Falta algo? Cámbialo en Hoy o añade una nota y vuelve a abrir Compartir.
+              </p>
+            </div>
           )}
-          <button
-            type="button"
-            onClick={shareImage}
-            disabled={!file || photoFiles === null}
-            className={
-              photos.length > 0
-                ? "press min-h-11 w-full rounded-control bg-surface-2 text-[15px] font-medium disabled:opacity-50"
-                : "press flex min-h-12 w-full items-center justify-center rounded-control bg-accent text-[16px] font-semibold text-accent-fg disabled:opacity-50"
-            }
-          >
-            {photos.length === 0
-              ? "Compartir imagen"
-              : photoFiles === null
-                ? "Preparando fotos…"
-                : `Imagen + ${photoFiles.length === 1 ? "1 foto suelta" : `${photoFiles.length} fotos sueltas`}`}
-          </button>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="sticky bottom-[calc(-16px-env(safe-area-inset-bottom))] -mx-4 space-y-2 border-t border-line bg-surface px-4 pb-[calc(16px+env(safe-area-inset-bottom))] pt-3">
+            {photos.length > 0 && (
+              <button
+                type="button"
+                onClick={sharePdf}
+                disabled={!pdf}
+                className="press flex min-h-12 w-full flex-col items-center justify-center rounded-control bg-accent py-1.5 text-accent-fg disabled:opacity-50"
+              >
+                <span className="text-[16px] font-semibold">
+                  {pdf ? "Compartir PDF" : pdfFailed ? "No se pudo crear el PDF" : "Preparando PDF…"}
+                </span>
+                <span className="text-[12px] opacity-90">Informe y cada foto con su nota debajo</span>
+              </button>
+            )}
             <button
               type="button"
-              onClick={shareText}
-              className="press min-h-11 rounded-control bg-surface-2 text-[15px] font-medium"
+              onClick={shareImage}
+              disabled={!file || photoFiles === null}
+              className={
+                photos.length > 0
+                  ? "press min-h-11 w-full rounded-control bg-surface-2 text-[15px] font-medium disabled:opacity-50"
+                  : "press flex min-h-12 w-full items-center justify-center rounded-control bg-accent text-[16px] font-semibold text-accent-fg disabled:opacity-50"
+              }
             >
-              Compartir texto
+              {photos.length === 0
+                ? "Compartir imagen"
+                : photoFiles === null
+                  ? "Preparando fotos…"
+                  : `Imagen + ${photoFiles.length === 1 ? "1 foto suelta" : `${photoFiles.length} fotos sueltas`}`}
             </button>
-            <button type="button" onClick={copy} className="press min-h-11 rounded-control bg-surface-2 text-[15px] font-medium">
-              Copiar texto
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={shareText}
+                className="press min-h-11 rounded-control bg-surface-2 text-[15px] font-medium"
+              >
+                Compartir texto
+              </button>
+              <button type="button" onClick={copy} className="press min-h-11 rounded-control bg-surface-2 text-[15px] font-medium">
+                Copiar texto
+              </button>
+            </div>
           </div>
         </div>
       </BottomSheet>
+      <PhotoViewer photos={preview} index={zoom} onClose={() => setZoom(null)} />
     </>
   );
 }

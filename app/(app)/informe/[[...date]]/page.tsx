@@ -100,6 +100,7 @@ export default async function Page({
           model={buildShareModel(report)}
           pdfModel={pdfShareModel(report)}
           fileName={`informe-noche-${date}.png`}
+          editHref={`/hoy/${date}`}
           photoNotes={report.notes
             .filter((n) => n.photos.length > 0)
             .map((n, k) => ({

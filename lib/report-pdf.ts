@@ -94,14 +94,32 @@ async function photoPage(n: PdfPhotoNote, index: number): Promise<HTMLCanvasElem
   return canvas;
 }
 
-async function toPage(canvas: HTMLCanvasElement): Promise<PdfImagePage> {
-  const blob = await canvasBlob(canvas, "image/jpeg", JPEG_QUALITY);
-  return { jpeg: new Uint8Array(await blob.arrayBuffer()), width: canvas.width, height: canvas.height };
+/** Una página ya pintada (JPEG), para la vista previa y para montar el PDF. */
+export interface ReportPage {
+  jpeg: Blob;
+  width: number;
+  height: number;
+}
+
+async function toPage(canvas: HTMLCanvasElement): Promise<ReportPage> {
+  return { jpeg: await canvasBlob(canvas, "image/jpeg", JPEG_QUALITY), width: canvas.width, height: canvas.height };
+}
+
+/** Páginas del PDF: informe + una por foto, cada una con el texto de su nota debajo (en el orden de las notas). */
+export async function renderReportPages(m: ShareModel, notes: PdfPhotoNote[]): Promise<ReportPage[]> {
+  const pages = [await toPage(renderReportCanvas(m))];
+  for (const n of notes) for (let i = 0; i < n.photos.length; i++) pages.push(await toPage(await photoPage(n, i)));
+  return pages;
+}
+
+export async function pagesToPdf(pages: ReportPage[], title: string): Promise<Blob> {
+  const list: PdfImagePage[] = await Promise.all(
+    pages.map(async (p) => ({ jpeg: new Uint8Array(await p.jpeg.arrayBuffer()), width: p.width, height: p.height })),
+  );
+  return new Blob([buildImagePdf(list, title) as BlobPart], { type: "application/pdf" });
 }
 
 /** PDF: informe + una página por foto, cada una con el texto de su nota debajo (en el orden de las notas). */
 export async function renderReportPdf(m: ShareModel, notes: PdfPhotoNote[], title: string): Promise<Blob> {
-  const pages = [await toPage(renderReportCanvas(m))];
-  for (const n of notes) for (let i = 0; i < n.photos.length; i++) pages.push(await toPage(await photoPage(n, i)));
-  return new Blob([buildImagePdf(pages, title) as BlobPart], { type: "application/pdf" });
+  return pagesToPdf(await renderReportPages(m, notes), title);
 }
