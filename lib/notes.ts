@@ -45,7 +45,11 @@ export interface NoteView {
   /** Tarea hecha. */
   done: boolean;
   text: string;
+  /** La primera persona (o null si es general / de un departamento). */
   employeeId: string | null;
+  /** Todas las personas de la nota (la primera = `employeeId`); vacío si no es de nadie. */
+  employeeIds: string[];
+  /** «Ana», «Ana y Luis», «Ana, Luis y Pedro». */
   employeeName: string | null;
   departmentId: string | null;
   departmentName: string | null;
@@ -54,6 +58,12 @@ export interface NoteView {
   photos: ReportPhotoView[];
   /** La escribió el compañero desde su enlace. */
   byGuest?: boolean;
+}
+
+/** «Ana», «Ana y Luis», «Ana, Luis y Pedro». */
+export function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} y ${names[names.length - 1]}`;
 }
 
 /** "Ana · Droguería", "Droguería", "Ana" o "General". */
@@ -83,10 +93,12 @@ export function sortNotes(notes: NoteView[]): NoteView[] {
 }
 
 export interface NoteGroup {
-  /** employeeId, `dep:<id>` o "general". */
+  /** ids de las personas (separados por comas), `dep:<id>` o "general". */
   key: string;
-  /** "Ana", "Droguería" o "General". */
+  /** "Ana", "Ana y Luis", "Droguería" o "General". */
   who: string;
+  /** Personas de la nota (2 o más = nota para varios). */
+  people: number;
   notes: NoteView[];
 }
 
@@ -94,9 +106,9 @@ export interface NoteGroup {
 export function groupNotesByWho(notes: NoteView[]): NoteGroup[] {
   const groups = new Map<string, NoteGroup>();
   for (const n of notes) {
-    const key = n.employeeId ?? (n.departmentId ? `dep:${n.departmentId}` : "general");
-    const who = n.employeeId ? (n.employeeName ?? "—") : (n.departmentName ?? "General");
-    const g = groups.get(key) ?? { key, who, notes: [] };
+    const key = n.employeeIds.length > 0 ? n.employeeIds.join(",") : n.departmentId ? `dep:${n.departmentId}` : "general";
+    const who = n.employeeIds.length > 0 ? (n.employeeName ?? "—") : (n.departmentName ?? "General");
+    const g = groups.get(key) ?? { key, who, people: n.employeeIds.length, notes: [] };
     g.notes.push(n);
     groups.set(key, g);
   }

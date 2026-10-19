@@ -1,7 +1,7 @@
 /** Lectura de notas (solo servidor). */
 import { db } from "./db";
 import { type DateStr, fromDbDate, toDbDate } from "./dates";
-import { type NoteView, noteTypeOf } from "./notes";
+import { type NoteView, joinNames, noteTypeOf } from "./notes";
 import type { Prisma } from "./generated/prisma/client";
 
 const INCLUDE = {
@@ -13,7 +13,15 @@ const INCLUDE = {
 
 type Row = Prisma.NightNoteGetPayload<{ include: typeof INCLUDE }>;
 
-export function toNoteView(r: Row): NoteView {
+/** Notas en las que sale una persona (sola o junto a otras). */
+export function notesOfEmployee(id: string): Prisma.NightNoteWhereInput {
+  return { OR: [{ employeeId: id }, { extraEmployeeIds: { has: id } }] };
+}
+
+export function toNoteView(r: Row, names: Map<string, string> = new Map()): NoteView {
+  const extras = r.extraEmployeeIds.filter((id) => id !== r.employeeId && names.has(id));
+  const employeeIds = r.employeeId ? [r.employeeId, ...extras] : extras;
+  const employeeNames = [...(r.employee ? [r.employee.name] : []), ...extras.map((id) => names.get(id)!)];
   return {
     id: r.id,
     date: fromDbDate(r.date),
@@ -21,8 +29,9 @@ export function toNoteView(r: Row): NoteView {
     type: noteTypeOf(r.kind, r.category),
     done: r.doneAt !== null,
     text: r.text,
-    employeeId: r.employeeId,
-    employeeName: r.employee?.name ?? null,
+    employeeId: employeeIds[0] ?? null,
+    employeeIds,
+    employeeName: employeeNames.length ? joinNames(employeeNames) : null,
     departmentId: r.departmentId,
     departmentName: r.department?.name ?? null,
     sectionId: r.sectionId,
@@ -36,7 +45,11 @@ const ORDER: Prisma.NightNoteOrderByWithRelationInput[] = [{ date: "asc" }, { ti
 
 export async function findNotes(where: Prisma.NightNoteWhereInput): Promise<NoteView[]> {
   const rows = await db.nightNote.findMany({ where, include: INCLUDE, orderBy: ORDER });
-  return rows.map(toNoteView);
+  const extra = [...new Set(rows.flatMap((r) => r.extraEmployeeIds))];
+  const names = new Map(
+    extra.length ? (await db.employee.findMany({ where: { id: { in: extra } }, select: { id: true, name: true } })).map((e) => [e.id, e.name]) : [],
+  );
+  return rows.map((r) => toNoteView(r, names));
 }
 
 /** Notas de las noches entre dos fechas incluidas. */

@@ -72,7 +72,7 @@ describe("historial agrupado", () => {
 describe("notas en el historial", () => {
   it("cada tipo de nota tiene su filtro, con hora, sección y fotos", () => {
     const base = {
-      id: "n", date: "2026-10-05", time: "23:10", done: false, text: "Palé roto", employeeId: "e", employeeName: "Ana",
+      id: "n", date: "2026-10-05", time: "23:10", done: false, text: "Palé roto", employeeId: "e", employeeIds: ["e"], employeeName: "Ana",
       departmentId: null, departmentName: null, sectionId: "s", sectionName: "Cerveza",
       photos: [{ id: "p", url: "u", width: 1, height: 1, size: 1 }],
     };

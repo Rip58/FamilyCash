@@ -168,7 +168,7 @@ export function DayView({
   );
   const notesBy = useMemo(() => {
     const m = new Map<string, NoteView[]>();
-    for (const n of notes) if (n.employeeId) m.set(n.employeeId, [...(m.get(n.employeeId) ?? []), n]);
+    for (const n of notes) for (const id of n.employeeIds) m.set(id, [...(m.get(id) ?? []), n]);
     return m;
   }, [notes]);
   const openNote = (employeeId: string | null) => setNoteSheet({ open: true, employeeId });

@@ -41,7 +41,7 @@ export interface ExportInput {
   sections: { id: string; name: string }[];
   entries: DayEntryLite[];
   /** Notas de empleado (columna «Nota»). */
-  notes?: { date: DateStr; employeeId: string | null; text: string }[];
+  notes?: { date: DateStr; employeeIds: string[]; text: string }[];
 }
 
 /** Filas del CSV (cabecera incluida). Incluye los días por defecto vía getEffectiveDay. */
@@ -53,9 +53,10 @@ export function buildExportRows(input: ExportInput): string[][] {
   const entryMap = new Map(entries.map((e) => [key(e.employeeId, e.date), e]));
   const noteMap = new Map<string, string[]>();
   for (const n of input.notes ?? []) {
-    if (!n.employeeId) continue;
-    const k = key(n.employeeId, n.date);
-    noteMap.set(k, [...(noteMap.get(k) ?? []), n.text.replace(/\s*\n\s*/g, " ")]);
+    for (const id of n.employeeIds) {
+      const k = key(id, n.date);
+      noteMap.set(k, [...(noteMap.get(k) ?? []), n.text.replace(/\s*\n\s*/g, " ")]);
+    }
   }
 
   const rows: string[][] = [[...CSV_HEADER]];

@@ -6,6 +6,7 @@ import { DepartmentGrid } from "@/components/day/DepartmentGrid";
 import { useGuestMode } from "@/components/day/guest-mode";
 import { PhotoPicker, usePhotoUploads } from "@/components/reports/PhotoPicker";
 import { BottomSheet } from "@/components/ui/BottomSheet";
+import { PeoplePicker } from "./PeoplePicker";
 import { Segmented } from "@/components/ui/Segmented";
 import { TimeInput } from "@/components/ui/TimeInput";
 import { notify } from "@/components/ui/toast";
@@ -75,7 +76,8 @@ function NoteForm({ note, defaults, options, onDone }: { note: NoteView | null; 
   const uploads = usePhotoUploads(Math.max(0, MAX_PHOTOS_PER_NOTE - existing.length));
   const [type, setType] = useState<NoteType>(note?.type ?? defaults.type ?? "NOTE");
   const [text, setText] = useState(note?.text ?? "");
-  const [employeeId, setEmployeeId] = useState(note ? (note.employeeId ?? "") : (defaults.employeeId ?? ""));
+  const [employeeIds, setEmployeeIds] = useState<string[]>(note ? note.employeeIds : defaults.employeeId ? [defaults.employeeId] : []);
+  const employeeId = employeeIds[0] ?? "";
   const [departmentId, setDepartmentId] = useState(note ? (note.departmentId ?? "") : (defaults.departmentId ?? ""));
   const [sectionId, setSectionId] = useState(note?.sectionId ?? "");
   const [date, setDate] = useState<string>(note?.date ?? defaults.date);
@@ -87,7 +89,11 @@ function NoteForm({ note, defaults, options, onDone }: { note: NoteView | null; 
   // Lo menos usado, plegado (se abre solo si la nota ya lo tiene).
   const [more, setMore] = useState(!!(note && (note.departmentId || note.sectionId || note.time || note.date !== defaults.date)));
 
-  const employees = withCurrent(options.employees, note?.employeeId, note?.employeeName);
+  // Las personas de la nota que ya no están en la lista (inactivas) se añaden para no perderlas al guardar.
+  const employees = (note?.employeeIds ?? []).reduce(
+    (list, id, i) => withCurrent(list, id, note?.employeeIds.length === 1 ? note.employeeName : `(persona ${i + 1})`),
+    options.employees,
+  );
   const departments = withCurrent(options.departments, note?.departmentId, note?.departmentName);
   const sections = withCurrent(options.sections, note?.sectionId, note?.sectionName);
 
@@ -117,7 +123,7 @@ function NoteForm({ note, defaults, options, onDone }: { note: NoteView | null; 
           time: time || null,
           type,
           text,
-          employeeId: employeeId || null,
+          employeeIds,
           departmentId: departmentId || null,
           sectionId: sectionId || null,
           photos: uploads.results,
@@ -167,17 +173,10 @@ function NoteForm({ note, defaults, options, onDone }: { note: NoteView | null; 
         className={`${field} min-h-[110px] py-2`}
       />
 
-      <label className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1.5">
         <span className={label}>Persona</span>
-        <select aria-label="Persona" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className={field}>
-          <option value="">General (nadie en concreto)</option>
-          {employees.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name}
-            </option>
-          ))}
-        </select>
-      </label>
+        <PeoplePicker employees={employees} value={employeeIds} onChange={setEmployeeIds} />
+      </div>
 
       {existing.length > 0 && (
         <ul className="flex flex-wrap gap-2" aria-label="Fotos guardadas">

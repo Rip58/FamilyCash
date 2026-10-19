@@ -228,6 +228,7 @@ model NightNote {           // LA nota: de la noche, general o de un empleado / 
   time       String?                        // "22:15" si se apuntó la hora
   employeeId String?
   employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  extraEmployeeIds String[] @default([])    // nota para varias personas: el resto (la primera va en employeeId)
   departmentId String?
   department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   sectionId  String?                        // dónde ocurrió (opcional)

@@ -5,7 +5,7 @@ import { absenceHistoryItem, entryHistoryItems, mergeAbsenceItems } from "./empl
 import { type HistoryItem, meetingHistoryItem, noteHistoryItem, pastHistoryOnly } from "./employee-history";
 import { findMeetingTopics } from "./meeting-queries";
 import { meetingWho } from "./meetings";
-import { findNotes } from "./note-queries";
+import { findNotes, notesOfEmployee } from "./note-queries";
 import { noteWho } from "./notes";
 import { getEmployees, getSettings, getStatusTypes, toEntryLite } from "./queries";
 import { getEffectiveDay } from "./schedule";
@@ -16,7 +16,7 @@ export async function loadEmployeeHistory(employeeId: string): Promise<HistoryIt
     getStatusTypes(),
     getSettings(),
     db.dayEntry.findMany({ where: { employeeId }, include: { segments: { orderBy: { sortOrder: "asc" } } } }),
-    findNotes({ employeeId }),
+    findNotes(notesOfEmployee(employeeId)),
     db.absence.findMany({ where: { employeeId }, orderBy: { date: "asc" } }),
     findMeetingTopics({ employeeId }),
   ]);
@@ -33,7 +33,11 @@ export async function loadEmployeeHistory(employeeId: string): Promise<HistoryIt
     dayItems,
     absences.map((a) => absenceHistoryItem({ ...a, date: fromDbDate(a.date) })),
   );
-  for (const n of notes) items.push(noteHistoryItem(n, n.departmentName));
+  for (const n of notes) {
+    // Nota para varias personas: que se vea con quién más.
+    const group = n.employeeIds.length > 1 ? `Varios: ${n.employeeName}` : null;
+    items.push(noteHistoryItem(n, [group, n.departmentName].filter(Boolean).join(" · ") || null));
+  }
   for (const t of meetings) items.push(meetingHistoryItem(t, t.departmentName));
   return pastHistoryOnly(items, operationalToday(new Date(), settings.dayRolloverHour));
 }

@@ -5,7 +5,7 @@ import { setNoteDone } from "@/app/actions/notes";
 import { PhotoThumbs } from "@/components/reports/PhotoThumbs";
 import { PhotoViewer } from "@/components/reports/PhotoViewer";
 import { cn } from "@/components/ui/cn";
-import { tint } from "@/components/ui/icons";
+import { Icon, tint } from "@/components/ui/icons";
 import { NOTE_TYPE_META, type NoteView, groupNotesByWho, noteLabel } from "@/lib/notes";
 import { type NoteDefaults, type NoteOptions, NoteSheet } from "./NoteSheet";
 
@@ -36,9 +36,20 @@ export function NoteList({
         <ul className="divide-y divide-line">
           {groupNotesByWho(notes).map((g) => (
             <li key={g.key} className={compact ? "py-1" : "py-1.5"}>
-              <h3 className="pt-1 text-[12px] font-semibold leading-tight text-fg/80">
-                {g.who}
-                {g.notes.length > 1 && <span className="font-normal text-muted"> · {g.notes.length}</span>}
+              <h3 className="flex items-start gap-1.5 pt-1 text-[12px] font-semibold leading-tight text-fg/80">
+                {g.people > 1 && (
+                  <span
+                    aria-label={`Nota para ${g.people} personas`}
+                    className="flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-px text-[11px] font-semibold text-accent"
+                  >
+                    <Icon name="users" className="h-3 w-3" strokeWidth={2.4} />
+                    {g.people}
+                  </span>
+                )}
+                <span className="min-w-0">
+                  {g.who}
+                  {g.notes.length > 1 && <span className="font-normal text-muted"> · {g.notes.length}</span>}
+                </span>
               </h3>
               <ul>
                 {g.notes.map((n) => (

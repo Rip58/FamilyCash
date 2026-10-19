@@ -12,7 +12,7 @@ import {
 
 const note = (o: Partial<NoteView>): NoteView => ({
   id: "n", date: "2026-09-28", time: null, type: "NOTE", done: false, text: "", employeeId: null, employeeName: null,
-  departmentId: null, departmentName: null, sectionId: null, sectionName: null, photos: [], ...o,
+  departmentId: null, departmentName: null, sectionId: null, sectionName: null, photos: [], ...o, employeeIds: o.employeeIds ?? (o.employeeId ? [o.employeeId] : []),
 });
 
 const st = (code: string, label: string, isWorking: boolean, sortOrder: number): StatusTypeLite => ({

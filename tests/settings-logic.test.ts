@@ -66,7 +66,7 @@ describe("CSV", () => {
         arrivedAt: "22:15", leftAt: null, timeReason: "tarde",
         segments: [{ sectionId: "s1", label: null, start: "21:30", end: "05:00", note: null, sortOrder: 0 }],
       }],
-      notes: [{ date: "2026-09-28", employeeId: "e1", text: "ok" }, { date: "2026-09-28", employeeId: null, text: "general" }],
+      notes: [{ date: "2026-09-28", employeeIds: ["e1"], text: "ok" }, { date: "2026-09-28", employeeIds: [], text: "general" }],
     });
     expect(rows).toHaveLength(3);
     expect(rows[1]).toEqual(["2026-09-28", "Ana", "Droguería", "Trabaja", "", "22:15", "", "tarde", "ok", "Cerveza 21:30-05:00", "", ""]);

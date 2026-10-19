@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatStamp, madridInstant, madridTime } from "@/lib/dates";
-import { type NoteView, groupNotesByWho, noteLabel, noteLine, noteTypeOf, noteTypeToDb, noteWho, sortNotes } from "@/lib/notes";
+import { type NoteView, groupNotesByWho, joinNames, noteLabel, noteLine, noteTypeOf, noteTypeToDb, noteWho, sortNotes } from "@/lib/notes";
 import { saveNoteSchema } from "@/lib/notes-schema";
 import { photoCountLabel, purgeCutoff } from "@/lib/reports";
 
@@ -15,7 +15,7 @@ const photo = (n: number) => ({
 const note = (o: Partial<NoteView> = {}): NoteView => ({
   id: "n", date: "2026-10-05", time: null, type: "NOTE", done: false, text: "Texto",
   employeeId: null, employeeName: null, departmentId: null, departmentName: null, sectionId: null, sectionName: null, photos: [],
-  ...o,
+  ...o, employeeIds: o.employeeIds ?? (o.employeeId ? [o.employeeId] : []),
 });
 
 describe("saveNoteSchema", () => {
@@ -128,6 +128,23 @@ describe("groupNotesByWho", () => {
       ["Claudia", ["1", "4"]],
       ["Juan", ["2"]],
       ["Droguería", ["5"]],
+    ]);
+  });
+});
+
+describe("notas para varias personas", () => {
+  it("nombres juntos y un grupo propio con el número de personas", () => {
+    expect(joinNames(["Ana"])).toBe("Ana");
+    expect(joinNames(["Ana", "Luis"])).toBe("Ana y Luis");
+    expect(joinNames(["Ana", "Luis", "Pedro"])).toBe("Ana, Luis y Pedro");
+    const groups = groupNotesByWho([
+      note({ id: "1", employeeId: "a", employeeIds: ["a", "l"], employeeName: "Ana y Luis" }),
+      note({ id: "2", employeeId: "a", employeeName: "Ana" }),
+      note({ id: "3", employeeId: "a", employeeIds: ["a", "l"], employeeName: "Ana y Luis" }),
+    ]);
+    expect(groups.map((g) => [g.who, g.people, g.notes.map((n) => n.id).join()])).toEqual([
+      ["Ana y Luis", 2, "1,3"],
+      ["Ana", 1, "2"],
     ]);
   });
 });

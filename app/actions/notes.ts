@@ -37,9 +37,9 @@ async function discardPhotos(input: unknown) {
   if (names.length) await deleteStoredFiles(names);
 }
 
-async function checkRefs(d: { employeeId: string | null; departmentId: string | null; sectionId: string | null }) {
+async function checkRefs(d: { employeeIds: string[]; departmentId: string | null; sectionId: string | null }) {
   const [e, dep, s] = await Promise.all([
-    d.employeeId ? db.employee.findUnique({ where: { id: d.employeeId }, select: { id: true } }) : true,
+    d.employeeIds.length ? db.employee.count({ where: { id: { in: d.employeeIds } } }).then((n) => n === d.employeeIds.length) : true,
     d.departmentId ? db.department.findUnique({ where: { id: d.departmentId }, select: { id: true } }) : true,
     d.sectionId ? db.section.findUnique({ where: { id: d.sectionId }, select: { id: true } }) : true,
   ]);
@@ -56,10 +56,12 @@ export async function saveNote(input: SaveNoteInput): Promise<NoteActionResult<{
     await discardPhotos(input);
     return fail(p.error.issues[0]?.message ?? "Datos no válidos.");
   }
-  const { id, date, type, photos, ...rest } = p.data;
+  const { id, date, type, photos, employeeIds: ids, employeeId: oneId, ...rest0 } = p.data;
+  const employeeIds = [...new Set(ids ?? (oneId ? [oneId] : []))];
   // El compañero (enlace sin contraseña) solo apunta en la noche en curso.
   const who = await authorizeNight(date);
-  const refErr = await checkRefs(rest);
+  const refErr = await checkRefs({ ...rest0, employeeIds });
+  const rest = { ...rest0, employeeId: employeeIds[0] ?? null, extraEmployeeIds: employeeIds.slice(1) };
   if (refErr) {
     await discardPhotos(p.data);
     return fail(refErr);

@@ -21,6 +21,8 @@ export const saveNoteSchema = z.object({
   type: z.enum(NOTE_TYPES),
   text: z.string().trim().min(1, "Escribe la nota.").max(MAX_NOTE_TEXT, `La nota no puede superar ${MAX_NOTE_TEXT} caracteres.`),
   employeeId: optId,
+  /** Varias personas (la primera es la principal). Si viene, manda sobre `employeeId`. */
+  employeeIds: z.array(z.string().min(1).max(64)).max(60, "Demasiadas personas.").optional(),
   departmentId: optId,
   sectionId: optId,
   /** Fotos nuevas (se añaden a las que ya tiene). */
