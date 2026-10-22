@@ -10,6 +10,10 @@ import { WEEKDAY_LETTERS, formatDayLong, operationalToday } from "@/lib/dates";
 import { getDepartments, getEmployees, getEntriesBetween, getSections, getSettings, getStatusTypes } from "@/lib/queries";
 import { loadEmployeeHistory } from "@/lib/employee-history-queries";
 import { getEffectiveDay } from "@/lib/schedule";
+import { headers } from "next/headers";
+import { VacationPinCard } from "@/components/employee/VacationPinCard";
+import { ensureVacationPins, getVacationCampaign } from "@/lib/vacation-queries";
+import { VACATION_PAGE_READY, vacationInvite } from "@/lib/vacations";
 
 export const metadata = { title: "Ficha del empleado" };
 export const dynamic = "force-dynamic";
@@ -53,6 +57,16 @@ export default async function Page({
   const entry = todayEntries.find((e) => e.employeeId === id) ?? null;
   const day = getEffectiveDay(employee, today, entry, statusTypes);
   const dept = departments.find((d) => d.id === employee.defaultDepartmentId) ?? null;
+  // Vacaciones: PIN fijo (se crea la primera vez) y el mensaje con el enlace cuando la página esté lista.
+  const campaign = tab === "datos" && employee.active ? await getVacationCampaign() : null;
+  const vacationPin = campaign ? ((await ensureVacationPins([id])).get(id) ?? null) : null;
+  let invite: string | null = null;
+  if (campaign && vacationPin && VACATION_PAGE_READY) {
+    const h = await headers();
+    const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
+    const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+    invite = vacationInvite(employee.name, `${proto}://${host}/vacaciones`, vacationPin, campaign);
+  }
 
   return (
     <div>
@@ -79,6 +93,7 @@ export default async function Page({
         <FileTabs tab={tab} />
       </div>
 
+      {tab === "datos" && campaign && vacationPin && <VacationPinCard year={campaign.year} pin={vacationPin} invite={invite} />}
       {tab === "datos" && (
         <DataTab
           employee={{

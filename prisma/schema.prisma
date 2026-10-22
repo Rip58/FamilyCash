@@ -77,6 +77,7 @@ model Employee {
   nightNotes          NightNote[]
   meetingTopics       MeetingTopic[]
   absences            Absence[]
+  vacationPin VacationPin?               // PIN fijo para pedir vacaciones (tabla aparte: no viaja con getEmployees)
 }
 
 model DayEntry {            // solo existe si el día difiere del patrón o tiene datos
@@ -310,4 +311,31 @@ model GuestChange {          // lo que hace el compañero desde su enlace (se ve
   text      String
   createdAt DateTime @default(now())
   @@index([date])
+}
+
+// ---- Vacaciones (campaña anual: cada empleado pide las suyas con su PIN) ----
+model VacationCampaign {
+  year          Int      @id                // 2027
+  workDays      Int      @default(22)       // días laborables por persona
+  deadline      DateTime @db.Date           // último día para elegir
+  open          Boolean  @default(true)     // abierta a los empleados
+  defaultMax    Int      @default(2)        // máximo a la vez en un departamento
+  departmentMax Json     @default("{}")     // { departmentId: máximo } (Droguería 1…)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model VacationWeek {                        // semana con regla propia (bloqueada o con otro máximo)
+  weekStart   DateTime @id @db.Date         // lunes
+  blocked     Boolean  @default(false)      // no se pueden pedir vacaciones
+  reason      String?                       // lo ven los empleados («Inventario»)
+  maxOverride Int?                          // máximo a la vez solo esta semana (temporada)
+  updatedAt   DateTime @updatedAt
+}
+
+model VacationPin {
+  employeeId String   @id
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  pin        String   @unique               // 4 números, fijo (se ve en la ficha para decírselo)
+  createdAt  DateTime @default(now())
 }

@@ -3,6 +3,7 @@ import { aiProviderLabel } from "@/lib/ai-import-format";
 import { db } from "@/lib/db";
 import { currentGuestToken } from "@/lib/guest-server";
 import { getDepartments, getEmployees, getSections, getSettings, getStatusTypes } from "@/lib/queries";
+import { VACATION_YEAR } from "@/lib/vacations";
 import { VersionCard } from "@/components/settings/VersionCard";
 import { Icon, type IconName, tint } from "@/components/ui/icons";
 
@@ -39,6 +40,7 @@ export default async function Page() {
       items: [
         { href: "/ajustes/turno", label: "Turno", detail: shift, icon: "moon", color: "#6366f1" },
         { href: "/ajustes/ia", label: "Importar con IA", detail: aiProviderLabel(settings.aiProvider), icon: "sparkles", color: "#d97757" },
+        { href: "/ajustes/vacaciones", label: "Vacaciones", detail: String(VACATION_YEAR), icon: "calendar", color: "#3b82f6" },
       ],
     },
     {

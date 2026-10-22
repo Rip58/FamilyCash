@@ -50,6 +50,12 @@ const PATHS = {
     </>
   ),
   moon: <path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.7 6.7 0 0 0 9.7 9.7z" />,
+  calendar: (
+    <>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="2.5" />
+      <path d="M3.5 10h17M8 3v4M16 3v4M8 14h2M14 14h2M8 17h2" />
+    </>
+  ),
   wallet: (
     <>
       <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3" />
