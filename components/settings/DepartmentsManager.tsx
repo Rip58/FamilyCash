@@ -149,7 +149,7 @@ function EmployeeOrder({ list, empty }: { list: EmpRow[]; empty: string }) {
           <div className="flex items-center gap-1 border-b border-line bg-surface pr-3 last:border-b-0">
             {handle}
             {/* Su departamento habitual se cambia en su ficha (un solo sitio). */}
-            <Link href={`/ajustes/empleados/${e.id}?tab=datos`} className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2">
+            <Link href={`/ajustes/empleados/${e.id}`} className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2">
               <span className="truncate text-[16px]">{e.name}</span>
               <span aria-hidden className="text-muted">›</span>
             </Link>

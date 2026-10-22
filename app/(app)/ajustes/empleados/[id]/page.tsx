@@ -26,7 +26,7 @@ export default async function Page({
   const employee = await db.employee.findUnique({ where: { id } });
   if (!employee) notFound();
   const tabParam = Array.isArray(rawTab) ? rawTab[0] : rawTab;
-  const tab = isFileTab(tabParam) ? tabParam : "historial";
+  const tab = isFileTab(tabParam) ? tabParam : "datos";
 
   const settings = await getSettings();
   const today = operationalToday(new Date(), settings.dayRolloverHour);
