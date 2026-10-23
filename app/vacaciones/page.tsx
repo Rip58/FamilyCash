@@ -15,10 +15,11 @@ export default async function Page() {
   }
   if (!employee) return <VacationPinForm year={campaign.year} deadline={campaign.deadline} />;
 
-  const [weeks, periods, last] = await Promise.all([
+  const [weeks, periods, last, messages] = await Promise.all([
     getVacationWeeks(campaign.year),
     db.vacationPeriod.findMany({ where: { employeeId: employee.id, year: campaign.year }, orderBy: { start: "asc" } }),
     db.vacationSubmission.findFirst({ where: { employeeId: employee.id, year: campaign.year }, orderBy: { signedAt: "desc" }, select: { signedAt: true } }),
+    db.vacationMessage.findMany({ where: { employeeId: employee.id, year: campaign.year }, orderBy: { createdAt: "asc" } }),
   ]);
   return (
     <VacationPlanner
@@ -31,6 +32,8 @@ export default async function Page() {
       blocked={weeks.filter((w) => w.blocked).map((w) => ({ weekStart: w.weekStart, reason: w.reason }))}
       periods={periods.map((p) => ({ start: fromDbDate(p.start), end: fromDbDate(p.end), status: p.status }))}
       signedAt={last ? formatStamp(last.signedAt) : null}
+      messages={messages.map((m) => ({ id: m.id, fromOwner: m.fromOwner, text: m.text, at: formatStamp(m.createdAt) }))}
+      unseen={messages.filter((m) => m.fromOwner && !m.seen).length}
     />
   );
 }

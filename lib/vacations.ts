@@ -328,3 +328,93 @@ export function groupWeekRules(weeks: VacationWeekView[]): WeekRuleRange[] {
 
 /** «26 jul – 8 ago». */
 export const ruleRangeLabel = (r: Pick<WeekRuleRange, "from" | "to">): string => `${formatDayMonth(r.from)} – ${formatDayMonth(r.to)}`;
+
+// ---- Solapes del año ---------------------------------------------------------------------------------------------
+
+export interface VacationConflict {
+  departmentId: string;
+  departmentName: string;
+  color: string | null;
+  max: number;
+  /** Días seguidos en los que pasa del máximo con las mismas personas. */
+  from: DateStr;
+  to: DateStr;
+  employeeIds: string[];
+  /** Periodos que tienen días que descuentan dentro del solape. */
+  periodIds: string[];
+}
+
+/**
+ * Días del año en que un departamento pasa del máximo a la vez (solo cuentan los días que descuentan), juntando los
+ * seguidos con las mismas personas. Los departamentos secundarios no cuentan.
+ */
+export function vacationConflicts(args: {
+  year: number;
+  employees: VacGridEmployee[];
+  departments: VacGridDepartment[];
+  periods: (VacGridPeriod & { id: string })[];
+  campaign: Pick<VacationCampaignView, "defaultMax" | "departmentMax">;
+  weeks: VacationWeekView[];
+}): VacationConflict[] {
+  const deptOf = new Map(args.employees.map((e) => [e.id, e.departmentId]));
+  const known = new Map(args.departments.map((d) => [d.id, d]));
+  const weekRule = new Map(args.weeks.map((w) => [w.weekStart, w]));
+  // día → departamento → [{ employeeId, periodId }]
+  const off = new Map<DateStr, Map<string, { employeeId: string; periodId: string }[]>>();
+  for (const p of args.periods) {
+    const raw = deptOf.get(p.employeeId);
+    if (raw === undefined) continue; // inactivo
+    const dept = raw && known.has(raw) ? known.get(raw)! : null;
+    if (dept?.secondary) continue;
+    const key = dept?.id ?? "none";
+    for (const d of vacationSpan(p).days) {
+      if (d.kind !== "work" || !d.date.startsWith(`${args.year}-`)) continue;
+      const byDept = off.get(d.date) ?? new Map();
+      byDept.set(key, [...(byDept.get(key) ?? []), { employeeId: p.employeeId, periodId: p.id }]);
+      off.set(d.date, byDept);
+    }
+  }
+  const out: VacationConflict[] = [];
+  const open = new Map<string, VacationConflict>(); // departamento → solape que sigue abierto
+  const days = [...off.keys()].sort();
+  for (const date of days) {
+    for (const [key, list] of off.get(date)!) {
+      const dept = key === "none" ? null : known.get(key)!;
+      const max = maxAtOnce(args.campaign, dept?.id ?? null, weekRule.get(weekStart(date)) ?? null);
+      if (list.length <= max) continue;
+      const ids = [...new Set(list.map((x) => x.employeeId))].sort();
+      const prev = open.get(key);
+      if (prev && addDays(prev.to, 1) === date && prev.employeeIds.join() === ids.join() && prev.max === max) {
+        prev.to = date;
+        for (const x of list) if (!prev.periodIds.includes(x.periodId)) prev.periodIds.push(x.periodId);
+        continue;
+      }
+      // Fin de semana o festivo en medio sin nadie que descuente: se junta con el anterior si son los mismos.
+      if (prev && prev.employeeIds.join() === ids.join() && prev.max === max && diffDays(prev.to, date) <= 3) {
+        prev.to = date;
+        for (const x of list) if (!prev.periodIds.includes(x.periodId)) prev.periodIds.push(x.periodId);
+        continue;
+      }
+      const c: VacationConflict = {
+        departmentId: key,
+        departmentName: dept?.name ?? "Sin departamento",
+        color: dept?.color ?? "#64748b",
+        max,
+        from: date,
+        to: date,
+        employeeIds: ids,
+        periodIds: [...new Set(list.map((x) => x.periodId))],
+      };
+      out.push(c);
+      open.set(key, c);
+    }
+  }
+  return out;
+}
+
+/** Estado del planning de cada día de un periodo: los que descuentan = vacaciones; su fiesta = fiesta. */
+export function planningDaysFor(r: VacationRange): { date: DateStr; code: "VACATION" | "OFF" }[] {
+  return vacationSpan(r).days.map((d) => ({ date: d.date, code: d.kind === "work" ? "VACATION" : "OFF" }));
+}
+
+export const MAX_MESSAGE_TEXT = 1000;

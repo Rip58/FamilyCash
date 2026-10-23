@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { leaveVacation } from "@/app/actions/auth";
-import { submitVacations } from "@/app/actions/vacations";
+import { markVacationMessagesSeen, replyVacationMessage, submitVacations } from "@/app/actions/vacations";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { cn } from "@/components/ui/cn";
 import { notify } from "@/components/ui/toast";
@@ -38,6 +38,8 @@ export function VacationPlanner({
   blocked,
   periods: saved,
   signedAt,
+  messages,
+  unseen,
 }: {
   name: string;
   year: number;
@@ -47,6 +49,8 @@ export function VacationPlanner({
   blocked: { weekStart: DateStr; reason: string | null }[];
   periods: Period[];
   signedAt: string | null;
+  messages: { id: string; fromOwner: boolean; text: string; at: string }[];
+  unseen: number;
 }) {
   const router = useRouter();
   const [periods, setPeriods] = useState<Period[]>(saved);
@@ -56,6 +60,12 @@ export function VacationPlanner({
   const [hasInk, setHasInk] = useState(false);
   const [pending, start] = useTransition();
   const pad = useRef<SignaturePadHandle>(null);
+  const [reply, setReply] = useState("");
+  const chatRef = useRef<HTMLElement>(null);
+  // Al entrar, lo que te ha escrito el encargado queda leído (el aviso de arriba se ve igualmente esta vez).
+  useEffect(() => {
+    if (unseen > 0) void markVacationMessagesSeen().catch(() => undefined);
+  }, [unseen]);
 
   // Al guardar, el servidor manda los periodos nuevos: se vuelve a partir de ellos.
   const [prevSaved, setPrevSaved] = useState(saved);
@@ -82,6 +92,10 @@ export function VacationPlanner({
   function tap(date: DateStr) {
     if (!editable) return;
     const own = dayInfo.get(date);
+    if (own && periods[own.index]?.status === "APPLIED") {
+      notify("Ya está en el planning. Para cambiarlo, habla con tu encargado.", "error");
+      return;
+    }
     if (own) {
       setFirst(null);
       setRemoving({ index: own.index, open: true });
@@ -142,6 +156,16 @@ export function VacationPlanner({
           Salir
         </button>
       </header>
+
+      {unseen > 0 && (
+        <button
+          type="button"
+          onClick={() => chatRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          className="rounded-card bg-warning/15 px-4 py-3 text-left text-[15px] font-medium text-[#8a4b00]"
+        >
+          Tu encargado te ha escrito ({unseen}). Toca para leerlo.
+        </button>
+      )}
 
       <section aria-label="Tus días" className="rounded-card bg-surface px-4 py-3">
         <p className="text-[15px]">
@@ -239,6 +263,49 @@ export function VacationPlanner({
             })}
           </ul>
         )}
+      </section>
+
+      <section ref={chatRef} aria-label="Mensajes" className="flex scroll-mt-4 flex-col gap-2 rounded-card bg-surface p-3">
+        <h2 className="px-1 text-[13px] font-semibold uppercase tracking-wide text-muted">Mensajes con tu encargado</h2>
+        {messages.length === 0 && <p className="px-1 text-[14px] text-muted">Si necesitas explicar algo, escríbelo aquí.</p>}
+        {messages.map((m) => (
+          <div
+            key={m.id}
+            className={cn(
+              "max-w-[85%] rounded-2xl px-3 py-2 text-[15px]",
+              m.fromOwner ? "self-start rounded-bl-md bg-surface-2" : "self-end rounded-br-md bg-accent text-accent-fg",
+            )}
+          >
+            {m.fromOwner && <p className="text-[11px] font-semibold text-accent">Tu encargado</p>}
+            <p className="whitespace-pre-wrap break-words">{m.text}</p>
+            <p className={cn("mt-0.5 text-right text-[11px]", m.fromOwner ? "text-muted" : "opacity-80")}>{m.at}</p>
+          </div>
+        ))}
+        <textarea
+          aria-label="Escribe un mensaje"
+          value={reply}
+          maxLength={1000}
+          onChange={(e) => setReply(e.target.value)}
+          placeholder="Escribe un mensaje…"
+          className="min-h-[70px] w-full rounded-control bg-surface-2 px-3 py-2 text-[16px] outline-none focus:ring-2 focus:ring-accent"
+        />
+        <button
+          type="button"
+          disabled={pending || !reply.trim()}
+          onClick={() =>
+            start(async () => {
+              const r = await replyVacationMessage({ text: reply }).catch(() => ({ ok: false as const, error: "Sin conexión." }));
+              if (r.ok) {
+                setReply("");
+                notify("Mensaje enviado");
+                router.refresh();
+              } else notify(r.error, "error");
+            })
+          }
+          className="press min-h-11 rounded-control bg-accent text-[16px] font-semibold text-accent-fg disabled:opacity-40"
+        >
+          Enviar mensaje
+        </button>
       </section>
 
       {/* Barra de abajo: enviar (con firma) o el último envío firmado. */}

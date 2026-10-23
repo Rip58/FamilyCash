@@ -183,3 +183,39 @@ describe("semanas con regla por fechas", () => {
     ]);
   });
 });
+
+import { planningDaysFor, vacationConflicts } from "@/lib/vacations";
+
+describe("solapes del año", () => {
+  const departments = [{ id: "drog", name: "Droguería", color: "#0ea5e9", secondary: false }];
+  const employees = [
+    { id: "c", name: "Cintya", departmentId: "drog" },
+    { id: "a", name: "Alex", departmentId: "drog" },
+    { id: "f", name: "Fabian", departmentId: null },
+    { id: "g", name: "Gerard", departmentId: null },
+  ];
+  const campaign = { defaultMax: 2, departmentMax: { drog: 1 } };
+  it("junta los días seguidos (el fin de semana en medio no corta) y dice quién y qué periodos", () => {
+    const periods = [
+      { id: "p1", employeeId: "c", start: "2027-08-02", end: "2027-08-13", status: "SENT" },
+      { id: "p2", employeeId: "a", start: "2027-08-09", end: "2027-08-20", status: "SENT" },
+      { id: "p3", employeeId: "f", start: "2027-08-09", end: "2027-08-13", status: "SENT" },
+      { id: "p4", employeeId: "g", start: "2027-08-09", end: "2027-08-13", status: "SENT" },
+    ];
+    const c = vacationConflicts({ year: 2027, employees, departments, periods, campaign, weeks: [] });
+    expect(c).toHaveLength(1);
+    expect(c[0]).toMatchObject({ departmentId: "drog", from: "2027-08-09", to: "2027-08-13", employeeIds: ["a", "c"], max: 1 });
+    expect(c[0]!.periodIds.sort()).toEqual(["p1", "p2"]);
+  });
+  it("una semana con más máximo quita el solape", () => {
+    const periods = [
+      { id: "p1", employeeId: "c", start: "2027-08-09", end: "2027-08-13", status: "SENT" },
+      { id: "p2", employeeId: "a", start: "2027-08-09", end: "2027-08-13", status: "SENT" },
+    ];
+    const weeks = [{ weekStart: "2027-08-09", blocked: false, reason: null, maxOverride: 2 }];
+    expect(vacationConflicts({ year: 2027, employees, departments, periods, campaign, weeks })).toEqual([]);
+  });
+  it("al pasar a Semana: vacaciones los que descuentan y fiesta los suyos", () => {
+    expect(planningDaysFor({ start: "2027-07-05", end: "2027-07-07" }).map((d) => d.code).join()).toBe("VACATION,VACATION,VACATION,OFF,OFF");
+  });
+});

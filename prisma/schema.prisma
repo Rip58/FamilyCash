@@ -80,6 +80,7 @@ model Employee {
   vacationPin VacationPin?               // PIN fijo para pedir vacaciones (tabla aparte: no viaja con getEmployees)
   vacationPeriods     VacationPeriod[]
   vacationSubmissions VacationSubmission[]
+  vacationMessages    VacationMessage[]
 }
 
 model DayEntry {            // solo existe si el día difiere del patrón o tiene datos
@@ -367,5 +368,17 @@ model VacationSubmission {                  // cada envío del empleado, firmado
   workDays   Int                            // laborables que gastan
   signature  String                         // PNG (data URL) de la firma con el dedo
   signedAt   DateTime @default(now())
+  @@index([employeeId, year])
+}
+
+model VacationMessage {                     // chat de vacaciones entre el encargado y cada empleado (por año)
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  year       Int
+  fromOwner  Boolean                        // true = lo escribe el encargado; false = el empleado
+  text       String
+  seen       Boolean  @default(false)       // lo ha visto quien lo recibe
+  createdAt  DateTime @default(now())
   @@index([employeeId, year])
 }

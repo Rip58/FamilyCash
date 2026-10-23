@@ -7,7 +7,9 @@ import { db } from "@/lib/db";
 import { formatStamp, fromDbDate, isDateStr, madridToday, toDbDate } from "@/lib/dates";
 import { authorizeVacation } from "@/lib/vacation-server";
 import { getVacationCampaign, getVacationWeeks } from "@/lib/vacation-queries";
-import { MAX_SIGNATURE_LENGTH, checkVacations, countedDays, isSignature, mondaysBetween } from "@/lib/vacations";
+import { MAX_MESSAGE_TEXT, MAX_SIGNATURE_LENGTH, VACATION_YEAR, checkVacations, countedDays, isSignature, mondaysBetween, planningDaysFor } from "@/lib/vacations";
+import { getEmployees, getEntriesBetween, getStatusTypes } from "@/lib/queries";
+import { writePlanningDays } from "@/lib/planning-write";
 import { requireOwner } from "@/lib/session";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
@@ -115,6 +117,11 @@ export async function submitVacations(input: z.input<typeof submitSchema>): Prom
   if (err) return fail(err);
 
   const year = campaign.year;
+  const applied = await db.vacationPeriod.findMany({ where: { employeeId: employee.id, year, status: "APPLIED" } });
+  const kept = new Set(ranges.map((r) => `${r.start}|${r.end}`));
+  if (applied.some((a) => !kept.has(`${fromDbDate(a.start)}|${fromDbDate(a.end)}`))) {
+    return fail("Hay vacaciones que ya están en el planning: para cambiarlas habla con tu encargado.");
+  }
   await db.$transaction(async (tx) => {
     const prev = await tx.vacationPeriod.findMany({ where: { employeeId: employee.id, year } });
     const key = (s: string, e: string) => `${s}|${e}`;
@@ -142,7 +149,8 @@ export async function submitVacations(input: z.input<typeof submitSchema>): Prom
 
 export type VacationPersonDetail = {
   ok: true;
-  periods: { start: string; end: string; status: string }[];
+  periods: { id: string; start: string; end: string; status: string }[];
+  messages: { id: string; fromOwner: boolean; text: string; at: string }[];
   signature: string | null;
   signedAt: string | null;
   submissions: number;
@@ -153,16 +161,128 @@ export async function getVacationPerson(input: { employeeId: string; year: numbe
   const p = z.object({ employeeId: z.string().min(1).max(64), year: z.number().int() }).safeParse(input);
   if (!p.success) return fail("Datos no válidos.") as { ok: false; error: string };
   const { employeeId, year } = p.data;
-  const [periods, last, submissions] = await Promise.all([
+  const [periods, last, submissions, messages] = await Promise.all([
     db.vacationPeriod.findMany({ where: { employeeId, year }, orderBy: { start: "asc" } }),
     db.vacationSubmission.findFirst({ where: { employeeId, year }, orderBy: { signedAt: "desc" } }),
     db.vacationSubmission.count({ where: { employeeId, year } }),
+    db.vacationMessage.findMany({ where: { employeeId, year }, orderBy: { createdAt: "asc" } }),
   ]);
+  // Abrir su ficha de vacaciones = has leído lo que te escribió.
+  if (messages.some((m) => !m.fromOwner && !m.seen)) {
+    await db.vacationMessage.updateMany({ where: { employeeId, year, fromOwner: false, seen: false }, data: { seen: true } });
+  }
   return {
     ok: true,
-    periods: periods.map((x) => ({ start: fromDbDate(x.start), end: fromDbDate(x.end), status: x.status })),
+    periods: periods.map((x) => ({ id: x.id, start: fromDbDate(x.start), end: fromDbDate(x.end), status: x.status })),
+    messages: messages.map((m) => ({ id: m.id, fromOwner: m.fromOwner, text: m.text, at: formatStamp(m.createdAt) })),
     signature: last?.signature ?? null,
     signedAt: last ? formatStamp(last.signedAt) : null,
     submissions,
   };
+}
+
+// ---- Encargado: estado de cada periodo, chat y pasar a Semana --------------------------------------------------
+
+const statusSchema = z.object({
+  periodIds: z.array(z.string().min(1).max(64)).min(1).max(500),
+  status: z.enum(["SENT", "REVIEW", "OK"]),
+});
+
+/** Correcto / a revisar / enviado. Lo que ya está en el planning no cambia. */
+export async function setVacationStatus(input: z.input<typeof statusSchema>): Promise<ActionResult & { changed?: number }> {
+  await requireOwner();
+  const p = statusSchema.safeParse(input);
+  if (!p.success) return fail("Datos no válidos.");
+  const r = await db.vacationPeriod.updateMany({
+    where: { id: { in: p.data.periodIds }, status: { not: "APPLIED" } },
+    data: { status: p.data.status },
+  });
+  revalidatePath("/semana", "layout");
+  revalidatePath("/vacaciones");
+  return { ok: true, changed: r.count };
+}
+
+const messageSchema = z.object({
+  employeeId: z.string().min(1).max(64),
+  year: z.number().int(),
+  text: z.string().trim().min(1, "Escribe el mensaje.").max(MAX_MESSAGE_TEXT, "Mensaje demasiado largo."),
+  /** Periodos que pasan a «A revisar» con este mensaje (pedir cambio). */
+  review: z.array(z.string().min(1).max(64)).max(50).optional(),
+});
+
+export async function sendVacationMessage(input: z.input<typeof messageSchema>): Promise<ActionResult> {
+  await requireOwner();
+  const p = messageSchema.safeParse(input);
+  if (!p.success) return fail(p.error.issues[0]?.message ?? "Datos no válidos.");
+  const { employeeId, year, text, review } = p.data;
+  await db.$transaction([
+    db.vacationMessage.create({ data: { employeeId, year, fromOwner: true, text } }),
+    ...(review?.length
+      ? [db.vacationPeriod.updateMany({ where: { id: { in: review }, employeeId, status: { not: "APPLIED" } }, data: { status: "REVIEW" } })]
+      : []),
+  ]);
+  revalidatePath("/semana", "layout");
+  revalidatePath("/vacaciones");
+  return { ok: true };
+}
+
+/**
+ * Pasa a Semana los periodos CORRECTOS (de una persona o de todos): los días que descuentan quedan «Vacaciones» y
+ * su fiesta «Fiesta» en el planning, con los registros de siempre, y el periodo queda «En el planning».
+ */
+export async function applyVacationsToPlanning(input: { year: number; employeeId?: string | null }): Promise<ActionResult & { changed?: number }> {
+  await requireOwner();
+  const p = z.object({ year: z.number().int(), employeeId: z.string().min(1).max(64).nullish() }).safeParse(input);
+  if (!p.success) return fail("Datos no válidos.");
+  const periods = await db.vacationPeriod.findMany({
+    where: { year: p.data.year, status: "OK", ...(p.data.employeeId ? { employeeId: p.data.employeeId } : {}) },
+    orderBy: { start: "asc" },
+  });
+  if (periods.length === 0) return fail("No hay vacaciones marcadas como correctas para pasar.");
+  const [employees, statusTypes] = await Promise.all([getEmployees(), getStatusTypes()]);
+  const vacation = statusTypes.find((s) => s.code === "VACATION");
+  const off = statusTypes.find((s) => s.code === "OFF");
+  if (!vacation || !off) return fail("Faltan los estados «Vacaciones» o «Fiesta» en Ajustes → Estados.");
+  const ranges = periods.map((x) => ({ ...x, range: { start: fromDbDate(x.start), end: fromDbDate(x.end) } }));
+  const all = ranges.flatMap((x) => planningDaysFor(x.range).map((d) => d.date)).sort();
+  const entries = await getEntriesBetween(all[0]!, all.at(-1)!);
+  await db.$transaction(
+    async (tx) => {
+      for (const x of ranges) {
+        const employee = employees.find((e) => e.id === x.employeeId);
+        if (!employee) continue;
+        const days = planningDaysFor(x.range).map((d) => ({
+          date: d.date,
+          statusTypeId: d.code === "VACATION" ? vacation.id : off.id,
+          reason: null,
+        }));
+        await writePlanningDays(tx, employee, days, entries, statusTypes);
+        await tx.vacationPeriod.update({ where: { id: x.id }, data: { status: "APPLIED" } });
+      }
+    },
+    { timeout: 60_000 },
+  );
+  revalidatePath("/semana", "layout");
+  revalidatePath("/hoy", "layout");
+  revalidatePath("/informe", "layout");
+  revalidatePath("/vacaciones");
+  return { ok: true, changed: periods.length };
+}
+
+// ---- Empleado: contestar y dar por leído ---------------------------------------------------------------------
+
+export async function replyVacationMessage(input: { text: string }): Promise<ActionResult> {
+  const employee = await authorizeVacation();
+  const p = z.object({ text: z.string().trim().min(1, "Escribe el mensaje.").max(MAX_MESSAGE_TEXT, "Mensaje demasiado largo.") }).safeParse(input);
+  if (!p.success) return fail(p.error.issues[0]?.message ?? "Datos no válidos.");
+  await db.vacationMessage.create({ data: { employeeId: employee.id, year: VACATION_YEAR, fromOwner: false, text: p.data.text } });
+  revalidatePath("/vacaciones");
+  revalidatePath("/semana", "layout");
+  return { ok: true };
+}
+
+export async function markVacationMessagesSeen(): Promise<ActionResult> {
+  const employee = await authorizeVacation();
+  await db.vacationMessage.updateMany({ where: { employeeId: employee.id, year: VACATION_YEAR, fromOwner: true, seen: false }, data: { seen: true } });
+  return { ok: true };
 }

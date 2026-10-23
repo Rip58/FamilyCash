@@ -5,11 +5,10 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { type DateStr, addDays, formatDayLong, isDateStr, toDbDate, weekDays, weekStart as weekStartOf } from "@/lib/dates";
 import { REF_TAG, getEmployees, getEntriesBetween, getStatusTypes } from "@/lib/queries";
-import { type AbsenceResolution } from "@/lib/absence";
-import { syncAbsence } from "@/lib/absence-log";
-import { type DayEntryLite, type EmployeeLite, type StatusTypeLite, getEffectiveDay, isDayOffStatus } from "@/lib/schedule";
+import { getEffectiveDay, isDayOffStatus } from "@/lib/schedule";
 import { MAX_RANGE_DAYS, planCopyWeek, planRepeatWeek, planSetCell, rangeDates, remainingMonthWeeks } from "@/lib/week";
 import { requireOwner } from "@/lib/session";
+import { logPlanningChange } from "@/lib/planning-write";
 
 export type WeekActionResult = { ok: true; changed?: number } | { ok: false; error: string };
 
@@ -28,39 +27,6 @@ function revalidate() {
   revalidatePath("/semana", "layout");
   revalidatePath("/hoy", "layout");
   revalidatePath("/informe", "layout");
-}
-
-/**
- * Registro de faltas tras cambiar el planning de un día: si pasa a ser falta se apunta; si deja de serlo
- * (p. ej. se cambia a fiesta) se conserva y se anota cómo se resolvió.
- */
-async function logPlanningChange(
-  tx: Parameters<typeof syncAbsence>[0],
-  employee: EmployeeLite,
-  date: DateStr,
-  existing: DayEntryLite | null,
-  next: { statusTypeId: string; reason: string | null; clearActual?: boolean },
-  statusTypes: StatusTypeLite[],
-  resolution?: { kind: AbsenceResolution; note: string },
-) {
-  const blank: DayEntryLite = {
-    employeeId: employee.id, date, statusTypeId: next.statusTypeId, departmentId: null, reason: null,
-    arrivedAt: null, leftAt: null, timeReason: null, segments: [],
-  };
-  const after: DayEntryLite = {
-    ...(existing ?? blank),
-    statusTypeId: next.statusTypeId,
-    reason: next.reason,
-    actualStatusTypeId: next.clearActual ? null : (existing?.actualStatusTypeId ?? null),
-  };
-  await syncAbsence(tx, {
-    employeeId: employee.id,
-    date,
-    before: getEffectiveDay(employee, date, existing, statusTypes),
-    after: getEffectiveDay(employee, date, after, statusTypes),
-    source: "semana",
-    resolution,
-  });
 }
 
 const fail = (e: unknown): WeekActionResult => {

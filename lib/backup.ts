@@ -50,6 +50,7 @@ export const BACKUP_TABLES = [
   "vacationPin",
   "vacationPeriod",
   "vacationSubmission",
+  "vacationMessage",
 ] as const;
 
 export type BackupTable = (typeof BACKUP_TABLES)[number];
@@ -92,6 +93,7 @@ export async function exportBackup(db: PrismaClient): Promise<BackupFile> {
     vacationPin: () => db.vacationPin.findMany(),
     vacationPeriod: () => db.vacationPeriod.findMany(),
     vacationSubmission: () => db.vacationSubmission.findMany(),
+    vacationMessage: () => db.vacationMessage.findMany(),
     absence: () => db.absence.findMany(),
   };
   const tables = {} as Record<BackupTable, Row[]>;
@@ -151,6 +153,7 @@ export async function restoreBackup(db: PrismaClient, backup: BackupFile): Promi
     vacationPin: (tx) => tx.vacationPin.createMany({ data: t.vacationPin as any }),
     vacationPeriod: (tx) => tx.vacationPeriod.createMany({ data: t.vacationPeriod as any }),
     vacationSubmission: (tx) => tx.vacationSubmission.createMany({ data: t.vacationSubmission as any }),
+    vacationMessage: (tx) => tx.vacationMessage.createMany({ data: t.vacationMessage as any }),
     absence: (tx) => tx.absence.createMany({ data: (t.absence ?? []) as any }),
   };
   /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -181,6 +184,7 @@ export async function restoreBackup(db: PrismaClient, backup: BackupFile): Promi
     vacationPin: (tx) => tx.vacationPin.deleteMany(),
     vacationPeriod: (tx) => tx.vacationPeriod.deleteMany(),
     vacationSubmission: (tx) => tx.vacationSubmission.deleteMany(),
+    vacationMessage: (tx) => tx.vacationMessage.deleteMany(),
     absence: (tx) => tx.absence.deleteMany(),
   };
   return db.$transaction(

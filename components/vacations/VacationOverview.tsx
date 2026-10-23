@@ -3,16 +3,26 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { type VacationPersonDetail, deleteVacationWeek, getVacationPerson, saveVacationWeek } from "@/app/actions/vacations";
+import {
+  type VacationPersonDetail,
+  applyVacationsToPlanning,
+  deleteVacationWeek,
+  getVacationPerson,
+  saveVacationWeek,
+  sendVacationMessage,
+  setVacationStatus,
+} from "@/app/actions/vacations";
+import { Segmented } from "@/components/ui/Segmented";
 import { Stepper } from "@/components/settings/kit";
 import { Toggle } from "@/components/ui/Toggle";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { cn } from "@/components/ui/cn";
 import { notify } from "@/components/ui/toast";
-import { type DateStr, MONTH_SHORT, WEEKDAY_LETTERS, addDays, formatWeekRange, isoWeekNumber, weekStart } from "@/lib/dates";
+import { type DateStr, MONTH_SHORT, WEEKDAY_LETTERS, addDays, formatDayMonth, formatWeekRange, isoWeekNumber, weekStart } from "@/lib/dates";
 import {
   VACATION_STATUS_LABEL,
   type VacGridGroup,
+  type VacationConflict,
   type VacationWeekView,
   type WeekRuleRange,
   countedDays,
@@ -41,6 +51,11 @@ export function VacationOverview({
   sent,
   total,
   workDays,
+  conflicts,
+  conflictPeriodIds,
+  unread,
+  cleanSentIds,
+  okCount,
 }: {
   year: number;
   monday: DateStr;
@@ -52,8 +67,15 @@ export function VacationOverview({
   sent: number;
   total: number;
   workDays: number;
+  conflicts: (VacationConflict & { names: string[] })[];
+  conflictPeriodIds: string[];
+  unread: Record<string, number>;
+  cleanSentIds: string[];
+  okCount: number;
 }) {
   const [menu, setMenu] = useState(false);
+  const [tab, setTab] = useState<"personas" | "solapes">("personas");
+  const unreadTotal = Object.values(unread).reduce((a, b) => a + b, 0);
   const [person, setPerson] = useState<{ id: string; name: string; open: boolean } | null>(null);
   const navBtn = "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[26px] leading-none text-accent active:bg-surface-2";
   const month = monday < `${year}-01-01` ? 0 : Number(monday.slice(5, 7)) - 1;
@@ -137,20 +159,57 @@ export function VacationOverview({
         </p>
       )}
 
-      <Grid grid={grid} onPerson={(id, name) => setPerson({ id, name, open: true })} />
+      <Segmented
+        aria-label="Vista"
+        compact
+        className="mb-2"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: "personas", label: unreadTotal ? `Personas · 💬 ${unreadTotal}` : "Personas" },
+          { value: "solapes", label: conflicts.length ? `Solapes · ${conflicts.length}` : "Solapes y cierre" },
+        ]}
+      />
 
-      <p className="px-1 pt-3 text-[12px] text-muted">
-        V = descuenta · F = su fiesta (no cuenta) · en rojo, los días que pasan del máximo. Toca un nombre para ver sus
-        periodos y su firma.
-      </p>
+      {tab === "personas" ? (
+        <>
+          <Grid grid={grid} unread={unread} onPerson={(id, name) => setPerson({ id, name, open: true })} />
+          <p className="px-1 pt-3 text-[12px] text-muted">
+            V = descuenta · F = su fiesta (no cuenta) · en rojo, los días que pasan del máximo. Toca un nombre para ver sus
+            periodos, su firma y el chat. Punto azul = te ha escrito.
+          </p>
+        </>
+      ) : (
+        <Conflicts
+          year={year}
+          conflicts={conflicts}
+          cleanSentIds={cleanSentIds}
+          okCount={okCount}
+          onPerson={(id, name) => setPerson({ id, name, open: true })}
+        />
+      )}
 
       <WeekRuleSheet key={monday} open={menu} onClose={() => setMenu(false)} monday={monday} rule={rule} range={ruleRange} />
-      <PersonSheet person={person} year={year} workDays={workDays} onClose={() => setPerson((p) => (p ? { ...p, open: false } : p))} />
+      <PersonSheet
+        person={person}
+        year={year}
+        workDays={workDays}
+        conflictPeriodIds={conflictPeriodIds}
+        onClose={() => setPerson((p) => (p ? { ...p, open: false } : p))}
+      />
     </div>
   );
 }
 
-function Grid({ grid, onPerson }: { grid: { days: DateStr[]; groups: VacGridGroup[] }; onPerson: (id: string, name: string) => void }) {
+function Grid({
+  grid,
+  unread,
+  onPerson,
+}: {
+  grid: { days: DateStr[]; groups: VacGridGroup[] };
+  unread: Record<string, number>;
+  onPerson: (id: string, name: string) => void;
+}) {
   return (
     <div className="-mx-4">
       <div className={cn("sticky top-[env(safe-area-inset-top)] z-10 grid items-end border-b border-line bg-bg pb-1", GRID_COLS)}>
@@ -190,10 +249,11 @@ function Grid({ grid, onPerson }: { grid: { days: DateStr[]; groups: VacGridGrou
                 <button
                   type="button"
                   onClick={() => onPerson(r.employeeId, r.name)}
-                  className="min-h-11 truncate pl-2.5 pr-1 text-left text-[15px]"
-                  aria-label={`${r.name}: ver sus vacaciones`}
+                  className="flex min-h-11 min-w-0 items-center gap-1.5 pl-2.5 pr-1 text-left text-[15px]"
+                  aria-label={`${r.name}: ver sus vacaciones${unread[r.employeeId] ? ", te ha escrito" : ""}`}
                 >
-                  {r.alias ?? r.name}
+                  <span className="truncate">{r.alias ?? r.name}</span>
+                  {!!unread[r.employeeId] && <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-accent" />}
                 </button>
                 {r.cells.map((c, i) => {
                   const bad = c === "work" && g.over[i];
@@ -352,18 +412,144 @@ function WeekRuleSheet({
   );
 }
 
+function Conflicts({
+  year,
+  conflicts,
+  cleanSentIds,
+  okCount,
+  onPerson,
+}: {
+  year: number;
+  conflicts: (VacationConflict & { names: string[] })[];
+  cleanSentIds: string[];
+  okCount: number;
+  onPerson: (id: string, name: string) => void;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [confirmApply, setConfirmApply] = useState(false);
+  const act = (fn: () => Promise<{ ok: boolean; error?: string; changed?: number }>, msg: (n: number) => string) =>
+    start(async () => {
+      const r: { ok: boolean; error?: string; changed?: number } = await fn().catch(() => ({ ok: false, error: "No se pudo guardar." }));
+      if (r.ok) {
+        notify(msg(r.changed ?? 0));
+        router.refresh();
+      } else notify(r.error ?? "No se pudo guardar.", "error");
+    });
+
+  return (
+    <div className="flex flex-col gap-3">
+      {conflicts.length === 0 ? (
+        <p className="rounded-card bg-surface px-4 py-3 text-[15px] text-muted">Nadie pasa del máximo en todo {year}. 👍</p>
+      ) : (
+        <ul className="flex flex-col gap-2" aria-label="Solapes">
+          {conflicts.map((c) => (
+            <li key={`${c.departmentId}${c.from}`} className="rounded-card border-l-4 border-danger bg-surface px-4 py-3">
+              <p className="flex items-center gap-2 text-[14px]">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.color ?? "#64748b" }} />
+                {c.departmentName} · <b>{c.from === c.to ? formatDayMonth(c.from) : `${formatDayMonth(c.from)} – ${formatDayMonth(c.to)}`}</b>
+                <span className="text-muted">(máx. {c.max})</span>
+              </p>
+              <p className="mt-1 text-[16px] font-medium">{c.names.join(", ")}</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {c.employeeIds.map((id, i) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => onPerson(id, c.names[i] ?? "")}
+                    className="press min-h-11 rounded-control bg-accent px-3 text-[14px] font-semibold text-accent-fg"
+                  >
+                    Escribir a {c.names[i]}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => act(() => setVacationStatus({ periodIds: c.periodIds, status: "OK" }), () => "Las dejas como correctas")}
+                  className="min-h-11 rounded-control bg-surface-2 px-3 text-[14px] font-medium text-accent"
+                >
+                  Dejar todas como correctas
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <section className="flex flex-col gap-2 rounded-card bg-surface p-4">
+        <h3 className="text-[13px] font-semibold uppercase tracking-wide text-muted">Cierre</h3>
+        <button
+          type="button"
+          disabled={pending || cleanSentIds.length === 0}
+          onClick={() => act(() => setVacationStatus({ periodIds: cleanSentIds, status: "OK" }), (n) => `${n} marcadas como correctas`)}
+          className="min-h-12 w-full rounded-control bg-surface-2 text-[15px] font-medium text-accent disabled:opacity-40"
+        >
+          Marcar correctas las que no chocan ({cleanSentIds.length})
+        </button>
+        {confirmApply ? (
+          <div className="flex flex-col gap-2 rounded-control bg-accent/10 p-3">
+            <p className="text-[14px]">
+              Se escribirán en Semana como «Vacaciones» (y su fiesta como «Fiesta») las {okCount} correctas. Ya no las podrán
+              cambiar desde su página.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setConfirmApply(false)} className="min-h-11 rounded-control bg-surface text-[15px] font-medium">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => {
+                  setConfirmApply(false);
+                  act(() => applyVacationsToPlanning({ year }), (n) => `${n} ${n === 1 ? "periodo pasado" : "periodos pasados"} a Semana`);
+                }}
+                className="press min-h-11 rounded-control bg-accent text-[15px] font-semibold text-accent-fg"
+              >
+                Sí, pasar
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            disabled={pending || okCount === 0}
+            onClick={() => setConfirmApply(true)}
+            className="press min-h-12 w-full rounded-control bg-accent text-[16px] font-semibold text-accent-fg disabled:opacity-40"
+          >
+            Pasar correctas a Semana ({okCount})
+          </button>
+        )}
+      </section>
+    </div>
+  );
+}
+
+const STATUS_STYLE: Record<string, string> = {
+  SENT: "bg-surface text-muted",
+  REVIEW: "bg-warning/15 text-[#b45309]",
+  OK: "bg-success/15 text-[#15803d]",
+  APPLIED: "bg-accent/12 text-accent",
+};
+
 function PersonSheet({
   person,
   year,
   workDays,
+  conflictPeriodIds,
   onClose,
 }: {
   person: { id: string; name: string; open: boolean } | null;
   year: number;
   workDays: number;
+  conflictPeriodIds: string[];
   onClose: () => void;
 }) {
+  const router = useRouter();
   const [detail, setDetail] = useState<{ id: string; data: VacationPersonDetail | null; error: string | null } | null>(null);
+  const [reload, setReload] = useState(0);
+  const [text, setText] = useState("");
+  const [askChange, setAskChange] = useState(true);
+  const [pending, start] = useTransition();
   const id = person?.id ?? null;
   useEffect(() => {
     if (!id) return;
@@ -374,9 +560,49 @@ function PersonSheet({
     return () => {
       alive = false;
     };
-  }, [id, year]);
+  }, [id, year, reload]);
   const d = detail?.id === id ? detail : null;
   const periods = d?.data?.periods ?? [];
+  const clashing = periods.filter((p) => conflictPeriodIds.includes(p.id) && p.status !== "APPLIED").map((p) => p.id);
+  const firstName = person?.name.split(/\s+/)[0] ?? "";
+
+  const done = (msg: string) => {
+    notify(msg);
+    setReload((n) => n + 1);
+    router.refresh();
+  };
+  const status = (periodId: string, s: "OK" | "REVIEW" | "SENT") =>
+    start(async () => {
+      const r = await setVacationStatus({ periodIds: [periodId], status: s });
+      if (r.ok) done(s === "OK" ? "Correcta" : s === "REVIEW" ? "A revisar" : "Enviada");
+      else notify(r.error, "error");
+    });
+  const send = () =>
+    start(async () => {
+      if (!id) return;
+      const r = await sendVacationMessage({ employeeId: id, year, text, review: askChange ? clashing : [] });
+      if (r.ok) {
+        setText("");
+        done("Mensaje enviado");
+      } else notify(r.error, "error");
+    });
+  async function whatsapp() {
+    const msg = `Hola ${firstName}: te he escrito sobre tus vacaciones. Míralo aquí: ${window.location.origin}/vacaciones`;
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ text: msg });
+        return;
+      } catch (e) {
+        if (e instanceof DOMException && e.name === "AbortError") return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(msg);
+      notify("Mensaje copiado");
+    } catch {
+      notify("No se pudo copiar", "error");
+    }
+  }
 
   return (
     <BottomSheet open={!!person?.open} onClose={onClose} title={person?.name ?? "Vacaciones"}>
@@ -395,22 +621,104 @@ function PersonSheet({
             <ul className="divide-y divide-line overflow-hidden rounded-card bg-surface-2">
               {periods.map((p) => {
                 const s = vacationSpan(p);
+                const clash = conflictPeriodIds.includes(p.id);
                 return (
-                  <li key={`${p.start}${p.end}`} className="flex min-h-12 items-center justify-between gap-3 px-4 py-2">
-                    <span>
-                      <b className="block text-[16px]">{rangeLabel(p)}</b>
-                      <span className="text-[13px] text-muted">
-                        {s.days.length} días · descuenta {s.counted}
+                  <li key={p.id} className="flex flex-col gap-2 px-4 py-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>
+                        <b className="block text-[16px]">{rangeLabel(p)}</b>
+                        <span className="text-[13px] text-muted">
+                          {s.days.length} días · descuenta {s.counted}
+                          {clash && <span className="font-semibold text-danger"> · choca</span>}
+                        </span>
                       </span>
-                    </span>
-                    <span className="rounded-md bg-surface px-2 py-0.5 text-[12px] font-semibold text-muted">
-                      {VACATION_STATUS_LABEL[p.status] ?? p.status}
-                    </span>
+                      <span className={cn("shrink-0 rounded-md px-2 py-0.5 text-[12px] font-semibold", STATUS_STYLE[p.status])}>
+                        {VACATION_STATUS_LABEL[p.status] ?? p.status}
+                      </span>
+                    </div>
+                    {p.status !== "APPLIED" && (
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          disabled={pending || p.status === "OK"}
+                          onClick={() => status(p.id, "OK")}
+                          className="min-h-10 rounded-control bg-surface text-[14px] font-semibold text-[#15803d] disabled:opacity-40"
+                        >
+                          ✓ Correcta
+                        </button>
+                        <button
+                          type="button"
+                          disabled={pending || p.status === "REVIEW"}
+                          onClick={() => status(p.id, "REVIEW")}
+                          className="min-h-10 rounded-control bg-surface text-[14px] font-semibold text-[#b45309] disabled:opacity-40"
+                        >
+                          A revisar
+                        </button>
+                      </div>
+                    )}
                   </li>
                 );
               })}
             </ul>
           )}
+          {periods.some((p) => p.status === "OK") && (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() =>
+                start(async () => {
+                  const r = await applyVacationsToPlanning({ year, employeeId: id });
+                  if (r.ok) done("Pasadas a Semana");
+                  else notify(r.error, "error");
+                })
+              }
+              className="press min-h-12 w-full rounded-control bg-accent text-[16px] font-semibold text-accent-fg"
+            >
+              Pasar sus correctas a Semana
+            </button>
+          )}
+
+          <section aria-label="Chat" className="flex flex-col gap-2 rounded-card bg-surface-2 p-3">
+            <h3 className="text-[13px] font-semibold uppercase tracking-wide text-muted">Chat con {firstName}</h3>
+            {(d.data?.messages ?? []).length === 0 && <p className="text-[14px] text-muted">Todavía no os habéis escrito.</p>}
+            {(d.data?.messages ?? []).map((m) => (
+              <div
+                key={m.id}
+                className={cn(
+                  "max-w-[85%] rounded-2xl px-3 py-2 text-[15px]",
+                  m.fromOwner ? "self-end rounded-br-md bg-accent text-accent-fg" : "self-start rounded-bl-md bg-surface",
+                )}
+              >
+                <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                <p className={cn("mt-0.5 text-right text-[11px]", m.fromOwner ? "opacity-80" : "text-muted")}>{m.at}</p>
+              </div>
+            ))}
+            <textarea
+              aria-label="Mensaje"
+              value={text}
+              maxLength={1000}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Ej.: Del 9 al 15 ya hay alguien de Droguería. ¿Puedes coger otra semana?"
+              className="min-h-[80px] w-full rounded-control bg-surface px-3 py-2 text-[16px] outline-none focus:ring-2 focus:ring-accent"
+            />
+            {clashing.length > 0 && (
+              <Toggle label="Marcar lo que choca como «A revisar»" checked={askChange} onChange={setAskChange} />
+            )}
+            <div className="grid grid-cols-[1fr_1.4fr] gap-2">
+              <button type="button" onClick={whatsapp} className="min-h-11 rounded-control bg-surface text-[14px] font-medium text-accent">
+                Avisar por WhatsApp
+              </button>
+              <button
+                type="button"
+                disabled={pending || !text.trim()}
+                onClick={send}
+                className="press min-h-11 rounded-control bg-accent text-[15px] font-semibold text-accent-fg disabled:opacity-40"
+              >
+                Enviar
+              </button>
+            </div>
+          </section>
+
           {d.data?.signature && (
             <section className="rounded-card bg-surface-2 p-3">
               <h3 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-muted">Última firma</h3>

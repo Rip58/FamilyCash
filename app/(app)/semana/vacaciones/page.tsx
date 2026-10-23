@@ -4,7 +4,7 @@ import { fromDbDate, isDateStr, madridToday, weekStart } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { getDepartments, getEmployees } from "@/lib/queries";
 import { getVacationCampaign, getVacationWeeks } from "@/lib/vacation-queries";
-import { groupWeekRules, vacationWeekGrid, yearWeeks } from "@/lib/vacations";
+import { groupWeekRules, vacationConflicts, vacationWeekGrid, yearWeeks } from "@/lib/vacations";
 import { compactNames } from "@/lib/week";
 
 export const metadata = { title: "Vacaciones" };
@@ -26,6 +26,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
     db.vacationPeriod.findMany({ where: { year: campaign.year } }),
     db.vacationSubmission.findMany({ where: { year: campaign.year }, distinct: ["employeeId"], select: { employeeId: true } }),
   ]);
+  const unreadRows = await db.vacationMessage.groupBy({
+    by: ["employeeId"],
+    where: { year: campaign.year, fromOwner: false, seen: false },
+    _count: { _all: true },
+  });
   const active = employees.filter((e) => e.active);
   const short = compactNames(active);
   const rule = rules.find((w) => w.weekStart === monday) ?? null;
@@ -42,6 +47,14 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
     week: rule,
   });
   const activeIds = new Set(active.map((e) => e.id));
+  const gridEmployees = active.map((e) => ({ id: e.id, name: e.name, departmentId: e.defaultDepartmentId }));
+  const gridDepartments = departments
+    .filter((d) => d.active !== false)
+    .map((d) => ({ id: d.id, name: d.name, color: d.color ?? null, secondary: !!d.secondary }));
+  const allPeriods = periods.map((p) => ({ id: p.id, employeeId: p.employeeId, start: fromDbDate(p.start), end: fromDbDate(p.end), status: p.status }));
+  const conflicts = vacationConflicts({ year: campaign.year, employees: gridEmployees, departments: gridDepartments, periods: allPeriods, campaign, weeks: rules });
+  const inConflict = new Set(conflicts.flatMap((c) => c.periodIds));
+  const names = Object.fromEntries(active.map((e, i) => [e.id, short[i]!]));
   return (
     <VacationOverview
       key={monday}
@@ -54,6 +67,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
       ruleRange={ruleRange}
       sent={signed.filter((s) => activeIds.has(s.employeeId)).length}
       total={active.length}
+      conflicts={conflicts.map((c) => ({ ...c, names: c.employeeIds.map((id) => names[id] ?? "—") }))}
+      conflictPeriodIds={[...inConflict]}
+      unread={Object.fromEntries(unreadRows.map((r) => [r.employeeId, r._count._all]))}
+      cleanSentIds={allPeriods.filter((p) => p.status === "SENT" && activeIds.has(p.employeeId) && !inConflict.has(p.id)).map((p) => p.id)}
+      okCount={allPeriods.filter((p) => p.status === "OK" && activeIds.has(p.employeeId)).length}
       workDays={campaign.workDays}
     />
   );
