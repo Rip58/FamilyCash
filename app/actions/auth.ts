@@ -10,6 +10,8 @@ import { db } from "@/lib/db";
 import { GUEST_PIN_RE, afterWrongPin } from "@/lib/guest";
 import { GUEST_COOKIE } from "@/lib/guest-server";
 import { checkPassword } from "@/lib/password";
+import { VACATION_COOKIE } from "@/lib/vacation-server";
+import { VACATION_PIN_RE, VACATION_YEAR, vacationLockAfter } from "@/lib/vacations";
 
 const loginSchema = z.object({
   password: z.string().min(1).max(200),
@@ -88,5 +90,48 @@ export async function enterGuestPin(input: { pin: string }): Promise<GuestPinRes
     path: "/",
     maxAge: 60 * 60 * 24 * 120,
   });
+  return { ok: true };
+}
+
+// ---- Vacaciones: PIN personal de cada empleado (/vacaciones) ----------------------------------------------------
+
+/** Entrar en /vacaciones con el PIN fijo de su ficha. Cada 5 fallos seguidos, 15 minutos sin poder probar. */
+export async function enterVacationPin(input: { pin: string }): Promise<GuestPinResult> {
+  const pin = typeof input?.pin === "string" ? input.pin.trim() : "";
+  const c = await db.vacationCampaign.findUnique({ where: { year: VACATION_YEAR }, select: { pinLockedUntil: true } });
+  if (!c) return { ok: false, error: "Todavía no se pueden pedir vacaciones." };
+  const now = new Date();
+  if (c.pinLockedUntil && c.pinLockedUntil > now) {
+    return { ok: false, error: `Demasiados intentos. Vuelve a probar a las ${madridTime(c.pinLockedUntil)}.` };
+  }
+  if (!VACATION_PIN_RE.test(pin)) return { ok: false, error: "El PIN son 4 números." };
+  const row = await db.vacationPin.findUnique({ where: { pin }, select: { employee: { select: { active: true } } } });
+  if (!row?.employee.active) {
+    const { pinFails } = await db.vacationCampaign.update({
+      where: { year: VACATION_YEAR },
+      data: { pinFails: { increment: 1 } },
+      select: { pinFails: true },
+    });
+    const lock = vacationLockAfter(pinFails, now);
+    if (lock) {
+      await db.vacationCampaign.update({ where: { year: VACATION_YEAR }, data: { pinLockedUntil: lock } });
+      return { ok: false, error: `PIN incorrecto. Demasiados intentos: vuelve a probar a las ${madridTime(lock)}.` };
+    }
+    return { ok: false, error: "PIN incorrecto." };
+  }
+  await db.vacationCampaign.update({ where: { year: VACATION_YEAR }, data: { pinFails: 0, pinLockedUntil: null } });
+  (await cookies()).set(VACATION_COOKIE, pin, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/vacaciones",
+    maxAge: 60 * 60 * 24 * 180,
+  });
+  return { ok: true };
+}
+
+/** Salir de /vacaciones (por si usa un móvil prestado). */
+export async function leaveVacation(): Promise<{ ok: true }> {
+  (await cookies()).set(VACATION_COOKIE, "", { path: "/vacaciones", maxAge: 0 });
   return { ok: true };
 }

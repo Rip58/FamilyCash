@@ -187,3 +187,8 @@ body {
     display: none;
   }
 }
+
+/* Vacaciones: semana bloqueada (rayada) en el calendario del empleado. */
+.vac-blocked {
+  background-image: repeating-linear-gradient(135deg, color-mix(in srgb, var(--fg-muted) 28%, transparent) 0 2px, transparent 2px 6px);
+}

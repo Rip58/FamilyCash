@@ -6,14 +6,14 @@ import { FileHistory } from "@/components/employee/FileHistory";
 import { BackHeader } from "@/components/settings/kit";
 import { Tag } from "@/components/ui/Chip";
 import { db } from "@/lib/db";
-import { WEEKDAY_LETTERS, formatDayLong, operationalToday } from "@/lib/dates";
+import { WEEKDAY_LETTERS, formatDayLong, formatStamp, fromDbDate, operationalToday } from "@/lib/dates";
 import { getDepartments, getEmployees, getEntriesBetween, getSections, getSettings, getStatusTypes } from "@/lib/queries";
 import { loadEmployeeHistory } from "@/lib/employee-history-queries";
 import { getEffectiveDay } from "@/lib/schedule";
 import { headers } from "next/headers";
 import { VacationPinCard } from "@/components/employee/VacationPinCard";
 import { ensureVacationPins, getVacationCampaign } from "@/lib/vacation-queries";
-import { VACATION_PAGE_READY, vacationInvite } from "@/lib/vacations";
+import { VACATION_PAGE_READY, countedDays, vacationInvite } from "@/lib/vacations";
 
 export const metadata = { title: "Ficha del empleado" };
 export const dynamic = "force-dynamic";
@@ -67,6 +67,17 @@ export default async function Page({
     const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
     invite = vacationInvite(employee.name, `${proto}://${host}/vacaciones`, vacationPin, campaign);
   }
+  let vacationStatus: string | null = null;
+  if (campaign) {
+    const [periods, last] = await Promise.all([
+      db.vacationPeriod.findMany({ where: { employeeId: id, year: campaign.year } }),
+      db.vacationSubmission.findFirst({ where: { employeeId: id, year: campaign.year }, orderBy: { signedAt: "desc" }, select: { signedAt: true } }),
+    ]);
+    if (last) {
+      const used = countedDays(periods.map((p) => ({ start: fromDbDate(p.start), end: fromDbDate(p.end) })));
+      vacationStatus = `${used} de ${campaign.workDays} días · ${periods.length} ${periods.length === 1 ? "periodo" : "periodos"} · firmado el ${formatStamp(last.signedAt)}`;
+    }
+  }
 
   return (
     <div>
@@ -93,7 +104,7 @@ export default async function Page({
         <FileTabs tab={tab} />
       </div>
 
-      {tab === "datos" && campaign && vacationPin && <VacationPinCard year={campaign.year} pin={vacationPin} invite={invite} />}
+      {tab === "datos" && campaign && vacationPin && <VacationPinCard year={campaign.year} pin={vacationPin} invite={invite} status={vacationStatus} />}
       {tab === "datos" && (
         <DataTab
           employee={{

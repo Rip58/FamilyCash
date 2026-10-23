@@ -12,6 +12,8 @@ export async function proxy(req: NextRequest) {
   // Compañero: /turno (pide su PIN) y la subida de fotos no piden sesión. Cada una (y cada Server Action) comprueba
   // el acceso del compañero y que sea la noche en curso; todo lo demás sigue pidiendo sesión.
   if (pathname === "/turno" || pathname === "/api/upload/photo") return NextResponse.next();
+  // Empleados: /vacaciones pide su PIN personal; la página y sus acciones solo dejan ver y tocar sus vacaciones.
+  if (pathname === "/vacaciones") return NextResponse.next();
   if (pathname === "/login") {
     if (ok) return NextResponse.redirect(new URL("/hoy", req.url));
     return NextResponse.next();

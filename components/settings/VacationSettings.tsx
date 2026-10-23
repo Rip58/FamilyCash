@@ -4,12 +4,14 @@ import { useState } from "react";
 import { deleteVacationWeek, saveVacationCampaign, saveVacationWeek } from "@/app/actions/vacations";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/components/ui/cn";
+import { Icon } from "@/components/ui/icons";
+import { notify } from "@/components/ui/toast";
 import type { DateStr } from "@/lib/dates";
 import { type VacationCampaignView, type VacationWeekView, weekLabel } from "@/lib/vacations";
 import { BackHeader, ConfirmButton, Field, PrimaryButton, Stepper, Toggle, inputClass, useRun } from "./kit";
 
 type Dept = { id: string; name: string; color: string | null; secondary: boolean };
-type PinRow = { id: string; name: string; pin: string };
+type PinRow = { id: string; name: string; pin: string; invite: string | null };
 
 /**
  * Ajustes → Vacaciones: reglas de la campaña (días, plazo, abierta), máximo a la vez por departamento, semanas
@@ -251,16 +253,46 @@ function PinsCard({ pins, pageReady }: { pins: PinRow[]; pageReady: boolean }) {
     <Card title="PIN de cada empleado">
       <p className="mb-3 text-[14px] text-muted">
         Fijo y distinto para cada uno: con él entran a elegir sus vacaciones. También lo ves en su ficha.
+        {pageReady && " Toca el botón para mandarle el enlace y su PIN por WhatsApp."}
         {!pageReady && " La página para los empleados llega en la siguiente fase; de momento no hace falta mandarlo."}
       </p>
       <ul className="flex flex-col divide-y divide-line" aria-label="PIN de vacaciones">
         {pins.map((p) => (
           <li key={p.id} className="flex min-h-11 items-center justify-between gap-3 py-1.5">
             <span className="min-w-0 truncate text-[16px]">{p.name}</span>
-            <span className="font-mono text-[18px] font-semibold tracking-[0.2em] tabular-nums">{p.pin}</span>
+            <span className="flex items-center gap-2">
+              <span className="font-mono text-[18px] font-semibold tracking-[0.2em] tabular-nums">{p.pin}</span>
+              {p.invite && (
+                <button
+                  type="button"
+                  aria-label={`Mandar enlace y PIN a ${p.name}`}
+                  onClick={() => shareInvite(p.invite!)}
+                  className="press flex h-11 w-11 items-center justify-center rounded-full bg-accent/12 text-accent"
+                >
+                  <Icon name="share" className="h-5 w-5" strokeWidth={2.2} />
+                </button>
+              )}
+            </span>
           </li>
         ))}
       </ul>
     </Card>
   );
+}
+
+async function shareInvite(text: string) {
+  if (typeof navigator.share === "function") {
+    try {
+      await navigator.share({ text });
+      return;
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") return;
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    notify("Mensaje copiado");
+  } catch {
+    notify("No se pudo copiar", "error");
+  }
 }

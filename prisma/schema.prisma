@@ -78,6 +78,8 @@ model Employee {
   meetingTopics       MeetingTopic[]
   absences            Absence[]
   vacationPin VacationPin?               // PIN fijo para pedir vacaciones (tabla aparte: no viaja con getEmployees)
+  vacationPeriods     VacationPeriod[]
+  vacationSubmissions VacationSubmission[]
 }
 
 model DayEntry {            // solo existe si el día difiere del patrón o tiene datos
@@ -321,6 +323,8 @@ model VacationCampaign {
   open          Boolean  @default(true)     // abierta a los empleados
   defaultMax    Int      @default(2)        // máximo a la vez en un departamento
   departmentMax Json     @default("{}")     // { departmentId: máximo } (Droguería 1…)
+  pinFails      Int      @default(0)        // PIN mal puestos seguidos en /vacaciones
+  pinLockedUntil DateTime?                  // cada 5 fallos, 15 min sin poder probar
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -338,4 +342,30 @@ model VacationPin {
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   pin        String   @unique               // 4 números, fijo (se ve en la ficha para decírselo)
   createdAt  DateTime @default(now())
+}
+
+model VacationPeriod {                      // lo que pide el empleado: del primer al último día (la fiesta se añade sola)
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  year       Int
+  start      DateTime @db.Date
+  end        DateTime @db.Date
+  status     String   @default("SENT")      // SENT | REVIEW | OK | APPLIED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  @@index([year])
+  @@index([employeeId])
+}
+
+model VacationSubmission {                  // cada envío del empleado, firmado (copia de las fechas firmadas)
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  year       Int
+  periods    Json                           // [{ start, end }]
+  workDays   Int                            // laborables que gastan
+  signature  String                         // PNG (data URL) de la firma con el dedo
+  signedAt   DateTime @default(now())
+  @@index([employeeId, year])
 }

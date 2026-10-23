@@ -47,3 +47,74 @@ describe("textos", () => {
     );
   });
 });
+
+import { checkVacations, countedDays, rangeLabel, vacationLockAfter, vacationSpan } from "@/lib/vacations";
+
+const kinds = (s: ReturnType<typeof vacationSpan>) => s.days.map((d) => `${d.date.slice(5)}${d.kind === "work" ? "T" : "F"}`).join(" ");
+
+describe("días de un periodo (22 laborables, 2 de fiesta por semana)", () => {
+  it("semana entera: L–V descuentan, S–D son su fiesta", () => {
+    const s = vacationSpan({ start: "2027-08-02", end: "2027-08-08" });
+    expect(s.counted).toBe(5);
+    expect(s.last).toBe("2027-08-08");
+  });
+  it("de lunes a viernes: se añaden sábado y domingo", () => {
+    const s = vacationSpan({ start: "2027-08-02", end: "2027-08-06" });
+    expect(s.counted).toBe(5);
+    expect(s.last).toBe("2027-08-08");
+  });
+  it("3 días de miércoles a viernes: + sábado y domingo = 5 días, descuenta 3", () => {
+    const s = vacationSpan({ start: "2027-07-07", end: "2027-07-09" });
+    expect(kinds(s)).toBe("07-07T 07-08T 07-09T 07-10F 07-11F");
+    expect(s.counted).toBe(3);
+  });
+  it("3 días de lunes a miércoles: la fiesta va al final (jueves y viernes)", () => {
+    const s = vacationSpan({ start: "2027-07-05", end: "2027-07-07" });
+    expect(kinds(s)).toBe("07-05T 07-06T 07-07T 07-08F 07-09F");
+    expect(s.counted).toBe(3);
+  });
+  it("dos semanas y media: cada fin de semana es fiesta y la última semana completa sus 2", () => {
+    const s = vacationSpan({ start: "2027-08-02", end: "2027-08-18" });
+    expect(s.counted).toBe(13);
+    expect(s.last).toBe("2027-08-20");
+  });
+  it("acabar en sábado: solo se añade el domingo", () => {
+    expect(vacationSpan({ start: "2027-07-07", end: "2027-07-10" }).last).toBe("2027-07-11");
+  });
+  it("etiqueta con la fiesta incluida", () => {
+    expect(rangeLabel({ start: "2027-07-07", end: "2027-07-09" })).toBe("7 jul – 11 jul");
+  });
+});
+
+describe("comprobar lo que pide el empleado", () => {
+  const rules = { year: 2027, workDays: 22, blocked: new Set(["2027-07-26"]) };
+  it("vale si cabe en sus 22 días y no pisa nada", () => {
+    const r = [{ start: "2027-08-02", end: "2027-08-15" }, { start: "2027-07-07", end: "2027-07-09" }];
+    expect(checkVacations(r, rules)).toBeNull();
+    expect(countedDays(r)).toBe(13);
+  });
+  it("no deja pasarse de los días", () => {
+    const r = [{ start: "2027-03-01", end: "2027-04-04" }];
+    expect(checkVacations(r, rules)).toBe("Te pasas: 25 de 22 días laborables.");
+  });
+  it("no deja coger una semana bloqueada", () => {
+    expect(checkVacations([{ start: "2027-07-28", end: "2027-07-30" }], rules)).toMatch(/26 jul no se puede/);
+  });
+  it("la fiesta que se añade al final también cuenta para no pisarse", () => {
+    const r = [{ start: "2027-07-05", end: "2027-07-07" }, { start: "2027-07-09", end: "2027-07-09" }];
+    expect(checkVacations(r, rules)).toMatch(/se pisan/);
+  });
+  it("solo días del año y al menos uno de lunes a viernes", () => {
+    expect(checkVacations([{ start: "2026-12-28", end: "2027-01-01" }], rules)).toMatch(/2027/);
+    expect(checkVacations([{ start: "2027-07-10", end: "2027-07-11" }], rules)).toMatch(/al menos un día/);
+  });
+});
+
+describe("bloqueo del PIN de vacaciones", () => {
+  it("15 minutos cada 5 fallos", () => {
+    const now = new Date("2027-01-10T10:00:00Z");
+    expect(vacationLockAfter(4, now)).toBeNull();
+    expect(vacationLockAfter(5, now)?.toISOString()).toBe("2027-01-10T10:15:00.000Z");
+    expect(vacationLockAfter(10, now)).not.toBeNull();
+  });
+});

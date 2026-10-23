@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/Card";
 import { notify } from "@/components/ui/toast";
 
 /** Ficha → Datos: PIN fijo de vacaciones y, cuando exista la página de los empleados, el mensaje con el enlace. */
-export function VacationPinCard({ year, pin, invite }: { year: number; pin: string; invite: string | null }) {
+export function VacationPinCard({ year, pin, invite, status }: { year: number; pin: string; invite: string | null; status: string | null }) {
   async function send() {
     if (!invite) return;
     if (typeof navigator.share === "function") {
@@ -30,6 +30,7 @@ export function VacationPinCard({ year, pin, invite }: { year: number; pin: stri
           {pin}
         </span>
       </div>
+      <p className="mt-1 text-[14px] text-muted">{status ?? "Todavía no ha enviado sus vacaciones."}</p>
       {invite ? (
         <button
           type="button"

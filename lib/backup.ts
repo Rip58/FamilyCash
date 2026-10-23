@@ -48,6 +48,8 @@ export const BACKUP_TABLES = [
   "vacationCampaign",
   "vacationWeek",
   "vacationPin",
+  "vacationPeriod",
+  "vacationSubmission",
 ] as const;
 
 export type BackupTable = (typeof BACKUP_TABLES)[number];
@@ -88,6 +90,8 @@ export async function exportBackup(db: PrismaClient): Promise<BackupFile> {
     vacationCampaign: () => db.vacationCampaign.findMany(),
     vacationWeek: () => db.vacationWeek.findMany(),
     vacationPin: () => db.vacationPin.findMany(),
+    vacationPeriod: () => db.vacationPeriod.findMany(),
+    vacationSubmission: () => db.vacationSubmission.findMany(),
     absence: () => db.absence.findMany(),
   };
   const tables = {} as Record<BackupTable, Row[]>;
@@ -145,6 +149,8 @@ export async function restoreBackup(db: PrismaClient, backup: BackupFile): Promi
     vacationCampaign: (tx) => tx.vacationCampaign.createMany({ data: t.vacationCampaign as any }),
     vacationWeek: (tx) => tx.vacationWeek.createMany({ data: t.vacationWeek as any }),
     vacationPin: (tx) => tx.vacationPin.createMany({ data: t.vacationPin as any }),
+    vacationPeriod: (tx) => tx.vacationPeriod.createMany({ data: t.vacationPeriod as any }),
+    vacationSubmission: (tx) => tx.vacationSubmission.createMany({ data: t.vacationSubmission as any }),
     absence: (tx) => tx.absence.createMany({ data: (t.absence ?? []) as any }),
   };
   /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -173,6 +179,8 @@ export async function restoreBackup(db: PrismaClient, backup: BackupFile): Promi
     vacationCampaign: (tx) => tx.vacationCampaign.deleteMany(),
     vacationWeek: (tx) => tx.vacationWeek.deleteMany(),
     vacationPin: (tx) => tx.vacationPin.deleteMany(),
+    vacationPeriod: (tx) => tx.vacationPeriod.deleteMany(),
+    vacationSubmission: (tx) => tx.vacationSubmission.deleteMany(),
     absence: (tx) => tx.absence.deleteMany(),
   };
   return db.$transaction(
