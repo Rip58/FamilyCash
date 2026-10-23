@@ -13,7 +13,7 @@ import { getEffectiveDay } from "@/lib/schedule";
 import { headers } from "next/headers";
 import { VacationPinCard } from "@/components/employee/VacationPinCard";
 import { ensureVacationPins, getVacationCampaign } from "@/lib/vacation-queries";
-import { VACATION_PAGE_READY, countedDays, vacationInvite } from "@/lib/vacations";
+import { VACATION_PAGE_READY, countedDays, needsSignature, parseSignedRanges, vacationInvite } from "@/lib/vacations";
 
 export const metadata = { title: "Ficha del empleado" };
 export const dynamic = "force-dynamic";
@@ -68,15 +68,21 @@ export default async function Page({
     invite = vacationInvite(employee.name, `${proto}://${host}/vacaciones`, vacationPin, campaign);
   }
   let vacationStatus: string | null = null;
+  let pendingSignature = false;
+  let signed: { at: string; ranges: { start: string; end: string }[]; signature: string }[] = [];
   if (campaign) {
-    const [periods, last] = await Promise.all([
+    const [periods, submissions] = await Promise.all([
       db.vacationPeriod.findMany({ where: { employeeId: id, year: campaign.year } }),
-      db.vacationSubmission.findFirst({ where: { employeeId: id, year: campaign.year }, orderBy: { signedAt: "desc" }, select: { signedAt: true } }),
+      db.vacationSubmission.findMany({ where: { employeeId: id, year: campaign.year }, orderBy: { signedAt: "desc" } }),
     ]);
-    if (last) {
-      const used = countedDays(periods.map((p) => ({ start: fromDbDate(p.start), end: fromDbDate(p.end) })));
-      vacationStatus = `${used} de ${campaign.workDays} días · ${periods.length} ${periods.length === 1 ? "periodo" : "periodos"} · firmado el ${formatStamp(last.signedAt)}`;
+    const stored = periods.map((p) => ({ start: fromDbDate(p.start), end: fromDbDate(p.end), status: p.status }));
+    const live = stored.filter((p) => p.status !== "CANCEL");
+    if (stored.length) {
+      const waiting = stored.filter((p) => p.status === "SENT" || p.status === "REVIEW" || p.status === "CANCEL").length;
+      vacationStatus = `${countedDays(live)} de ${campaign.workDays} días · ${live.length} ${live.length === 1 ? "periodo" : "periodos"}${waiting ? ` · ${waiting} por revisar` : ""}`;
     }
+    signed = submissions.map((x) => ({ at: formatStamp(x.signedAt), ranges: parseSignedRanges(x.periods), signature: x.signature }));
+    pendingSignature = needsSignature(stored, submissions[0] ? parseSignedRanges(submissions[0].periods) : null);
   }
 
   return (
@@ -104,7 +110,7 @@ export default async function Page({
         <FileTabs tab={tab} />
       </div>
 
-      {tab === "datos" && campaign && vacationPin && <VacationPinCard year={campaign.year} pin={vacationPin} invite={invite} status={vacationStatus} />}
+      {tab === "datos" && campaign && vacationPin && <VacationPinCard year={campaign.year} pin={vacationPin} invite={invite} status={vacationStatus} pendingSignature={pendingSignature} signed={signed} />}
       {tab === "datos" && (
         <DataTab
           employee={{

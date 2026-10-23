@@ -219,3 +219,25 @@ describe("solapes del año", () => {
     expect(planningDaysFor({ start: "2027-07-05", end: "2027-07-07" }).map((d) => d.code).join()).toBe("VACATION,VACATION,VACATION,OFF,OFF");
   });
 });
+
+import { needsSignature, planSubmission } from "@/lib/vacations";
+
+describe("enviar sin firma y firmar al final", () => {
+  const p = (id: string, start: string, end: string, status: string) => ({ id, start, end, status });
+  it("lo nuevo queda enviado, lo quitado se borra y lo del planning queda «quiere quitarlo»", () => {
+    const stored = [p("a", "2027-07-05", "2027-07-09", "APPLIED"), p("b", "2027-08-02", "2027-08-13", "OK"), p("c", "2027-12-20", "2027-12-24", "SENT")];
+    const r = planSubmission(stored, [{ start: "2027-12-20", end: "2027-12-24" }, { start: "2027-07-12", end: "2027-07-16" }]);
+    expect(r).toEqual({ create: [{ start: "2027-07-12", end: "2027-07-16" }], remove: ["b"], cancel: ["a"], restore: [] });
+  });
+  it("si vuelve a poner lo que pidió quitar, vuelve a estar en el planning", () => {
+    const r = planSubmission([p("a", "2027-07-05", "2027-07-09", "CANCEL")], [{ start: "2027-07-05", end: "2027-07-09" }]);
+    expect(r.restore).toEqual(["a"]);
+  });
+  it("firma solo cuando todo está aprobado y es distinto de lo firmado", () => {
+    const ok = [p("a", "2027-07-05", "2027-07-09", "APPLIED"), p("b", "2027-08-02", "2027-08-13", "OK")];
+    expect(needsSignature(ok, null)).toBe(true);
+    expect(needsSignature(ok, [{ start: "2027-08-02", end: "2027-08-13" }, { start: "2027-07-05", end: "2027-07-09" }])).toBe(false);
+    expect(needsSignature([...ok, p("c", "2027-12-20", "2027-12-24", "SENT")], null)).toBe(false);
+    expect(needsSignature([], null)).toBe(false);
+  });
+});

@@ -4,7 +4,7 @@ import { fromDbDate, isDateStr, madridToday, weekStart } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { getDepartments, getEmployees } from "@/lib/queries";
 import { getVacationCampaign, getVacationWeeks } from "@/lib/vacation-queries";
-import { groupWeekRules, vacationConflicts, vacationWeekGrid, yearWeeks } from "@/lib/vacations";
+import { groupWeekRules, needsSignature, parseSignedRanges, vacationConflicts, vacationWeekGrid, yearWeeks } from "@/lib/vacations";
 import { compactNames } from "@/lib/week";
 
 export const metadata = { title: "Vacaciones" };
@@ -26,6 +26,12 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
     db.vacationPeriod.findMany({ where: { year: campaign.year } }),
     db.vacationSubmission.findMany({ where: { year: campaign.year }, distinct: ["employeeId"], select: { employeeId: true } }),
   ]);
+  const lastSigned = await db.vacationSubmission.findMany({
+    where: { year: campaign.year },
+    orderBy: { signedAt: "desc" },
+    distinct: ["employeeId"],
+    select: { employeeId: true, periods: true },
+  });
   const unreadRows = await db.vacationMessage.groupBy({
     by: ["employeeId"],
     where: { year: campaign.year, fromOwner: false, seen: false },
@@ -72,6 +78,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
       unread={Object.fromEntries(unreadRows.map((r) => [r.employeeId, r._count._all]))}
       cleanSentIds={allPeriods.filter((p) => p.status === "SENT" && activeIds.has(p.employeeId) && !inConflict.has(p.id)).map((p) => p.id)}
       okCount={allPeriods.filter((p) => p.status === "OK" && activeIds.has(p.employeeId)).length}
+      toSign={active.filter((e) => {
+        const last = lastSigned.find((x) => x.employeeId === e.id);
+        return needsSignature(allPeriods.filter((p) => p.employeeId === e.id), last ? parseSignedRanges(last.periods) : null);
+      }).length}
+      cancelRequests={allPeriods.filter((p) => p.status === "CANCEL" && activeIds.has(p.employeeId)).length}
       workDays={campaign.workDays}
     />
   );

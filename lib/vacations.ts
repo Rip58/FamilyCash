@@ -165,6 +165,7 @@ export const VACATION_STATUS_LABEL: Record<string, string> = {
   REVIEW: "A revisar",
   OK: "Correcto",
   APPLIED: "En el planning",
+  CANCEL: "Quiere quitarlo",
 };
 
 // ---- PIN de la página de vacaciones (bloqueo contra pruebas al azar) ---------------------------------------------
@@ -418,3 +419,67 @@ export function planningDaysFor(r: VacationRange): { date: DateStr; code: "VACAT
 }
 
 export const MAX_MESSAGE_TEXT = 1000;
+
+// ---- Envíos (sin firma) y firma final de lo aprobado ------------------------------------------------------------
+
+/** Periodo guardado (con su estado). CANCEL = estaba en el planning y el empleado pide quitarlo (lo decides tú). */
+export interface StoredPeriod extends VacationRange {
+  id: string;
+  status: string;
+}
+
+const rangeKey = (r: VacationRange) => `${r.start}|${r.end}`;
+
+/** Mismos periodos (sin importar el orden). */
+export function sameRanges(a: VacationRange[], b: VacationRange[]): boolean {
+  const x = a.map(rangeKey).sort();
+  const y = b.map(rangeKey).sort();
+  return x.length === y.length && x.every((k, i) => k === y[i]);
+}
+
+/** Lo que vale de verdad: todo menos lo que pide quitar. */
+export const livePeriods = <T extends { status: string }>(ps: T[]): T[] => ps.filter((p) => p.status !== "CANCEL");
+
+/**
+ * Qué hacer con lo que envía el empleado (sin firma): lo que no cambia se queda como está; lo nuevo, «Enviado»;
+ * lo que quita se borra… salvo lo que ya está en el planning, que queda «Quiere quitarlo» hasta que lo aceptes.
+ */
+export function planSubmission(
+  stored: StoredPeriod[],
+  wanted: VacationRange[],
+): { create: VacationRange[]; remove: string[]; cancel: string[]; restore: string[] } {
+  const want = new Set(wanted.map(rangeKey));
+  const have = new Map(stored.map((p) => [rangeKey(p), p]));
+  const create = wanted.filter((r) => !have.has(rangeKey(r)));
+  const remove: string[] = [];
+  const cancel: string[] = [];
+  const restore: string[] = [];
+  for (const p of stored) {
+    const k = rangeKey(p);
+    if (want.has(k)) {
+      if (p.status === "CANCEL") restore.push(p.id); // lo vuelve a poner: sigue en el planning
+    } else if (p.status === "APPLIED") cancel.push(p.id);
+    else if (p.status !== "CANCEL") remove.push(p.id);
+  }
+  return { create, remove, cancel, restore };
+}
+
+/**
+ * Hay que firmar cuando todo lo que tiene está aprobado (correcto o en el planning), no queda nada pendiente y no
+ * coincide con lo último que firmó.
+ */
+export function needsSignature(stored: { start: DateStr; end: DateStr; status: string }[], lastSigned: VacationRange[] | null): boolean {
+  if (stored.length === 0) return false;
+  if (!stored.every((p) => p.status === "OK" || p.status === "APPLIED")) return false;
+  return !lastSigned || !sameRanges(stored, lastSigned);
+}
+
+/** periods (JSON) de un envío firmado → periodos. */
+export function parseSignedRanges(v: unknown): VacationRange[] {
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((x) =>
+    x && typeof x === "object" && typeof (x as VacationRange).start === "string" && typeof (x as VacationRange).end === "string"
+      ? [{ start: (x as VacationRange).start, end: (x as VacationRange).end }]
+      : [],
+  );
+}

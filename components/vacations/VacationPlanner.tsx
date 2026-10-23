@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { leaveVacation } from "@/app/actions/auth";
-import { markVacationMessagesSeen, replyVacationMessage, submitVacations } from "@/app/actions/vacations";
+import { markVacationMessagesSeen, replyVacationMessage, signVacations, submitVacations } from "@/app/actions/vacations";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { cn } from "@/components/ui/cn";
 import { notify } from "@/components/ui/toast";
@@ -26,7 +26,8 @@ const sortRanges = (ps: Period[]) => [...ps].sort((a, b) => (a.start < b.start ?
 
 /**
  * Página de vacaciones del empleado: calendario del año, toca el primer día y el último para marcar un periodo (sus
- * 2 días de fiesta se añaden solos), contador «X de 22» y «Enviar y firmar» (cada cambio va firmado).
+ * 2 días de fiesta se añaden solos), contador «X de 22» y «Enviar a mi encargado» (sin firma). Cuando el encargado se lo
+ * aprueba todo, «Firmar»: la firma queda con las fechas en su ficha. Cada cambio aprobado se vuelve a firmar.
  * Solo ve sus días y las semanas bloqueadas; nada de los demás.
  */
 export function VacationPlanner({
@@ -38,6 +39,8 @@ export function VacationPlanner({
   blocked,
   periods: saved,
   signedAt,
+  signedRanges,
+  pendingSignature,
   messages,
   unseen,
 }: {
@@ -49,11 +52,17 @@ export function VacationPlanner({
   blocked: { weekStart: DateStr; reason: string | null }[];
   periods: Period[];
   signedAt: string | null;
+  signedRanges: VacationRange[];
+  pendingSignature: boolean;
   messages: { id: string; fromOwner: boolean; text: string; at: string }[];
   unseen: number;
 }) {
   const router = useRouter();
-  const [periods, setPeriods] = useState<Period[]>(saved);
+  // Lo que pidió quitar (y aún está en el planning) va aparte: no cuenta ni se pinta en el calendario.
+  const live = useMemo(() => saved.filter((p) => p.status !== "CANCEL"), [saved]);
+  const cancels = saved.filter((p) => p.status === "CANCEL");
+  const [periods, setPeriods] = useState<Period[]>(live);
+  const [sending, setSending] = useState(false);
   const [first, setFirst] = useState<DateStr | null>(null);
   const [removing, setRemoving] = useState<{ index: number; open: boolean } | null>(null);
   const [signing, setSigning] = useState(false);
@@ -68,15 +77,16 @@ export function VacationPlanner({
   }, [unseen]);
 
   // Al guardar, el servidor manda los periodos nuevos: se vuelve a partir de ellos.
-  const [prevSaved, setPrevSaved] = useState(saved);
-  if (saved !== prevSaved) {
-    setPrevSaved(saved);
-    setPeriods(saved);
+  const [prevSaved, setPrevSaved] = useState(live);
+  if (live !== prevSaved) {
+    setPrevSaved(live);
+    setPeriods(live);
   }
 
   const blockedMap = useMemo(() => new Map(blocked.map((b) => [b.weekStart, b.reason])), [blocked]);
   const blockedSet = useMemo(() => new Set(blocked.map((b) => b.weekStart)), [blocked]);
-  const dirty = !same(sortRanges(periods), sortRanges(saved));
+  const dirty = !same(sortRanges(periods), sortRanges(live));
+  const waiting = !dirty && live.some((p) => p.status === "SENT" || p.status === "REVIEW");
   const used = countedDays(periods);
   const left = workDays - used;
 
@@ -92,10 +102,6 @@ export function VacationPlanner({
   function tap(date: DateStr) {
     if (!editable) return;
     const own = dayInfo.get(date);
-    if (own && periods[own.index]?.status === "APPLIED") {
-      notify("Ya está en el planning. Para cambiarlo, habla con tu encargado.", "error");
-      return;
-    }
     if (own) {
       setFirst(null);
       setRemoving({ index: own.index, open: true });
@@ -121,18 +127,29 @@ export function VacationPlanner({
   }
 
   function send() {
+    start(async () => {
+      const r = await submitVacations({ periods: periods.map(({ start, end }) => ({ start, end })) }).catch(() => ({
+        ok: false as const,
+        error: "Sin conexión. Inténtalo de nuevo.",
+      }));
+      if (r.ok) {
+        notify("Enviado a tu encargado");
+        setSending(false);
+        router.refresh();
+      } else notify(r.error, "error");
+    });
+  }
+
+  function sign() {
     const signature = pad.current?.toDataUrl();
     if (!signature) {
       notify("Firma en el recuadro con el dedo.", "error");
       return;
     }
     start(async () => {
-      const r = await submitVacations({ periods: periods.map(({ start, end }) => ({ start, end })), signature }).catch(() => ({
-        ok: false as const,
-        error: "Sin conexión. Inténtalo de nuevo.",
-      }));
+      const r = await signVacations({ signature }).catch(() => ({ ok: false as const, error: "Sin conexión. Inténtalo de nuevo." }));
       if (r.ok) {
-        notify("Enviado y firmado");
+        notify("Vacaciones firmadas");
         setSigning(false);
         router.refresh();
       } else notify(r.error, "error");
@@ -167,6 +184,21 @@ export function VacationPlanner({
         </button>
       )}
 
+      {pendingSignature && !dirty && (
+        <section className="flex flex-col gap-2 rounded-card bg-success/12 px-4 py-3">
+          <p className="text-[15px] font-medium text-[#15803d]">
+            Tu encargado ha aprobado tus vacaciones. Fírmalas para que queden guardadas en tu ficha.
+          </p>
+          <button
+            type="button"
+            onClick={() => setSigning(true)}
+            className="press min-h-11 rounded-control bg-[#16a34a] text-[16px] font-semibold text-white"
+          >
+            Firmar mis vacaciones
+          </button>
+        </section>
+      )}
+
       <section aria-label="Tus días" className="rounded-card bg-surface px-4 py-3">
         <p className="text-[15px]">
           <b className="text-[24px] tabular-nums">{used}</b> de {workDays} días laborables
@@ -181,7 +213,7 @@ export function VacationPlanner({
 
       {!editable && (
         <p role="status" className="rounded-card bg-warning/12 px-4 py-3 text-[14px] font-medium text-[#8a4b00]">
-          El plazo para elegir está cerrado. Si necesitas cambiar algo, habla con tu encargado.
+          Las vacaciones están cerradas. Si necesitas cambiar algo, habla con tu encargado.
         </p>
       )}
 
@@ -229,7 +261,7 @@ export function VacationPlanner({
 
       <section aria-label="Mis vacaciones" className="overflow-hidden rounded-card bg-surface">
         <h2 className="px-4 pb-1 pt-3 text-[13px] font-semibold uppercase tracking-wide text-muted">Mis vacaciones {year}</h2>
-        {periods.length === 0 ? (
+        {periods.length === 0 && cancels.length === 0 ? (
           <p className="px-4 pb-3 text-[15px] text-muted">Todavía no has elegido nada.</p>
         ) : (
           <ul className="divide-y divide-line">
@@ -261,9 +293,32 @@ export function VacationPlanner({
                 </li>
               );
             })}
+            {cancels.map((p) => (
+              <li key={`c${p.start}${p.end}`} className="flex min-h-12 items-center justify-between gap-3 px-4 py-2">
+                <span className="min-w-0">
+                  <b className="block text-[16px] text-muted line-through">{rangeLabel(p)}</b>
+                  <span className="text-[13px] text-muted">Pides quitarlo: tu encargado tiene que aceptarlo</span>
+                </span>
+                <span className="shrink-0 rounded-md bg-warning/15 px-2 py-0.5 text-[12px] font-semibold text-[#b45309]">Pendiente</span>
+              </li>
+            ))}
           </ul>
         )}
       </section>
+
+      {signedAt && signedRanges.length > 0 && (
+        <section aria-label="Vacaciones firmadas" className="rounded-card bg-surface px-4 py-3">
+          <h2 className="mb-1 text-[13px] font-semibold uppercase tracking-wide text-muted">Vacaciones firmadas</h2>
+          <ul className="flex flex-col gap-0.5 text-[15px]">
+            {signedRanges.map((r) => (
+              <li key={`${r.start}${r.end}`}>
+                <b>{rangeLabel(r)}</b> · descuenta {vacationSpan(r).counted}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-[13px] text-muted">Firmadas el {signedAt}</p>
+        </section>
+      )}
 
       <section ref={chatRef} aria-label="Mensajes" className="flex scroll-mt-4 flex-col gap-2 rounded-card bg-surface p-3">
         <h2 className="px-1 text-[13px] font-semibold uppercase tracking-wide text-muted">Mensajes con tu encargado</h2>
@@ -316,19 +371,33 @@ export function VacationPlanner({
               <button
                 type="button"
                 disabled={!editable}
-                onClick={() => setSigning(true)}
+                onClick={() => setSending(true)}
                 className="press min-h-12 w-full rounded-control bg-accent text-[17px] font-semibold text-accent-fg disabled:opacity-40"
               >
-                Enviar y firmar
+                Enviar a mi encargado
               </button>
-              <button type="button" onClick={() => setPeriods(saved)} className="min-h-10 text-[15px] font-medium text-accent">
+              <button type="button" onClick={() => setPeriods(live)} className="min-h-10 text-[15px] font-medium text-accent">
                 Deshacer cambios
               </button>
             </>
           ) : (
-            <p className="py-2 text-center text-[14px] text-muted">
-              {signedAt ? `✓ Enviado y firmado el ${signedAt}` : "Marca tus vacaciones en el calendario."}
-            </p>
+            pendingSignature ? (
+              <button
+                type="button"
+                onClick={() => setSigning(true)}
+                className="press min-h-12 w-full rounded-control bg-[#16a34a] text-[17px] font-semibold text-white"
+              >
+                Firmar mis vacaciones
+              </button>
+            ) : (
+              <p className="py-2 text-center text-[14px] text-muted">
+                {waiting || cancels.length > 0
+                  ? "Enviado. Falta que tu encargado lo apruebe."
+                  : signedAt
+                    ? `✓ Aprobadas y firmadas el ${signedAt}`
+                    : "Marca tus vacaciones en el calendario."}
+              </p>
+            )
           )}
         </div>
       </div>
@@ -353,28 +422,64 @@ export function VacationPlanner({
             >
               Quitar este periodo
             </button>
-            <p className="text-[13px] text-muted">El cambio no se guarda hasta que lo envíes y firmes.</p>
+            <p className="text-[13px] text-muted">
+              {removingPeriod.status === "APPLIED"
+                ? "Ya está en el planning: al enviarlo, tu encargado tiene que aceptar quitarlo."
+                : "El cambio no se guarda hasta que lo envíes."}
+            </p>
           </div>
         )}
       </BottomSheet>
 
-      <BottomSheet open={signing} onClose={() => setSigning(false)} title="Firmar vacaciones">
+      <BottomSheet open={sending} onClose={() => setSending(false)} title="Enviar a tu encargado">
         <div className="flex flex-col gap-3">
           <section className="rounded-card bg-surface-2 px-4 py-3">
-            <h2 className="mb-1 text-[15px] font-semibold">Tus vacaciones de {year}</h2>
+            <h2 className="mb-1 text-[15px] font-semibold">Lo que pides para {year}</h2>
             <ul className="flex flex-col gap-0.5 text-[15px]">
               {sortRanges(periods).map((p) => (
                 <li key={`${p.start}${p.end}`}>
                   <b>{rangeLabel(p)}</b> · {vacationSpan(p).days.length} días (descuenta {vacationSpan(p).counted})
                 </li>
               ))}
-              {periods.length === 0 && <li className="text-muted">Ninguna (borras todo lo que habías pedido).</li>}
+              {periods.length === 0 && <li className="text-muted">Nada (quitas todo lo que habías pedido).</li>}
             </ul>
             <p className="mt-1.5 text-[14px]">
               <b>{used}</b> de {workDays} días laborables
             </p>
           </section>
-          <p className="text-[14px] text-muted">Firma con el dedo para confirmar estas fechas. Cada cambio se vuelve a firmar.</p>
+          <p className="text-[14px] text-muted">
+            Tu encargado lo revisa. Cuando te lo apruebe, te pedirá que lo firmes.
+          </p>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={send}
+            className="press min-h-12 w-full rounded-control bg-accent text-[17px] font-semibold text-accent-fg disabled:opacity-40"
+          >
+            {pending ? "Enviando…" : "Enviar"}
+          </button>
+        </div>
+      </BottomSheet>
+
+      <BottomSheet open={signing} onClose={() => setSigning(false)} title="Firmar vacaciones">
+        <div className="flex flex-col gap-3">
+          <section className="rounded-card bg-surface-2 px-4 py-3">
+            <h2 className="mb-1 text-[15px] font-semibold">Tus vacaciones aprobadas de {year}</h2>
+            <ul className="flex flex-col gap-0.5 text-[15px]">
+              {sortRanges(live).map((p) => (
+                <li key={`${p.start}${p.end}`}>
+                  <b>{rangeLabel(p)}</b> · {vacationSpan(p).days.length} días (descuenta {vacationSpan(p).counted})
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-[14px]">
+              <b>{used}</b> de {workDays} días laborables
+            </p>
+          </section>
+          <p className="text-[14px] text-muted">
+            Firma con el dedo para confirmar que estas son tus vacaciones. Queda guardado en tu ficha; si más adelante se
+            cambian, se vuelven a firmar.
+          </p>
           <SignaturePad ref={pad} onChange={setHasInk} />
           <div className="grid grid-cols-[1fr_2fr] gap-2">
             <button type="button" onClick={() => pad.current?.clear()} className="min-h-12 rounded-control bg-surface-2 text-[16px] font-medium">
@@ -383,10 +488,10 @@ export function VacationPlanner({
             <button
               type="button"
               disabled={!hasInk || pending}
-              onClick={send}
+              onClick={sign}
               className="press min-h-12 rounded-control bg-accent text-[17px] font-semibold text-accent-fg disabled:opacity-40"
             >
-              {pending ? "Enviando…" : "Firmar y enviar"}
+              {pending ? "Firmando…" : "Firmar"}
             </button>
           </div>
         </div>

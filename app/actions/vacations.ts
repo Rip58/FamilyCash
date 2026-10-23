@@ -4,10 +4,23 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { formatStamp, fromDbDate, isDateStr, madridToday, toDbDate } from "@/lib/dates";
+import { formatStamp, fromDbDate, isDateStr, toDbDate } from "@/lib/dates";
 import { authorizeVacation } from "@/lib/vacation-server";
 import { getVacationCampaign, getVacationWeeks } from "@/lib/vacation-queries";
-import { MAX_MESSAGE_TEXT, MAX_SIGNATURE_LENGTH, VACATION_YEAR, checkVacations, countedDays, isSignature, mondaysBetween, planningDaysFor } from "@/lib/vacations";
+import {
+  MAX_MESSAGE_TEXT,
+  MAX_SIGNATURE_LENGTH,
+  VACATION_YEAR,
+  checkVacations,
+  countedDays,
+  isSignature,
+  mondaysBetween,
+  needsSignature,
+  parseSignedRanges,
+  planSubmission,
+  planningDaysFor,
+} from "@/lib/vacations";
+import { getEffectiveDay } from "@/lib/schedule";
 import { getEmployees, getEntriesBetween, getStatusTypes } from "@/lib/queries";
 import { writePlanningDays } from "@/lib/planning-write";
 import { requireOwner } from "@/lib/session";
@@ -91,56 +104,76 @@ export async function deleteVacationWeek(input: { date: string; to?: string | nu
   return { ok: true };
 }
 
-// ---- Empleado (/vacaciones): enviar sus fechas FIRMADAS ---------------------------------------------------------
+// ---- Empleado (/vacaciones): enviar (sin firma) y firmar lo aprobado ---------------------------------------------
 
 const submitSchema = z.object({
   periods: z.array(z.object({ start: dateSchema, end: dateSchema })).max(20, "Demasiados periodos."),
-  signature: z.string().max(MAX_SIGNATURE_LENGTH, "La firma es demasiado grande."),
 });
 
 /**
- * Cada cambio va firmado: sustituye los periodos del empleado por los enviados (los que no cambian conservan su
- * estado; los nuevos quedan «Enviado») y guarda la firma con una copia de las fechas.
+ * El empleado envía sus fechas (sin firmar): lo que no cambia se queda como está, lo nuevo queda «Enviado», lo que
+ * quita se borra y lo que ya está en el planning queda «Quiere quitarlo» hasta que tú lo aceptes. Firma al final,
+ * cuando se lo apruebas todo (`signVacations`).
  */
 export async function submitVacations(input: z.input<typeof submitSchema>): Promise<ActionResult> {
   const employee = await authorizeVacation();
   const p = submitSchema.safeParse(input);
   if (!p.success) return fail(p.error.issues[0]?.message ?? "Datos no válidos.");
-  if (!isSignature(p.data.signature)) return fail("Falta tu firma.");
   const campaign = await getVacationCampaign();
   if (!campaign) return fail("Todavía no se pueden pedir vacaciones.");
-  if (!campaign.open || madridToday() > campaign.deadline) return fail("El plazo para elegir vacaciones está cerrado.");
-  const weeks = await getVacationWeeks(campaign.year);
-  const blocked = new Set(weeks.filter((w) => w.blocked).map((w) => w.weekStart));
-  const ranges = [...p.data.periods].sort((a, b) => (a.start < b.start ? -1 : 1));
-  const err = checkVacations(ranges, { year: campaign.year, workDays: campaign.workDays, blocked });
-  if (err) return fail(err);
-
+  if (!campaign.open) return fail("Las vacaciones están cerradas. Si necesitas un cambio, habla con tu encargado.");
   const year = campaign.year;
-  const applied = await db.vacationPeriod.findMany({ where: { employeeId: employee.id, year, status: "APPLIED" } });
-  const kept = new Set(ranges.map((r) => `${r.start}|${r.end}`));
-  if (applied.some((a) => !kept.has(`${fromDbDate(a.start)}|${fromDbDate(a.end)}`))) {
-    return fail("Hay vacaciones que ya están en el planning: para cambiarlas habla con tu encargado.");
+  const stored = (await db.vacationPeriod.findMany({ where: { employeeId: employee.id, year } })).map((x) => ({
+    id: x.id,
+    status: x.status,
+    start: fromDbDate(x.start),
+    end: fromDbDate(x.end),
+  }));
+  const ranges = [...p.data.periods].sort((a, b) => (a.start < b.start ? -1 : 1));
+  const plan = planSubmission(stored, ranges);
+  const weeks = await getVacationWeeks(year);
+  const blocked = new Set(weeks.filter((w) => w.blocked).map((w) => w.weekStart));
+  // Días, solapes entre sí y año: todo junto. Semanas bloqueadas: solo lo nuevo (lo ya aprobado se respeta).
+  const err =
+    checkVacations(ranges, { year, workDays: campaign.workDays, blocked: new Set() }) ??
+    checkVacations(plan.create, { year, workDays: Number.MAX_SAFE_INTEGER, blocked });
+  if (err) return fail(err);
+  if (plan.create.length + plan.remove.length + plan.cancel.length + plan.restore.length === 0) return fail("No has cambiado nada.");
+
+  await db.$transaction([
+    ...(plan.remove.length ? [db.vacationPeriod.deleteMany({ where: { id: { in: plan.remove }, employeeId: employee.id } })] : []),
+    ...(plan.cancel.length ? [db.vacationPeriod.updateMany({ where: { id: { in: plan.cancel }, employeeId: employee.id }, data: { status: "CANCEL" } })] : []),
+    ...(plan.restore.length ? [db.vacationPeriod.updateMany({ where: { id: { in: plan.restore }, employeeId: employee.id }, data: { status: "APPLIED" } })] : []),
+    ...plan.create.map((r) => db.vacationPeriod.create({ data: { employeeId: employee.id, year, start: toDbDate(r.start), end: toDbDate(r.end) } })),
+  ]);
+  revalidatePath("/vacaciones");
+  revalidatePath("/semana", "layout");
+  revalidatePath("/ajustes", "layout");
+  return { ok: true };
+}
+
+const signSchema = z.object({ signature: z.string().max(MAX_SIGNATURE_LENGTH, "La firma es demasiado grande.") });
+
+/** Firma las vacaciones aprobadas: queda en su ficha con la copia de las fechas firmadas. */
+export async function signVacations(input: z.input<typeof signSchema>): Promise<ActionResult> {
+  const employee = await authorizeVacation();
+  const p = signSchema.safeParse(input);
+  if (!p.success || !isSignature(p.data.signature)) return fail("Falta tu firma.");
+  const year = VACATION_YEAR;
+  const [stored, last] = await Promise.all([
+    db.vacationPeriod.findMany({ where: { employeeId: employee.id, year }, orderBy: { start: "asc" } }),
+    db.vacationSubmission.findFirst({ where: { employeeId: employee.id, year }, orderBy: { signedAt: "desc" } }),
+  ]);
+  const ranges = stored.map((x) => ({ start: fromDbDate(x.start), end: fromDbDate(x.end), status: x.status }));
+  if (!needsSignature(ranges, last ? parseSignedRanges(last.periods) : null)) {
+    return fail("No hay nada pendiente de firmar: tu encargado tiene que aprobar antes tus vacaciones.");
   }
-  await db.$transaction(async (tx) => {
-    const prev = await tx.vacationPeriod.findMany({ where: { employeeId: employee.id, year } });
-    const key = (s: string, e: string) => `${s}|${e}`;
-    const wanted = new Set(ranges.map((r) => key(r.start, r.end)));
-    const kept = new Set<string>();
-    for (const row of prev) {
-      const k = key(fromDbDate(row.start), fromDbDate(row.end));
-      if (wanted.has(k) && !kept.has(k)) kept.add(k);
-      else await tx.vacationPeriod.delete({ where: { id: row.id } });
-    }
-    for (const r of ranges) {
-      if (kept.has(key(r.start, r.end))) continue;
-      await tx.vacationPeriod.create({ data: { employeeId: employee.id, year, start: toDbDate(r.start), end: toDbDate(r.end) } });
-    }
-    await tx.vacationSubmission.create({
-      data: { employeeId: employee.id, year, periods: ranges, workDays: countedDays(ranges), signature: p.data.signature },
-    });
+  const periods = ranges.map(({ start, end }) => ({ start, end }));
+  await db.vacationSubmission.create({
+    data: { employeeId: employee.id, year, periods, workDays: countedDays(periods), signature: p.data.signature },
   });
   revalidatePath("/vacaciones");
+  revalidatePath("/semana", "layout");
   revalidatePath("/ajustes", "layout");
   return { ok: true };
 }
@@ -153,7 +186,11 @@ export type VacationPersonDetail = {
   messages: { id: string; fromOwner: boolean; text: string; at: string }[];
   signature: string | null;
   signedAt: string | null;
+  /** Fechas de la última firma. */
+  signedRanges: { start: string; end: string }[];
   submissions: number;
+  /** Todo aprobado y aún sin firmar (o cambiado desde la última firma). */
+  pendingSignature: boolean;
 };
 
 export async function getVacationPerson(input: { employeeId: string; year: number }): Promise<VacationPersonDetail | { ok: false; error: string }> {
@@ -177,7 +214,12 @@ export async function getVacationPerson(input: { employeeId: string; year: numbe
     messages: messages.map((m) => ({ id: m.id, fromOwner: m.fromOwner, text: m.text, at: formatStamp(m.createdAt) })),
     signature: last?.signature ?? null,
     signedAt: last ? formatStamp(last.signedAt) : null,
+    signedRanges: last ? parseSignedRanges(last.periods) : [],
     submissions,
+    pendingSignature: needsSignature(
+      periods.map((x) => ({ start: fromDbDate(x.start), end: fromDbDate(x.end), status: x.status })),
+      last ? parseSignedRanges(last.periods) : null,
+    ),
   };
 }
 
@@ -194,7 +236,7 @@ export async function setVacationStatus(input: z.input<typeof statusSchema>): Pr
   const p = statusSchema.safeParse(input);
   if (!p.success) return fail("Datos no válidos.");
   const r = await db.vacationPeriod.updateMany({
-    where: { id: { in: p.data.periodIds }, status: { not: "APPLIED" } },
+    where: { id: { in: p.data.periodIds }, status: { notIn: ["APPLIED", "CANCEL"] } },
     data: { status: p.data.status },
   });
   revalidatePath("/semana", "layout");
@@ -218,7 +260,7 @@ export async function sendVacationMessage(input: z.input<typeof messageSchema>):
   await db.$transaction([
     db.vacationMessage.create({ data: { employeeId, year, fromOwner: true, text } }),
     ...(review?.length
-      ? [db.vacationPeriod.updateMany({ where: { id: { in: review }, employeeId, status: { not: "APPLIED" } }, data: { status: "REVIEW" } })]
+      ? [db.vacationPeriod.updateMany({ where: { id: { in: review }, employeeId, status: { notIn: ["APPLIED", "CANCEL"] } }, data: { status: "REVIEW" } })]
       : []),
   ]);
   revalidatePath("/semana", "layout");
@@ -284,5 +326,38 @@ export async function replyVacationMessage(input: { text: string }): Promise<Act
 export async function markVacationMessagesSeen(): Promise<ActionResult> {
   const employee = await authorizeVacation();
   await db.vacationMessage.updateMany({ where: { employeeId: employee.id, year: VACATION_YEAR, fromOwner: true, seen: false }, data: { seen: true } });
+  return { ok: true };
+}
+
+/**
+ * Pide quitar unas vacaciones que ya están en el planning: aceptar = esos días vuelven a lo habitual en Semana y el
+ * periodo se borra (tendrá que volver a firmar); no aceptar = siguen como estaban.
+ */
+export async function resolveVacationCancel(input: { periodId: string; accept: boolean }): Promise<ActionResult> {
+  await requireOwner();
+  const p = z.object({ periodId: z.string().min(1).max(64), accept: z.boolean() }).safeParse(input);
+  if (!p.success) return fail("Datos no válidos.");
+  const period = await db.vacationPeriod.findUnique({ where: { id: p.data.periodId } });
+  if (!period || period.status !== "CANCEL") return fail("Ese cambio ya no está pendiente.");
+  if (!p.data.accept) {
+    await db.vacationPeriod.update({ where: { id: period.id }, data: { status: "APPLIED" } });
+  } else {
+    const [employees, statusTypes] = await Promise.all([getEmployees(), getStatusTypes()]);
+    const employee = employees.find((e) => e.id === period.employeeId);
+    const days = planningDaysFor({ start: fromDbDate(period.start), end: fromDbDate(period.end) }).map((d) => d.date);
+    const entries = await getEntriesBetween(days[0]!, days.at(-1)!);
+    await db.$transaction(async (tx) => {
+      if (employee) {
+        // Lo habitual de cada día (trabaja o su fiesta fija), como si no se hubiera tocado.
+        const back = days.map((date) => ({ date, statusTypeId: getEffectiveDay(employee, date, null, statusTypes).status.id, reason: null }));
+        await writePlanningDays(tx, employee, back, entries, statusTypes);
+      }
+      await tx.vacationPeriod.delete({ where: { id: period.id } });
+    });
+  }
+  revalidatePath("/semana", "layout");
+  revalidatePath("/hoy", "layout");
+  revalidatePath("/informe", "layout");
+  revalidatePath("/vacaciones");
   return { ok: true };
 }

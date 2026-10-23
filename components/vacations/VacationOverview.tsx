@@ -8,6 +8,7 @@ import {
   applyVacationsToPlanning,
   deleteVacationWeek,
   getVacationPerson,
+  resolveVacationCancel,
   saveVacationWeek,
   sendVacationMessage,
   setVacationStatus,
@@ -56,6 +57,8 @@ export function VacationOverview({
   unread,
   cleanSentIds,
   okCount,
+  toSign,
+  cancelRequests,
 }: {
   year: number;
   monday: DateStr;
@@ -72,6 +75,8 @@ export function VacationOverview({
   unread: Record<string, number>;
   cleanSentIds: string[];
   okCount: number;
+  toSign: number;
+  cancelRequests: number;
 }) {
   const [menu, setMenu] = useState(false);
   const [tab, setTab] = useState<"personas" | "solapes">("personas");
@@ -140,6 +145,8 @@ export function VacationOverview({
         <span>
           <b className="text-fg">{sent}</b>/{total} han enviado
         </span>
+        {toSign > 0 && <span className="font-semibold text-[#15803d]">{toSign} sin firmar</span>}
+        {cancelRequests > 0 && <span className="font-semibold text-[#b45309]">{cancelRequests} piden quitar</span>}
         {grid.overDays > 0 && (
           <span className="font-semibold text-danger">
             {grid.overDays} {grid.overDays === 1 ? "día pasa" : "días pasan"} del máximo
@@ -529,6 +536,7 @@ const STATUS_STYLE: Record<string, string> = {
   REVIEW: "bg-warning/15 text-[#b45309]",
   OK: "bg-success/15 text-[#15803d]",
   APPLIED: "bg-accent/12 text-accent",
+  CANCEL: "bg-warning/15 text-[#b45309]",
 };
 
 function PersonSheet({
@@ -587,7 +595,9 @@ function PersonSheet({
       } else notify(r.error, "error");
     });
   async function whatsapp() {
-    const msg = `Hola ${firstName}: te he escrito sobre tus vacaciones. Míralo aquí: ${window.location.origin}/vacaciones`;
+    const msg = d?.data?.pendingSignature
+      ? `Hola ${firstName}: tus vacaciones están aprobadas. Entra y fírmalas aquí: ${window.location.origin}/vacaciones`
+      : `Hola ${firstName}: te he escrito sobre tus vacaciones. Míralo aquí: ${window.location.origin}/vacaciones`;
     if (typeof navigator.share === "function") {
       try {
         await navigator.share({ text: msg });
@@ -636,7 +646,39 @@ function PersonSheet({
                         {VACATION_STATUS_LABEL[p.status] ?? p.status}
                       </span>
                     </div>
-                    {p.status !== "APPLIED" && (
+                    {p.status === "CANCEL" && (
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() =>
+                            start(async () => {
+                              const r = await resolveVacationCancel({ periodId: p.id, accept: true });
+                              if (r.ok) done("Quitado del planning");
+                              else notify(r.error, "error");
+                            })
+                          }
+                          className="min-h-10 rounded-control bg-surface text-[14px] font-semibold text-danger"
+                        >
+                          Aceptar: quitarlo
+                        </button>
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() =>
+                            start(async () => {
+                              const r = await resolveVacationCancel({ periodId: p.id, accept: false });
+                              if (r.ok) done("Se queda como estaba");
+                              else notify(r.error, "error");
+                            })
+                          }
+                          className="min-h-10 rounded-control bg-surface text-[14px] font-semibold"
+                        >
+                          No, se queda
+                        </button>
+                      </div>
+                    )}
+                    {p.status !== "APPLIED" && p.status !== "CANCEL" && (
                       <div className="grid grid-cols-2 gap-1.5">
                         <button
                           type="button"
@@ -719,9 +761,23 @@ function PersonSheet({
             </div>
           </section>
 
+          {d.data?.pendingSignature && (
+            <p className="rounded-card bg-success/12 px-4 py-3 text-[14px] font-medium text-[#15803d]">
+              Todo aprobado: le falta firmar. Le saldrá «Firmar mis vacaciones» al entrar (puedes avisarle por WhatsApp).
+            </p>
+          )}
           {d.data?.signature && (
             <section className="rounded-card bg-surface-2 p-3">
-              <h3 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-muted">Última firma</h3>
+              <h3 className="mb-1 text-[13px] font-semibold uppercase tracking-wide text-muted">
+                Firmado{d.data.pendingSignature ? " antes (fechas anteriores)" : ""}
+              </h3>
+              <ul className="mb-2 text-[14px]">
+                {d.data.signedRanges.map((r) => (
+                  <li key={`${r.start}${r.end}`}>
+                    <b>{rangeLabel(r)}</b> · descuenta {vacationSpan(r).counted}
+                  </li>
+                ))}
+              </ul>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={d.data.signature} alt={`Firma de ${person?.name}`} className="h-28 w-full rounded-control bg-white object-contain" />
               <p className="mt-1.5 text-[13px] text-muted">
