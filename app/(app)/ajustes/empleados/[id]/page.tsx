@@ -110,7 +110,7 @@ export default async function Page({
         <FileTabs tab={tab} />
       </div>
 
-      {tab === "datos" && campaign && vacationPin && <VacationPinCard year={campaign.year} pin={vacationPin} invite={invite} status={vacationStatus} pendingSignature={pendingSignature} signed={signed} />}
+      {tab === "datos" && campaign && vacationPin && <VacationPinCard employeeId={id} workDays={campaign.workDays} year={campaign.year} pin={vacationPin} invite={invite} status={vacationStatus} pendingSignature={pendingSignature} signed={signed} />}
       {tab === "datos" && (
         <DataTab
           employee={{

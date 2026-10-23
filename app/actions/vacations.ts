@@ -21,7 +21,7 @@ import {
   planningDaysFor,
 } from "@/lib/vacations";
 import { getEffectiveDay } from "@/lib/schedule";
-import { getEmployees, getEntriesBetween, getStatusTypes } from "@/lib/queries";
+import { getDepartments, getEmployees, getEntriesBetween, getStatusTypes } from "@/lib/queries";
 import { writePlanningDays } from "@/lib/planning-write";
 import { requireOwner } from "@/lib/session";
 
@@ -360,4 +360,70 @@ export async function resolveVacationCancel(input: { periodId: string; accept: b
   revalidatePath("/informe", "layout");
   revalidatePath("/vacaciones");
   return { ok: true };
+}
+
+// ---- Encargado: firmas de todos (lista y PDF) ------------------------------------------------------------------
+
+export type SignedSheetRow = {
+  employeeId: string;
+  name: string;
+  department: string | null;
+  ranges: { start: string; end: string }[];
+  signature: string | null;
+  signedAt: string | null;
+  signatures: number;
+  pending: boolean;
+  state: "Firmada" | "Falta firmar" | "En revisión" | "Sin enviar";
+};
+
+/** Estado de firma de cada persona activa (o de una), con su última firma, para la lista y el PDF. */
+export async function getSignedSheets(input: { year: number; employeeId?: string | null }): Promise<{ ok: true; rows: SignedSheetRow[] } | { ok: false; error: string }> {
+  await requireOwner();
+  const p = z.object({ year: z.number().int(), employeeId: z.string().min(1).max(64).nullish() }).safeParse(input);
+  if (!p.success) return { ok: false, error: "Datos no válidos." };
+  const { year, employeeId } = p.data;
+  const [employees, departments, periods, submissions] = await Promise.all([
+    getEmployees(),
+    getDepartments(),
+    db.vacationPeriod.findMany({ where: { year, ...(employeeId ? { employeeId } : {}) }, orderBy: { start: "asc" } }),
+    db.vacationSubmission.findMany({ where: { year, ...(employeeId ? { employeeId } : {}) }, orderBy: { signedAt: "desc" } }),
+  ]);
+  const deptOrder = new Map(departments.map((d, i) => [d.id, i]));
+  const deptName = new Map(departments.map((d) => [d.id, d.name]));
+  const people = employees
+    .filter((e) => (employeeId ? e.id === employeeId : e.active))
+    .sort(
+      (a, b) =>
+        (deptOrder.get(a.defaultDepartmentId ?? "") ?? 999) - (deptOrder.get(b.defaultDepartmentId ?? "") ?? 999) ||
+        a.name.localeCompare(b.name, "es"),
+    );
+  const rows: SignedSheetRow[] = people.map((e) => {
+    const stored = periods.filter((x) => x.employeeId === e.id).map((x) => ({ start: fromDbDate(x.start), end: fromDbDate(x.end), status: x.status }));
+    const subs = submissions.filter((x) => x.employeeId === e.id);
+    const last = subs[0] ?? null;
+    const lastRanges = last ? parseSignedRanges(last.periods) : null;
+    const needs = needsSignature(stored, lastRanges);
+    const reviewing = stored.some((x) => x.status === "SENT" || x.status === "REVIEW" || x.status === "CANCEL");
+    const state: SignedSheetRow["state"] = needs
+      ? "Falta firmar"
+      : reviewing
+        ? "En revisión"
+        : last
+          ? "Firmada"
+          : stored.length
+            ? "En revisión"
+            : "Sin enviar";
+    return {
+      employeeId: e.id,
+      name: e.name,
+      department: e.defaultDepartmentId ? (deptName.get(e.defaultDepartmentId) ?? null) : null,
+      ranges: lastRanges ?? stored.filter((x) => x.status !== "CANCEL").map(({ start, end }) => ({ start, end })),
+      signature: last?.signature ?? null,
+      signedAt: last ? formatStamp(last.signedAt) : null,
+      signatures: subs.length,
+      pending: needs || (!!last && reviewing),
+      state,
+    };
+  });
+  return { ok: true, rows };
 }

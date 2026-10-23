@@ -1,6 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui/Card";
+import { makeVacationPdf } from "@/components/vacations/SignaturesTab";
 import { notify } from "@/components/ui/toast";
 import { type VacationRange, rangeLabel, vacationSpan } from "@/lib/vacations";
 
@@ -15,6 +16,8 @@ export interface SignedVacations {
  * firmas anteriores guardadas para que no haya dudas de qué fechas se aprobaron.
  */
 export function VacationPinCard({
+  employeeId,
+  workDays,
   year,
   pin,
   invite,
@@ -22,6 +25,8 @@ export function VacationPinCard({
   pendingSignature,
   signed,
 }: {
+  employeeId: string;
+  workDays: number;
   year: number;
   pin: string;
   invite: string | null;
@@ -68,6 +73,13 @@ export function VacationPinCard({
             Firmadas{pendingSignature ? " (antes del último cambio)" : ""}
           </h3>
           <SignedBlock s={last} />
+          <button
+            type="button"
+            onClick={() => makeVacationPdf(year, workDays, employeeId).catch(() => notify("No se pudo crear el PDF", "error"))}
+            className="mt-2 min-h-11 w-full rounded-control bg-surface text-[15px] font-medium text-accent"
+          >
+            PDF de su hoja firmada
+          </button>
           {older.length > 0 && (
             <details className="mt-2">
               <summary className="min-h-11 cursor-pointer content-center text-[14px] font-medium text-accent">

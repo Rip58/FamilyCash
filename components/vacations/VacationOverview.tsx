@@ -14,6 +14,7 @@ import {
   setVacationStatus,
 } from "@/app/actions/vacations";
 import { Segmented } from "@/components/ui/Segmented";
+import { SignaturesTab } from "./SignaturesTab";
 import { Stepper } from "@/components/settings/kit";
 import { Toggle } from "@/components/ui/Toggle";
 import { BottomSheet } from "@/components/ui/BottomSheet";
@@ -79,7 +80,7 @@ export function VacationOverview({
   cancelRequests: number;
 }) {
   const [menu, setMenu] = useState(false);
-  const [tab, setTab] = useState<"personas" | "solapes">("personas");
+  const [tab, setTab] = useState<"personas" | "solapes" | "firmas">("personas");
   const unreadTotal = Object.values(unread).reduce((a, b) => a + b, 0);
   const [person, setPerson] = useState<{ id: string; name: string; open: boolean } | null>(null);
   const navBtn = "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[26px] leading-none text-accent active:bg-surface-2";
@@ -174,7 +175,8 @@ export function VacationOverview({
         onChange={setTab}
         options={[
           { value: "personas", label: unreadTotal ? `Personas · 💬 ${unreadTotal}` : "Personas" },
-          { value: "solapes", label: conflicts.length ? `Solapes · ${conflicts.length}` : "Solapes y cierre" },
+          { value: "solapes", label: conflicts.length ? `Solapes · ${conflicts.length}` : "Solapes" },
+          { value: "firmas", label: toSign ? `Firmas · ${toSign}` : "Firmas" },
         ]}
       />
 
@@ -186,6 +188,8 @@ export function VacationOverview({
             periodos, su firma y el chat. Punto azul = te ha escrito.
           </p>
         </>
+      ) : tab === "firmas" ? (
+        <SignaturesTab year={year} workDays={workDays} onPerson={(id, name) => setPerson({ id, name, open: true })} />
       ) : (
         <Conflicts
           year={year}
