@@ -118,3 +118,49 @@ describe("bloqueo del PIN de vacaciones", () => {
     expect(vacationLockAfter(10, now)).not.toBeNull();
   });
 });
+
+import { vacationWeekGrid, yearWeeks } from "@/lib/vacations";
+
+describe("vista general de una semana", () => {
+  const departments = [
+    { id: "drog", name: "Droguería", color: "#0ea5e9", secondary: false },
+    { id: "comod", name: "Comodín", color: "#999", secondary: true },
+  ];
+  const employees = [
+    { id: "c", name: "Cintya", departmentId: "drog" },
+    { id: "a", name: "Alex", departmentId: "drog" },
+    { id: "f", name: "Fabian", departmentId: null },
+    { id: "k", name: "Kim", departmentId: "comod" },
+  ];
+  const periods = [
+    { employeeId: "c", start: "2027-08-02", end: "2027-08-13", status: "SENT" },
+    { employeeId: "a", start: "2027-08-09", end: "2027-08-20", status: "SENT" },
+    { employeeId: "f", start: "2027-08-11", end: "2027-08-13", status: "OK" },
+    { employeeId: "k", start: "2027-08-09", end: "2027-08-13", status: "SENT" },
+  ];
+  const campaign = { defaultMax: 2, departmentMax: { drog: 1 } };
+
+  it("cuenta por departamento y marca lo que pasa del máximo", () => {
+    const g = vacationWeekGrid({ monday: "2027-08-09", employees, departments, periods, campaign, week: null });
+    const drog = g.groups.find((x) => x.id === "drog")!;
+    expect(drog.max).toBe(1);
+    expect(drog.counts).toEqual([2, 2, 2, 2, 2, 0, 0]);
+    expect(drog.over).toEqual([true, true, true, true, true, false, false]);
+    expect(drog.rows[0]!.cells.join()).toBe("work,work,work,work,work,fiesta,fiesta");
+    const none = g.groups.find((x) => x.id === "none")!;
+    expect(none.rows[0]!.cells.join()).toBe(",,work,work,work,fiesta,fiesta");
+    expect(none.over.some(Boolean)).toBe(false);
+    expect(g.groups.find((x) => x.id === "comod")!.max).toBeNull();
+    expect(g.overDays).toBe(5);
+  });
+  it("una semana con otro máximo lo cambia para todos los que cuentan", () => {
+    const g = vacationWeekGrid({ monday: "2027-08-09", employees, departments, periods, campaign, week: { maxOverride: 2 } });
+    expect(g.overDays).toBe(0);
+  });
+  it("semanas del año, la primera empieza en diciembre", () => {
+    const w = yearWeeks(2027);
+    expect(w[0]).toBe("2026-12-28");
+    expect(w.at(-1)).toBe("2027-12-27");
+    expect(w).toHaveLength(53);
+  });
+});

@@ -4,7 +4,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { fromDbDate, isDateStr, madridToday, toDbDate, weekStart } from "@/lib/dates";
+import { formatStamp, fromDbDate, isDateStr, madridToday, toDbDate, weekStart } from "@/lib/dates";
 import { authorizeVacation } from "@/lib/vacation-server";
 import { getVacationCampaign, getVacationWeeks } from "@/lib/vacation-queries";
 import { MAX_SIGNATURE_LENGTH, checkVacations, countedDays, isSignature } from "@/lib/vacations";
@@ -118,4 +118,33 @@ export async function submitVacations(input: z.input<typeof submitSchema>): Prom
   revalidatePath("/vacaciones");
   revalidatePath("/ajustes", "layout");
   return { ok: true };
+}
+
+// ---- Encargado: ficha de vacaciones de una persona (vista general) ----------------------------------------------
+
+export type VacationPersonDetail = {
+  ok: true;
+  periods: { start: string; end: string; status: string }[];
+  signature: string | null;
+  signedAt: string | null;
+  submissions: number;
+};
+
+export async function getVacationPerson(input: { employeeId: string; year: number }): Promise<VacationPersonDetail | { ok: false; error: string }> {
+  await requireOwner();
+  const p = z.object({ employeeId: z.string().min(1).max(64), year: z.number().int() }).safeParse(input);
+  if (!p.success) return fail("Datos no válidos.") as { ok: false; error: string };
+  const { employeeId, year } = p.data;
+  const [periods, last, submissions] = await Promise.all([
+    db.vacationPeriod.findMany({ where: { employeeId, year }, orderBy: { start: "asc" } }),
+    db.vacationSubmission.findFirst({ where: { employeeId, year }, orderBy: { signedAt: "desc" } }),
+    db.vacationSubmission.count({ where: { employeeId, year } }),
+  ]);
+  return {
+    ok: true,
+    periods: periods.map((x) => ({ start: fromDbDate(x.start), end: fromDbDate(x.end), status: x.status })),
+    signature: last?.signature ?? null,
+    signedAt: last ? formatStamp(last.signedAt) : null,
+    submissions,
+  };
 }

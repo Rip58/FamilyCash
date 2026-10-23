@@ -182,3 +182,103 @@ export const MAX_SIGNATURE_LENGTH = 400_000;
 export function isSignature(v: string): boolean {
   return v.startsWith("data:image/png;base64,") && v.length > 200 && v.length <= MAX_SIGNATURE_LENGTH;
 }
+
+// ---- Vista general del encargado (como Semana → Personas) ---------------------------------------------------------
+
+export interface VacGridEmployee {
+  id: string;
+  name: string;
+  alias?: string | null;
+  departmentId: string | null;
+}
+export interface VacGridDepartment {
+  id: string;
+  name: string;
+  color: string | null;
+  secondary: boolean;
+}
+export interface VacGridPeriod extends VacationRange {
+  employeeId: string;
+  status: string;
+}
+export type VacCell = VacationDayKind | null;
+export interface VacGridRow {
+  employeeId: string;
+  name: string;
+  alias?: string | null;
+  cells: VacCell[];
+  /** Estado de la petición de cada día (o null). */
+  statuses: (string | null)[];
+  work: number;
+  fiesta: number;
+}
+export interface VacGridGroup {
+  id: string;
+  name: string;
+  color: string | null;
+  /** Máximo a la vez esta semana (null = no cuenta: comodín, palets). */
+  max: number | null;
+  /** De vacaciones cada día (solo días que descuentan: su fiesta la libraría igual). */
+  counts: number[];
+  over: boolean[];
+  rows: VacGridRow[];
+}
+
+/** Una semana de vacaciones de toda la plantilla, por departamentos, con el máximo y lo que se pasa. */
+export function vacationWeekGrid(args: {
+  monday: DateStr;
+  employees: VacGridEmployee[];
+  departments: VacGridDepartment[];
+  periods: VacGridPeriod[];
+  campaign: Pick<VacationCampaignView, "defaultMax" | "departmentMax">;
+  week: Pick<VacationWeekView, "maxOverride"> | null;
+}): { days: DateStr[]; groups: VacGridGroup[]; overDays: number } {
+  const days = Array.from({ length: 7 }, (_, i) => addDays(args.monday, i));
+  const byEmployee = new Map<string, Map<DateStr, { kind: VacationDayKind; status: string }>>();
+  for (const p of args.periods) {
+    const m = byEmployee.get(p.employeeId) ?? new Map();
+    for (const d of vacationSpan(p).days) if (d.date >= days[0]! && d.date <= days[6]!) m.set(d.date, { kind: d.kind, status: p.status });
+    byEmployee.set(p.employeeId, m);
+  }
+  const known = new Set(args.departments.map((d) => d.id));
+  const buckets: { dept: VacGridDepartment | null; emps: VacGridEmployee[] }[] = [
+    ...args.departments.map((d) => ({ dept: d, emps: args.employees.filter((e) => e.departmentId === d.id) })),
+    { dept: null, emps: args.employees.filter((e) => !e.departmentId || !known.has(e.departmentId)) },
+  ];
+  const groups: VacGridGroup[] = [];
+  for (const { dept, emps } of buckets) {
+    if (emps.length === 0) continue;
+    const rows: VacGridRow[] = emps.map((e) => {
+      const m = byEmployee.get(e.id);
+      const cells = days.map((d) => m?.get(d)?.kind ?? null);
+      return {
+        employeeId: e.id,
+        name: e.name,
+        alias: e.alias,
+        cells,
+        statuses: days.map((d) => m?.get(d)?.status ?? null),
+        work: cells.filter((c) => c === "work").length,
+        fiesta: cells.filter((c) => c === "fiesta").length,
+      };
+    });
+    const max = dept?.secondary ? null : maxAtOnce(args.campaign, dept?.id ?? null, args.week);
+    const counts = days.map((_, i) => rows.filter((r) => r.cells[i] === "work").length);
+    groups.push({
+      id: dept?.id ?? "none",
+      name: dept?.name ?? "Sin departamento",
+      color: dept?.color ?? "#64748b",
+      max,
+      counts,
+      over: counts.map((c) => max !== null && c > max),
+      rows,
+    });
+  }
+  return { days, groups, overDays: groups.reduce((n, g) => n + g.over.filter(Boolean).length, 0) };
+}
+
+/** Lunes de las semanas que tocan el año (la primera puede empezar en diciembre del anterior). */
+export function yearWeeks(year: number): DateStr[] {
+  const out: DateStr[] = [];
+  for (let d = weekStart(`${year}-01-01` as DateStr); d <= `${year}-12-31`; d = addDays(d, 7)) out.push(d);
+  return out;
+}

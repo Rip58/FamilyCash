@@ -179,6 +179,9 @@ export function WeekShell({
             { value: "personas", label: "Personas" },
           ]}
         />
+        <Link href={`/semana/vacaciones?semana=${weekStart}`} aria-label="Vacaciones" className={iconBtn}>
+          <Icon name="calendar" className="h-5 w-5" />
+        </Link>
         <Link
           href={`/semana/importar?semana=${weekStart}`}
           aria-label="Cargar la semana desde una imagen (IA)"
