@@ -6,8 +6,8 @@ import { Card } from "@/components/ui/Card";
 import { cn } from "@/components/ui/cn";
 import { Icon } from "@/components/ui/icons";
 import { notify } from "@/components/ui/toast";
-import type { DateStr } from "@/lib/dates";
-import { type VacationCampaignView, type VacationWeekView, weekLabel } from "@/lib/vacations";
+import { addDays, isoWeekNumber } from "@/lib/dates";
+import { type VacationCampaignView, type VacationWeekView, type WeekRuleRange, groupWeekRules, mondaysBetween, ruleRangeLabel } from "@/lib/vacations";
 import { BackHeader, ConfirmButton, Field, PrimaryButton, Stepper, Toggle, inputClass, useRun } from "./kit";
 
 type Dept = { id: string; name: string; color: string | null; secondary: boolean };
@@ -132,54 +132,83 @@ function CampaignCard({ campaign, departments }: { campaign: VacationCampaignVie
 
 function WeeksCard({ weeks, year }: { weeks: VacationWeekView[]; year: number }) {
   const { pending, run } = useRun();
-  const empty = { date: "", blocked: true, reason: "", custom: false, max: 1 };
+  const ranges = groupWeekRules(weeks);
+  const empty = { from: "", to: "", blocked: true, reason: "", custom: false, max: 1, editing: null as WeekRuleRange | null };
   const [form, setForm] = useState(empty);
-  const editing = weeks.find((w) => w.weekStart === form.date);
+  const to = form.to || form.from;
+  const span = form.from ? mondaysBetween(form.from, to) : [];
+  const valid = !!form.from && (form.blocked || form.custom || !!form.editing);
 
-  const edit = (w: VacationWeekView) =>
-    setForm({ date: w.weekStart, blocked: w.blocked, reason: w.reason ?? "", custom: w.maxOverride != null, max: w.maxOverride ?? 1 });
+  const edit = (r: WeekRuleRange) =>
+    setForm({ from: r.from, to: r.to, blocked: r.blocked, reason: r.reason ?? "", custom: r.maxOverride != null, max: r.maxOverride ?? 1, editing: r });
 
   const save = () =>
     run(
-      () =>
-        saveVacationWeek({
-          date: form.date,
+      async () => {
+        // Al cambiar las fechas de una regla, lo que queda fuera vuelve a ser normal.
+        if (form.editing) {
+          const r = await deleteVacationWeek({ date: form.editing.from, to: form.editing.to });
+          if (!r.ok) return r;
+        }
+        return saveVacationWeek({
+          date: form.from,
+          to,
           blocked: form.blocked,
           reason: form.blocked ? form.reason : null,
           maxOverride: !form.blocked && form.custom ? form.max : null,
-        }),
-      { msg: form.blocked ? "Semana bloqueada" : "Semana guardada", onDone: () => setForm(empty) },
+        });
+      },
+      { msg: form.blocked ? "Semanas bloqueadas" : "Guardado", onDone: () => setForm(empty) },
     );
+
+  const dateInput = (id: string, label: string, value: string, onChange: (v: string) => void) => (
+    <label className="flex min-w-0 flex-1 flex-col gap-1">
+      <span className="text-[13px] text-muted">{label}</span>
+      <input
+        id={id}
+        aria-label={label}
+        type="date"
+        min={`${year - 1}-12-28`}
+        max={`${year}-12-31`}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={cn(inputClass, "px-2 text-[16px]")}
+      />
+    </label>
+  );
 
   return (
     <Card title="Semanas con regla propia">
       <p className="mb-3 text-[14px] text-muted">
         Bloquea las semanas de mucho trabajo (los empleados las ven rayadas y no las pueden elegir) o cambia el máximo
-        solo esa semana.
+        solo esas semanas. Pon la fecha de inicio y la final: se aplica a todas las semanas que tocan.
       </p>
-      {weeks.length > 0 && (
+      {ranges.length > 0 && (
         <ul className="mb-4 flex flex-col gap-1.5" aria-label="Semanas guardadas">
-          {weeks.map((w) => (
-            <li key={w.weekStart}>
+          {ranges.map((r) => (
+            <li key={r.from}>
               <button
                 type="button"
-                onClick={() => edit(w)}
+                onClick={() => edit(r)}
                 className={cn(
                   "flex min-h-12 w-full items-center justify-between gap-3 rounded-control bg-surface-2 px-3 py-2 text-left",
-                  form.date === w.weekStart && "ring-2 ring-accent",
+                  form.editing?.from === r.from && "ring-2 ring-accent",
                 )}
               >
                 <span className="min-w-0">
-                  <span className="block text-[15px] font-medium tabular-nums">{weekLabel(w.weekStart)}</span>
-                  {w.reason && <span className="block truncate text-[13px] text-muted">{w.reason}</span>}
+                  <span className="block text-[15px] font-medium tabular-nums">{ruleRangeLabel(r)}</span>
+                  <span className="block truncate text-[13px] text-muted">
+                    {r.weeks === 1 ? `S${isoWeekNumber(r.from)}` : `${r.weeks} semanas`}
+                    {r.reason ? ` · ${r.reason}` : ""}
+                  </span>
                 </span>
                 <span
                   className={cn(
                     "shrink-0 rounded-full px-2 py-0.5 text-[12px] font-semibold",
-                    w.blocked ? "bg-danger/12 text-danger" : "bg-accent/12 text-accent",
+                    r.blocked ? "bg-danger/12 text-danger" : "bg-accent/12 text-accent",
                   )}
                 >
-                  {w.blocked ? "Bloqueada" : `Máx. ${w.maxOverride}`}
+                  {r.blocked ? "Bloqueada" : `Máx. ${r.maxOverride}`}
                 </span>
               </button>
             </li>
@@ -188,19 +217,17 @@ function WeeksCard({ weeks, year }: { weeks: VacationWeekView[]; year: number })
       )}
 
       <div className="flex flex-col gap-3 rounded-control border border-line p-3">
-        <Field label={editing ? "Cambiar semana" : "Añadir semana"} hint="Elige cualquier día: se guarda la semana entera (lunes a domingo).">
-          <input
-            id="vacation-week-date"
-            aria-label="Día de la semana"
-            type="date"
-            min={`${year - 1}-12-28`}
-            max={`${year}-12-31`}
-            value={form.date}
-            onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-            className={inputClass}
-          />
-        </Field>
-        {form.date && <p className="-mt-1 text-[14px] font-medium tabular-nums">{weekLabel(mondayOfInput(form.date))}</p>}
+        <p className="text-[13px] font-semibold uppercase tracking-wide text-muted">{form.editing ? "Cambiar" : "Añadir"}</p>
+        <div className="flex gap-2">
+          {dateInput("vacation-rule-from", "Fecha de inicio", form.from, (v) => setForm((f) => ({ ...f, from: v, to: f.to && f.to < v ? v : f.to })))}
+          {dateInput("vacation-rule-to", "Fecha final", form.to, (v) => setForm((f) => ({ ...f, to: v })))}
+        </div>
+        {span.length > 0 && (
+          <p className="-mt-1 text-[14px] font-medium tabular-nums">
+            {ruleRangeLabel({ from: span[0]!, to: addDays(span.at(-1)!, 6) })} ·{" "}
+            {span.length === 1 ? "1 semana" : `${span.length} semanas`}
+          </p>
+        )}
         <Toggle label="No se pueden pedir vacaciones" checked={form.blocked} onChange={(v) => setForm((f) => ({ ...f, blocked: v }))} />
         {form.blocked ? (
           <Field label="Motivo (lo ven los empleados)">
@@ -216,36 +243,38 @@ function WeeksCard({ weeks, year }: { weeks: VacationWeekView[]; year: number })
           </Field>
         ) : (
           <>
-            <Toggle label="Otro máximo esta semana" checked={form.custom} onChange={(v) => setForm((f) => ({ ...f, custom: v }))} />
+            <Toggle label="Otro máximo esas semanas" checked={form.custom} onChange={(v) => setForm((f) => ({ ...f, custom: v }))} />
             {form.custom && (
               <Field label="Máximo a la vez (todos los departamentos)">
-                <Stepper label="Máximo esta semana" value={form.max} min={0} max={30} onChange={(n) => setForm((f) => ({ ...f, max: n }))} />
+                <Stepper label="Máximo esas semanas" value={form.max} min={0} max={30} onChange={(n) => setForm((f) => ({ ...f, max: n }))} />
               </Field>
             )}
           </>
         )}
-        <PrimaryButton type="button" disabled={!form.date || pending || (!form.blocked && !form.custom && !editing)} onClick={save}>
-          {editing ? "Guardar cambios" : form.blocked ? "Bloquear semana" : "Guardar semana"}
+        <PrimaryButton type="button" disabled={!valid || pending} onClick={save}>
+          {form.editing ? "Guardar cambios" : form.blocked ? "Bloquear" : "Guardar"}
         </PrimaryButton>
-        {editing && (
+        {form.editing && (
           <ConfirmButton
-            label="Quitar la regla de esta semana"
+            label="Quitar la regla"
             confirmLabel="Sí, quitar"
             disabled={pending}
-            onConfirm={() => run(() => deleteVacationWeek({ date: form.date }), { msg: "Semana normal otra vez", onDone: () => setForm(empty) })}
+            onConfirm={() =>
+              run(() => deleteVacationWeek({ date: form.editing!.from, to: form.editing!.to }), {
+                msg: "Semanas normales otra vez",
+                onDone: () => setForm(empty),
+              })
+            }
           />
+        )}
+        {form.editing && (
+          <button type="button" onClick={() => setForm(empty)} className="min-h-11 text-[15px] font-medium text-accent">
+            Añadir otra en vez de cambiar esta
+          </button>
         )}
       </div>
     </Card>
   );
-}
-
-/** Lunes de la semana de una fecha del <input type="date"> (solo para mostrar). */
-function mondayOfInput(date: string): DateStr {
-  const d = new Date(`${date}T12:00:00Z`);
-  const back = (d.getUTCDay() + 6) % 7;
-  d.setUTCDate(d.getUTCDate() - back);
-  return d.toISOString().slice(0, 10) as DateStr;
 }
 
 function PinsCard({ pins, pageReady }: { pins: PinRow[]; pageReady: boolean }) {

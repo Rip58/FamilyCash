@@ -282,3 +282,49 @@ export function yearWeeks(year: number): DateStr[] {
   for (let d = weekStart(`${year}-01-01` as DateStr); d <= `${year}-12-31`; d = addDays(d, 7)) out.push(d);
   return out;
 }
+
+// ---- Semanas con regla propia por fechas (de … a …) --------------------------------------------------------------
+
+/** Lunes de todas las semanas que tocan las fechas de `from` a `to` (en cualquier orden). */
+export function mondaysBetween(from: DateStr, to: DateStr): DateStr[] {
+  const [a, b] = from <= to ? [from, to] : [to, from];
+  const out: DateStr[] = [];
+  for (let d = weekStart(a); d <= b; d = addDays(d, 7)) out.push(d);
+  return out;
+}
+
+export interface WeekRuleRange {
+  /** Lunes de la primera semana. */
+  from: DateStr;
+  /** Domingo de la última. */
+  to: DateStr;
+  weeks: number;
+  blocked: boolean;
+  reason: string | null;
+  maxOverride: number | null;
+}
+
+/** Junta las semanas seguidas con la misma regla: «26 jul – 8 ago · Inventario · 2 semanas». */
+export function groupWeekRules(weeks: VacationWeekView[]): WeekRuleRange[] {
+  const sorted = [...weeks].sort((a, b) => (a.weekStart < b.weekStart ? -1 : 1));
+  const out: WeekRuleRange[] = [];
+  for (const w of sorted) {
+    const last = out.at(-1);
+    if (
+      last &&
+      addDays(last.to, 1) === w.weekStart &&
+      last.blocked === w.blocked &&
+      (last.reason ?? "") === (w.reason ?? "") &&
+      last.maxOverride === w.maxOverride
+    ) {
+      last.to = addDays(w.weekStart, 6);
+      last.weeks++;
+    } else {
+      out.push({ from: w.weekStart, to: addDays(w.weekStart, 6), weeks: 1, blocked: w.blocked, reason: w.reason, maxOverride: w.maxOverride });
+    }
+  }
+  return out;
+}
+
+/** «26 jul – 8 ago». */
+export const ruleRangeLabel = (r: Pick<WeekRuleRange, "from" | "to">): string => `${formatDayMonth(r.from)} – ${formatDayMonth(r.to)}`;

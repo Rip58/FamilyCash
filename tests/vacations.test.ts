@@ -164,3 +164,22 @@ describe("vista general de una semana", () => {
     expect(w).toHaveLength(53);
   });
 });
+
+import { groupWeekRules, mondaysBetween, ruleRangeLabel } from "@/lib/vacations";
+
+describe("semanas con regla por fechas", () => {
+  it("de una fecha a otra = todas las semanas que tocan", () => {
+    expect(mondaysBetween("2027-07-28", "2027-08-10")).toEqual(["2027-07-26", "2027-08-02", "2027-08-09"]);
+    expect(mondaysBetween("2027-08-10", "2027-07-28")).toHaveLength(3);
+    expect(mondaysBetween("2027-07-28", "2027-07-28")).toEqual(["2027-07-26"]);
+  });
+  it("las semanas seguidas con la misma regla salen juntas", () => {
+    const w = (weekStart: string, reason: string | null, blocked = true, maxOverride: number | null = null) => ({ weekStart, blocked, reason, maxOverride });
+    const g = groupWeekRules([w("2027-08-02", "Inventario"), w("2027-07-26", "Inventario"), w("2027-08-16", "Inventario"), w("2027-12-20", null, false, 1)]);
+    expect(g.map((r) => [ruleRangeLabel(r), r.weeks, r.reason])).toEqual([
+      ["26 jul – 8 ago", 2, "Inventario"],
+      ["16 ago – 22 ago", 1, "Inventario"],
+      ["20 dic – 26 dic", 1, null],
+    ]);
+  });
+});

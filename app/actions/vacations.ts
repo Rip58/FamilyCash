@@ -4,10 +4,10 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { formatStamp, fromDbDate, isDateStr, madridToday, toDbDate, weekStart } from "@/lib/dates";
+import { formatStamp, fromDbDate, isDateStr, madridToday, toDbDate } from "@/lib/dates";
 import { authorizeVacation } from "@/lib/vacation-server";
 import { getVacationCampaign, getVacationWeeks } from "@/lib/vacation-queries";
-import { MAX_SIGNATURE_LENGTH, checkVacations, countedDays, isSignature } from "@/lib/vacations";
+import { MAX_SIGNATURE_LENGTH, checkVacations, countedDays, isSignature, mondaysBetween } from "@/lib/vacations";
 import { requireOwner } from "@/lib/session";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
@@ -41,33 +41,51 @@ export async function saveVacationCampaign(input: z.input<typeof campaignSchema>
 }
 
 const weekSchema = z.object({
-  /** Cualquier día de la semana: se guarda su lunes. */
+  /** Primer día: se guarda desde el lunes de su semana. */
   date: dateSchema,
+  /** Último día (opcional): todas las semanas seguidas hasta la de esta fecha. */
+  to: dateSchema.nullish(),
   blocked: z.boolean(),
   reason: z.string().trim().max(80, "Motivo demasiado largo.").nullish(),
   maxOverride: max.nullish(),
 });
 
+const MAX_RULE_WEEKS = 30;
+
+/** Bloquea (o pone otro máximo a) todas las semanas de `date` a `to`. Sin regla, vuelven a ser normales. */
 export async function saveVacationWeek(input: z.input<typeof weekSchema>): Promise<ActionResult> {
   await requireOwner();
   const p = weekSchema.safeParse(input);
   if (!p.success) return fail(p.error.issues[0]?.message ?? "Datos no válidos.");
-  const { date, blocked, reason, maxOverride } = p.data;
-  const key = toDbDate(weekStart(date));
-  const data = { blocked, reason: reason || null, maxOverride: maxOverride ?? null };
-  // Sin bloqueo ni máximo propio, la semana vuelve a ser normal: no hace falta guardarla.
-  if (!blocked && data.maxOverride === null) await db.vacationWeek.deleteMany({ where: { weekStart: key } });
-  else await db.vacationWeek.upsert({ where: { weekStart: key }, create: { weekStart: key, ...data }, update: data });
+  const { date, to, blocked, reason, maxOverride } = p.data;
+  const mondays = mondaysBetween(date, to ?? date);
+  if (mondays.length > MAX_RULE_WEEKS) return fail(`Como mucho ${MAX_RULE_WEEKS} semanas de golpe.`);
+  const data = { blocked, reason: blocked ? reason || null : null, maxOverride: blocked ? null : (maxOverride ?? null) };
+  await db.$transaction(
+    mondays.map((m) => {
+      const key = toDbDate(m);
+      return !blocked && data.maxOverride === null
+        ? db.vacationWeek.deleteMany({ where: { weekStart: key } })
+        : db.vacationWeek.upsert({ where: { weekStart: key }, create: { weekStart: key, ...data }, update: data });
+    }),
+  );
   revalidate();
+  revalidatePath("/semana", "layout");
+  revalidatePath("/vacaciones");
   return { ok: true };
 }
 
-export async function deleteVacationWeek(input: { date: string }): Promise<ActionResult> {
+/** Quita la regla de las semanas de `date` a `to`. */
+export async function deleteVacationWeek(input: { date: string; to?: string | null }): Promise<ActionResult> {
   await requireOwner();
-  const p = z.object({ date: dateSchema }).safeParse(input);
+  const p = z.object({ date: dateSchema, to: dateSchema.nullish() }).safeParse(input);
   if (!p.success) return fail("Fecha no válida.");
-  await db.vacationWeek.deleteMany({ where: { weekStart: toDbDate(weekStart(p.data.date)) } });
+  const mondays = mondaysBetween(p.data.date, p.data.to ?? p.data.date);
+  if (mondays.length > MAX_RULE_WEEKS) return fail(`Como mucho ${MAX_RULE_WEEKS} semanas de golpe.`);
+  await db.vacationWeek.deleteMany({ where: { weekStart: { in: mondays.map(toDbDate) } } });
   revalidate();
+  revalidatePath("/semana", "layout");
+  revalidatePath("/vacaciones");
   return { ok: true };
 }
 

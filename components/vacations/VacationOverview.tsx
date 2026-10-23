@@ -9,12 +9,15 @@ import { Toggle } from "@/components/ui/Toggle";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { cn } from "@/components/ui/cn";
 import { notify } from "@/components/ui/toast";
-import { type DateStr, MONTH_SHORT, WEEKDAY_LETTERS, formatWeekRange, isoWeekNumber, weekStart } from "@/lib/dates";
+import { type DateStr, MONTH_SHORT, WEEKDAY_LETTERS, addDays, formatWeekRange, isoWeekNumber, weekStart } from "@/lib/dates";
 import {
   VACATION_STATUS_LABEL,
   type VacGridGroup,
   type VacationWeekView,
+  type WeekRuleRange,
   countedDays,
+  mondaysBetween,
+  ruleRangeLabel,
   rangeLabel,
   vacationSpan,
 } from "@/lib/vacations";
@@ -34,6 +37,7 @@ export function VacationOverview({
   next,
   grid,
   rule,
+  ruleRange,
   sent,
   total,
   workDays,
@@ -44,6 +48,7 @@ export function VacationOverview({
   next: DateStr | null;
   grid: { days: DateStr[]; groups: VacGridGroup[]; overDays: number };
   rule: VacationWeekView | null;
+  ruleRange: WeekRuleRange | null;
   sent: number;
   total: number;
   workDays: number;
@@ -123,6 +128,7 @@ export function VacationOverview({
       {rule?.blocked && (
         <p className="vac-blocked mb-2 rounded-card px-4 py-2.5 text-[14px] font-semibold text-danger">
           Semana bloqueada{rule.reason ? ` · ${rule.reason}` : ""}
+          {ruleRange && ruleRange.weeks > 1 && <span className="font-normal"> ({ruleRangeLabel(ruleRange)})</span>}
         </p>
       )}
       {rule && !rule.blocked && rule.maxOverride != null && (
@@ -138,7 +144,7 @@ export function VacationOverview({
         periodos y su firma.
       </p>
 
-      <WeekRuleSheet open={menu} onClose={() => setMenu(false)} monday={monday} rule={rule} />
+      <WeekRuleSheet key={monday} open={menu} onClose={() => setMenu(false)} monday={monday} rule={rule} range={ruleRange} />
       <PersonSheet person={person} year={year} workDays={workDays} onClose={() => setPerson((p) => (p ? { ...p, open: false } : p))} />
     </div>
   );
@@ -219,17 +225,37 @@ function Grid({ grid, onPerson }: { grid: { days: DateStr[]; groups: VacGridGrou
   );
 }
 
-function WeekRuleSheet({ open, onClose, monday, rule }: { open: boolean; onClose: () => void; monday: DateStr; rule: VacationWeekView | null }) {
+function WeekRuleSheet({
+  open,
+  onClose,
+  monday,
+  rule,
+  range,
+}: {
+  open: boolean;
+  onClose: () => void;
+  monday: DateStr;
+  rule: VacationWeekView | null;
+  range: WeekRuleRange | null;
+}) {
   const router = useRouter();
   const [blocked, setBlocked] = useState(rule?.blocked ?? false);
   const [reason, setReason] = useState(rule?.reason ?? "");
   const [custom, setCustom] = useState(rule?.maxOverride != null);
   const [max, setMax] = useState(rule?.maxOverride ?? 1);
+  // De la fecha de inicio a la final: si la semana ya es parte de varias seguidas, se cambian todas juntas.
+  const [from, setFrom] = useState<string>(range?.from ?? monday);
+  const [to, setTo] = useState<string>(range?.to ?? addDays(monday, 6));
+  const weeksCount = from && to ? mondaysBetween(from, to).length : 0;
   const [pending, start] = useTransition();
 
   const save = () =>
     start(async () => {
-      const r = await saveVacationWeek({ date: monday, blocked, reason: blocked ? reason : null, maxOverride: !blocked && custom ? max : null });
+      if (range) {
+        const del = await deleteVacationWeek({ date: range.from, to: range.to });
+        if (!del.ok) return notify(del.error, "error");
+      }
+      const r = await saveVacationWeek({ date: from, to, blocked, reason: blocked ? reason : null, maxOverride: !blocked && custom ? max : null });
       if (r.ok) {
         notify(blocked ? "Semana bloqueada" : custom ? "Máximo guardado" : "Semana normal");
         onClose();
@@ -240,6 +266,36 @@ function WeekRuleSheet({ open, onClose, monday, rule }: { open: boolean; onClose
   return (
     <BottomSheet open={open} onClose={onClose} title={`Semana ${isoWeekNumber(monday)} · ${formatWeekRange(monday)}`}>
       <div className="flex flex-col gap-3">
+        <div className="flex gap-2">
+          <label className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="text-[13px] text-muted">Fecha de inicio</span>
+            <input
+              type="date"
+              aria-label="Fecha de inicio"
+              value={from}
+              onChange={(e) => {
+                setFrom(e.target.value);
+                if (to < e.target.value) setTo(e.target.value);
+              }}
+              className="min-h-11 w-full rounded-control bg-surface-2 px-2 text-[16px] outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            />
+          </label>
+          <label className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="text-[13px] text-muted">Fecha final</span>
+            <input
+              type="date"
+              aria-label="Fecha final"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              className="min-h-11 w-full rounded-control bg-surface-2 px-2 text-[16px] outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            />
+          </label>
+        </div>
+        {weeksCount > 0 && (
+          <p className="-mt-1 text-[14px] text-muted">
+            Se aplica a {weeksCount === 1 ? "1 semana" : `${weeksCount} semanas seguidas`}.
+          </p>
+        )}
         <div className="rounded-card bg-surface-2 p-3">
           <Toggle label="No se pueden pedir vacaciones" checked={blocked} onChange={setBlocked} />
           {blocked && (
@@ -278,7 +334,7 @@ function WeekRuleSheet({ open, onClose, monday, rule }: { open: boolean; onClose
             disabled={pending}
             onClick={() =>
               start(async () => {
-                const r = await deleteVacationWeek({ date: monday });
+                const r = await deleteVacationWeek({ date: range?.from ?? monday, to: range?.to ?? null });
                 if (r.ok) {
                   notify("Semana normal otra vez");
                   onClose();
@@ -288,7 +344,7 @@ function WeekRuleSheet({ open, onClose, monday, rule }: { open: boolean; onClose
             }
             className="min-h-11 w-full rounded-control bg-surface-2 text-[16px] font-medium text-danger"
           >
-            Quitar la regla de esta semana
+            {range && range.weeks > 1 ? `Quitar la regla de las ${range.weeks} semanas` : "Quitar la regla de esta semana"}
           </button>
         )}
       </div>
