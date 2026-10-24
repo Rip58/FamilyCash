@@ -6,7 +6,7 @@ import { ReportTabs } from "@/components/report/ReportTabs";
 import { ShareButton } from "@/components/report/ShareButton";
 import { Icon } from "@/components/ui/icons";
 import { reportIconBtn } from "@/components/report/header-button";
-import { buildShareModel, pdfShareModel } from "@/lib/report-share";
+import { dayShareProps } from "@/lib/report-share-props";
 import { WeekSummaryView } from "@/components/report/WeekSummaryView";
 import { WeekTasks } from "@/components/report/WeekTasks";
 import {
@@ -23,9 +23,9 @@ import { getLoggedAbsences } from "@/lib/absence-log";
 import { db } from "@/lib/db";
 import { getGroupCovers } from "@/lib/group-covers";
 import { getNotes, getPendingTasksBefore } from "@/lib/note-queries";
-import { noteLabel, noteLine, noteWho } from "@/lib/notes";
+import { noteLine } from "@/lib/notes";
 import { getDepartments, getEmployees, getEntriesBetween, getSections, getSettings, getStatusTypes } from "@/lib/queries";
-import { buildDayReport, buildWeekSummary, reportToText } from "@/lib/report";
+import { buildDayReport, buildWeekSummary } from "@/lib/report";
 import { getDayRoster, getWeekGrid } from "@/lib/schedule";
 
 export const metadata = { title: "Informe" };
@@ -94,27 +94,7 @@ export default async function Page({
       </AddNoteButton>
     );
     body = <DayReportView report={report} options={options} />;
-    if (!report.isEmpty) share = (
-        <ShareButton
-          text={reportToText(report)}
-          model={buildShareModel(report)}
-          pdfModel={pdfShareModel(report)}
-          fileName={`informe-noche-${date}.png`}
-          editHref={`/hoy/${date}`}
-          photoNotes={report.notes
-            .filter((n) => n.photos.length > 0)
-            .map((n, k) => ({
-              who: noteWho(n),
-              label: noteLabel(n),
-              when: `${formatDayLong(n.date)}${n.time ? ` · ${n.time}` : ""}`,
-              text: n.text,
-              photos: n.photos.map((ph, i) => ({
-                url: ph.url,
-                name: `${date}-${(n.employeeName ?? "nota").replace(/\s+/g, "-")}-${k + 1}-${i + 1}.${ph.url.split(".").pop() ?? "webp"}`,
-              })),
-            }))}
-        />
-      );
+    if (!report.isEmpty) share = <ShareButton {...dayShareProps(report, date)} editHref={`/hoy/${date}`} />;
   } else {
     const days = weekDays(date);
     const [entries, weekNotes, olderTasks] = await Promise.all([
