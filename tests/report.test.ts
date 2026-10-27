@@ -237,7 +237,8 @@ describe("exportación visual", () => {
     expect(m.missing.map((x) => x.name).sort()).toEqual(["Jorge", "Mikael", "Mike"]);
     expect(m.counts).toEqual({ working: 1, off: 1, away: 1, missing: 3 });
     const t = shareModelToText(m);
-    expect(t).toContain("Mike (No avisa)");
+    expect(t).toContain("Mike, Jorge, Mikael");
+    expect(t).toContain("• Mike: Incidencia: no ha venido — No avisa");
     expect(t).toContain("Baja laboral: Dani (Gripe)");
     const order = ["TRABAJAN", "FIESTA", "VACACIONES Y BAJAS", "FALTAN (3)"].map((k) => t.indexOf(k));
     expect(order).toEqual([...order].sort((a, b) => a - b));

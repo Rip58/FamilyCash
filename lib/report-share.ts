@@ -141,6 +141,14 @@ export function buildShareModel(report: DayReport): ShareModel {
     // En una persona, el departamento de la nota va delante («Palets: …»).
     items: g.notes.map((n) => `${n.employeeId && n.departmentName ? `${n.departmentName}: ` : ""}${noteLine(n, false)}`),
   }));
+  // El motivo de una falta sale como incidencia de esa persona (en «Faltan» solo va el nombre).
+  for (const p of missing) {
+    if (!p.reason) continue;
+    const item = `Incidencia: no ha venido — ${p.reason.replace(/\s*\n\s*/g, " ")}`;
+    const own = notes.find((g) => g.who === p.name);
+    if (own) own.items.unshift(item);
+    else notes.push({ who: p.name, items: [item] });
+  }
 
   return {
     title: report.title,
@@ -209,7 +217,7 @@ export function shareModelToText(m: ShareModel): string {
 
   if (m.missing.length > 0) {
     L.push("", `🔴 FALTAN (${m.missing.length})`);
-    L.push(m.missing.map((p) => (p.reason ? `${p.name} (${p.reason})` : p.name)).join(", "));
+    L.push(m.missing.map((p) => p.name).join(", "));
   }
 
   if (m.times.length > 0) {

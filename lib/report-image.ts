@@ -257,7 +257,7 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
 
   if (m.missing.length > 0) {
     card(`Faltan (${m.missing.length})`, C.red, C.redBg, () => {
-      text(m.missing.map((p) => (p.reason ? `${p.name} (${p.reason})` : p.name)).join(", "), PAD + 28, 28, 600, C.red, inner - 56);
+      text(m.missing.map((p) => p.name).join(", "), PAD + 28, 28, 600, C.red, inner - 56);
       y += 6;
     });
   }

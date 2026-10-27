@@ -29,6 +29,12 @@ export function BottomSheet({ open, onClose, title, children, className }: Botto
   const [entered, setEntered] = useState(false);
   const pathname = usePathname();
   const [openedAt, setOpenedAt] = useState(pathname);
+  // `onClose` suele ser una función nueva en cada render del padre (p. ej. Hoy al refrescarse en vivo): si estuviera
+  // en las dependencias del efecto del foco, cada render devolvía el foco al botón de detrás y se cerraba el teclado.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   // Montar al abrir (ajuste de estado durante el render) y recordar en qué página se abrió.
   if (open && !mounted) {
@@ -66,7 +72,7 @@ export function BottomSheet({ open, onClose, title, children, className }: Botto
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
       } else if (e.key === "Tab" && panelRef.current) {
         const items = Array.from(panelRef.current.querySelectorAll<HTMLElement>(FOCUSABLE));
         if (items.length === 0) {
@@ -90,7 +96,7 @@ export function BottomSheet({ open, onClose, title, children, className }: Botto
       unlock();
       previous?.focus?.();
     };
-  }, [open, elsewhere, onClose]);
+  }, [open, elsewhere]);
 
   if (!mounted || elsewhere || typeof document === "undefined") return null;
 
