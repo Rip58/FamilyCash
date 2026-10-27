@@ -41,6 +41,7 @@ export interface SharePhotoNote {
   label: string;
   when: string;
   text: string;
+  incident?: boolean;
   photos: SharePhoto[];
 }
 

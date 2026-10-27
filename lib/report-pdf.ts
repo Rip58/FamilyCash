@@ -13,6 +13,8 @@ export interface PdfPhotoNote {
   /** «Martes 14 oct · 22:15». */
   when: string;
   text: string;
+  /** Incidencia: su texto va en rojo. */
+  incident?: boolean;
   photos: Blob[];
 }
 
@@ -48,7 +50,7 @@ function paintPhotoPage(ctx: Ctx, n: PdfPhotoNote, img: HTMLImageElement | null,
   y += 52;
   font(ctx, 28, 400);
   if (draw) {
-    ctx.fillStyle = C.muted;
+    ctx.fillStyle = n.incident ? C.red : C.muted;
     ctx.fillText(`${n.label} · ${n.when}${n.photos.length > 1 ? ` · Foto ${index + 1} de ${n.photos.length}` : ""}`, PAD, y + 30);
   }
   y += 56;
@@ -72,7 +74,7 @@ function paintPhotoPage(ctx: Ctx, n: PdfPhotoNote, img: HTMLImageElement | null,
     ctx.fillStyle = C.card;
     roundRect(ctx, PAD, y, inner, boxH, 24);
     ctx.fill();
-    ctx.fillStyle = C.fg;
+    ctx.fillStyle = n.incident ? C.red : C.fg;
     lines.forEach((l, i) => ctx.fillText(l, PAD + 32, y + 24 + 34 + i * 46));
   }
   return y + boxH + PAD;

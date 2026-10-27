@@ -18,6 +18,7 @@ export function dayShareProps(report: DayReport, date: DateStr) {
         label: noteLabel(n),
         when: `${formatDayLong(n.date)}${n.time ? ` · ${n.time}` : ""}`,
         text: n.text,
+        incident: n.type === "INCIDENT",
         photos: n.photos.map((ph, i) => ({
           url: ph.url,
           name: `${date}-${(n.employeeName ?? "nota").replace(/\s+/g, "-")}-${k + 1}-${i + 1}.${ph.url.split(".").pop() ?? "webp"}`,

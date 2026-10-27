@@ -239,6 +239,7 @@ describe("exportación visual", () => {
     const t = shareModelToText(m);
     expect(t).toContain("Mike, Jorge, Mikael");
     expect(t).toContain("• Mike: Incidencia: no ha venido — No avisa");
+    expect(m.notes.find((g) => g.who === "Mike")?.incident).toEqual([true]);
     expect(t).toContain("Baja laboral: Dani (Gripe)");
     const order = ["TRABAJAN", "FIESTA", "VACACIONES Y BAJAS", "FALTAN (3)"].map((k) => t.indexOf(k));
     expect(order).toEqual([...order].sort((a, b) => a - b));

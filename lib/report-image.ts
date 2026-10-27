@@ -272,12 +272,15 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
   if (m.notes.length > 0) {
     card("Notas de la noche", C.fg, C.line, () =>
       m.notes.forEach((g) => {
-        if (!g.who) g.items.forEach((t) => bullet(t));
-        else if (g.items.length === 1) bullet(`${g.who}: ${g.items[0]}`);
+        // Incidencias en rojo; el resto de notas en negro.
+        const color = (i: number) => (g.incident[i] ? C.red : C.fg);
+        const dot = (i: number) => (g.incident[i] ? C.red : C.muted);
+        if (!g.who) g.items.forEach((t, i) => bullet(t, color(i), dot(i)));
+        else if (g.items.length === 1) bullet(`${g.who}: ${g.items[0]}`, color(0), dot(0));
         else {
           // Persona con varias notas: su nombre una vez y las notas debajo, sangradas.
           bullet(g.who);
-          g.items.forEach((t) => (y += bulletAt(PAD + 64, inner - 96, t, C.fg, C.muted)));
+          g.items.forEach((t, i) => (y += bulletAt(PAD + 64, inner - 96, t, color(i), dot(i))));
         }
       }),
     );

@@ -42,7 +42,7 @@ export interface ShareModel {
   times: string[];
   overtime: { total: string; items: string[] } | null;
   /** Notas juntas por persona (o departamento); `who` null = generales. */
-  notes: { who: string | null; items: string[] }[];
+  notes: { who: string | null; items: string[]; /** Por nota: es una incidencia (en rojo en la imagen y el PDF). */ incident: boolean[] }[];
 }
 
 /** Color de departamento → cuadrado de color (emoji) más parecido. */
@@ -75,7 +75,7 @@ export function pdfShareModel(report: DayReport): ShareModel {
   const m = buildShareModel({ ...report, notes: report.notes.filter((n) => n.photos.length === 0) });
   if (withPhotos === 0) return m;
   const line = `📷 ${withPhotos === 1 ? "1 nota con foto" : `${withPhotos} notas con foto`}: en las páginas siguientes`;
-  return { ...m, notes: [...m.notes, { who: null, items: [line] }] };
+  return { ...m, notes: [...m.notes, { who: null, items: [line], incident: [false] }] };
 }
 
 /** A partir de cuántas personas un departamento va a lo ancho en la imagen; los demás, en 2 columnas. */
@@ -140,14 +140,17 @@ export function buildShareModel(report: DayReport): ShareModel {
     who: g.key === "general" ? null : g.who,
     // En una persona, el departamento de la nota va delante («Palets: …»).
     items: g.notes.map((n) => `${n.employeeId && n.departmentName ? `${n.departmentName}: ` : ""}${noteLine(n, false)}`),
+    incident: g.notes.map((n) => n.type === "INCIDENT"),
   }));
   // El motivo de una falta sale como incidencia de esa persona (en «Faltan» solo va el nombre).
   for (const p of missing) {
     if (!p.reason) continue;
     const item = `Incidencia: no ha venido — ${p.reason.replace(/\s*\n\s*/g, " ")}`;
     const own = notes.find((g) => g.who === p.name);
-    if (own) own.items.unshift(item);
-    else notes.push({ who: p.name, items: [item] });
+    if (own) {
+      own.items.unshift(item);
+      own.incident.unshift(true);
+    } else notes.push({ who: p.name, items: [item], incident: [true] });
   }
 
   return {
