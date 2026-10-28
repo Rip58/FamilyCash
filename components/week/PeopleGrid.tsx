@@ -55,11 +55,11 @@ function CellButton({
       type="button"
       aria-label={label}
       onClick={onTap}
-      className="press relative flex h-11 w-[34px] select-none items-center justify-center [touch-action:manipulation]"
+      className="press relative flex h-9 w-[34px] select-none items-center justify-center [touch-action:manipulation]"
     >
       <span
         className={cn(
-          "flex h-8 w-[30px] items-center justify-center rounded-[8px] border text-[13px] font-semibold",
+          "flex h-7 w-[30px] items-center justify-center rounded-[7px] border text-[13px] font-semibold",
           // Al cambiar el estado: solo color y borde, sin movimiento (son datos que se están leyendo).
           "transition-[background-color,border-color,color] duration-150 ease-out",
           status.isWorking ? "text-muted" : "text-fg",
@@ -72,7 +72,7 @@ function CellButton({
         {statusAbbr(status)}
       </span>
       {hasReason && (
-        <span aria-hidden="true" className="absolute right-0.5 top-1.5 h-1.5 w-1.5 rounded-full bg-fg/60" />
+        <span aria-hidden="true" className="absolute right-0.5 top-1 h-1.5 w-1.5 rounded-full bg-fg/60" />
       )}
       {extraMinutes !== 0 && (
         <span
@@ -126,7 +126,7 @@ function NameCell({
         aria-expanded={open}
         aria-label={`${name}. Toca para ver el nombre completo`}
         data-peek-name
-        className="flex h-11 w-full min-w-0 items-center pl-4 pr-1 text-left text-[15px] [touch-action:manipulation]"
+        className="flex h-9 w-full min-w-0 items-center pl-4 pr-1 text-left text-[15px] [touch-action:manipulation]"
       >
         <span className="truncate">{compact}</span>
       </button>
@@ -423,6 +423,7 @@ function CellSheetBody({
 /** `flat`: sin grupos de departamento, todos en el orden del Excel del planning. */
 export function PeopleGrid({ data, flat = false }: { data: PeopleGridData; flat?: boolean }) {
   const { days, today, statuses, daysOffPerWeek } = data;
+  const todayIndex = days.indexOf(today);
   const groups = flat ? data.flatGroups : data.groups;
   const statusById = useMemo(() => new Map(statuses.map((s) => [s.id, s])), [statuses]);
 
@@ -562,12 +563,12 @@ export function PeopleGrid({ data, flat = false }: { data: PeopleGridData; flat?
         <span className="pb-1 text-center text-[11px] font-medium text-muted">Total</span>
       </div>
 
-      <div className="mt-2 flex flex-col gap-3">
+      <div className="mt-2 flex flex-col gap-2">
         {groups.map((g) => (
           <section key={g.id} aria-label={g.name} className="mx-1.5 overflow-hidden rounded-card bg-surface">
             <h3
               className={cn(
-                "flex min-h-11 items-center justify-between gap-2 px-3 text-[16px] font-bold",
+                "flex min-h-9 items-center justify-between gap-2 px-3 text-[15px] font-bold",
                 "text-white",
               )}
               style={{ backgroundColor: g.color ?? "#64748b" }}
@@ -582,78 +583,89 @@ export function PeopleGrid({ data, flat = false }: { data: PeopleGridData; flat?
                 {g.rows.length} personas
               </span>
             </h3>
-            <div className={cn("grid items-center border-b border-line py-1", GRID_COLS)}>
-              <span className="pl-2.5 text-[11px] font-medium text-muted">Trabajan</span>
-              {days.map((d) => {
-                const working = g.rows.filter(
-                  (r) => statusById.get(cells[keyOf(r.employeeId, d)]!.statusId)!.isWorking,
-                ).length;
-                return (
+            <div className="relative">
+              {todayIndex >= 0 && (
+                // Recuadro de la columna de hoy: del número de «Trabajan» hasta la última fila del grupo.
+                <div aria-hidden="true" className={cn("pointer-events-none absolute inset-0 z-[1] grid", GRID_COLS)}>
                   <span
-                    key={d}
-                    className={cn("text-center text-[12px] font-semibold tabular-nums", working === 0 ? "text-danger" : "text-muted")}
-                    aria-label={`${formatDayLong(d)}: ${working} trabajan en ${g.name}`}
-                  >
-                    {working}
-                  </span>
+                    className="mx-px my-0.5 rounded-[9px] border-2 border-accent"
+                    style={{ gridColumn: todayIndex + 2, gridRow: 1 }}
+                  />
+                </div>
+              )}
+              <div className={cn("grid items-center border-b border-line py-0.5", GRID_COLS)}>
+                <span className="pl-2.5 text-[11px] font-medium text-muted">Trabajan</span>
+                {days.map((d) => {
+                  const working = g.rows.filter(
+                    (r) => statusById.get(cells[keyOf(r.employeeId, d)]!.statusId)!.isWorking,
+                  ).length;
+                  return (
+                    <span
+                      key={d}
+                      className={cn("text-center text-[12px] font-semibold tabular-nums", working === 0 ? "text-danger" : "text-muted")}
+                      aria-label={`${formatDayLong(d)}: ${working} trabajan en ${g.name}`}
+                    >
+                      {working}
+                    </span>
+                  );
+                })}
+                <span />
+              </div>
+              {g.rows.map((r) => {
+                const values = days.map((d) => cells[keyOf(r.employeeId, d)]!);
+                const daysOff = values.filter((v) => isDayOffStatus(statusById.get(v.statusId)!)).length;
+                const warn = daysOff !== daysOffPerWeek;
+                const summary = weekSummary(
+                  values.map((v) => ({ status: statusById.get(v.statusId)!, extraMinutes: v.extraMinutes })),
+                  statuses,
+                );
+                return (
+                  <div key={r.employeeId} className={cn("grid items-center border-b border-line last:border-b-0", GRID_COLS)}>
+                    <NameCell
+                      employeeId={r.employeeId}
+                      compact={shortById.get(r.employeeId)!}
+                      name={r.name}
+                      departmentName={r.departmentName}
+                      open={peekId === r.employeeId}
+                      onToggle={() => setPeekId((cur) => (cur === r.employeeId ? null : r.employeeId))}
+                    />
+                    {days.map((d, i) => {
+                      const v = values[i]!;
+                      const status = statusById.get(v.statusId)!;
+                      const target = { employeeId: r.employeeId, name: r.name, date: d };
+                      return (
+                        <CellButton
+                          key={d}
+                          status={status}
+                          hasReason={!!v.reason}
+                          extraMinutes={v.extraMinutes ?? 0}
+                          actual={!!actualByKey[keyOf(r.employeeId, d)]}
+                          label={`${r.name}, ${formatDayLong(d)}: ${status.label}${v.reason ? ` (${v.reason})` : ""}${v.extraMinutes ? `, ${formatOvertime(v.extraMinutes)} extra` : ""}${actualByKey[keyOf(r.employeeId, d)] ? `. Hoy: ${actualByKey[keyOf(r.employeeId, d)]}` : ""}`}
+                          onTap={() => setSheet({ target, open: true })}
+                        />
+                      );
+                    })}
+                    <span
+                      className="flex flex-wrap content-center justify-center gap-x-1 px-0.5 text-[11px] font-semibold leading-[13px] tabular-nums"
+                      aria-label={`Semana: ${summary.map((t) => t.text).join(" ")}${warn ? `. ${daysOff} días libres, se esperaban ${daysOffPerWeek}` : ""}`}
+                      data-warning={warn ? "true" : undefined}
+                    >
+                      {summary.map((t) => (
+                        <span
+                          key={t.key}
+                          className={cn(
+                            t.key === "extra" ? (t.negative ? "text-danger" : "text-accent") : "text-muted",
+                            warn && t.dayOff && "rounded bg-warning/25 px-0.5 text-warning",
+                          )}
+                        >
+                          {t.text}
+                        </span>
+                      ))}
+                    </span>
+                  </div>
                 );
               })}
-              <span />
             </div>
-            {g.rows.map((r) => {
-              const values = days.map((d) => cells[keyOf(r.employeeId, d)]!);
-              const daysOff = values.filter((v) => isDayOffStatus(statusById.get(v.statusId)!)).length;
-              const warn = daysOff !== daysOffPerWeek;
-              const summary = weekSummary(
-                values.map((v) => ({ status: statusById.get(v.statusId)!, extraMinutes: v.extraMinutes })),
-                statuses,
-              );
-              return (
-                <div key={r.employeeId} className={cn("grid items-center border-b border-line last:border-b-0", GRID_COLS)}>
-                  <NameCell
-                    employeeId={r.employeeId}
-                    compact={shortById.get(r.employeeId)!}
-                    name={r.name}
-                    departmentName={r.departmentName}
-                    open={peekId === r.employeeId}
-                    onToggle={() => setPeekId((cur) => (cur === r.employeeId ? null : r.employeeId))}
-                  />
-                  {days.map((d, i) => {
-                    const v = values[i]!;
-                    const status = statusById.get(v.statusId)!;
-                    const target = { employeeId: r.employeeId, name: r.name, date: d };
-                    return (
-                      <CellButton
-                        key={d}
-                        status={status}
-                        hasReason={!!v.reason}
-                        extraMinutes={v.extraMinutes ?? 0}
-                        actual={!!actualByKey[keyOf(r.employeeId, d)]}
-                        label={`${r.name}, ${formatDayLong(d)}: ${status.label}${v.reason ? ` (${v.reason})` : ""}${v.extraMinutes ? `, ${formatOvertime(v.extraMinutes)} extra` : ""}${actualByKey[keyOf(r.employeeId, d)] ? `. Hoy: ${actualByKey[keyOf(r.employeeId, d)]}` : ""}`}
-                        onTap={() => setSheet({ target, open: true })}
-                      />
-                    );
-                  })}
-                  <span
-                    className="flex flex-wrap content-center justify-center gap-x-1 px-0.5 text-[11px] font-semibold leading-[13px] tabular-nums"
-                    aria-label={`Semana: ${summary.map((t) => t.text).join(" ")}${warn ? `. ${daysOff} días libres, se esperaban ${daysOffPerWeek}` : ""}`}
-                    data-warning={warn ? "true" : undefined}
-                  >
-                    {summary.map((t) => (
-                      <span
-                        key={t.key}
-                        className={cn(
-                          t.key === "extra" ? (t.negative ? "text-danger" : "text-accent") : "text-muted",
-                          warn && t.dayOff && "rounded bg-warning/25 px-0.5 text-warning",
-                        )}
-                      >
-                        {t.text}
-                      </span>
-                    ))}
-                  </span>
-                </div>
-              );
-            })}
           </section>
         ))}
       </div>
