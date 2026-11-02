@@ -13,6 +13,8 @@ export interface GridStatus {
 }
 
 export interface GridCell {
+  /** La persona todavía no formaba parte de la plantilla ese día. */
+  notStarted?: boolean;
   statusId: string;
   reason: string | null;
   extraMinutes: number | null;

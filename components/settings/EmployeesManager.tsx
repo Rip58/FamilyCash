@@ -7,7 +7,7 @@ import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Card } from "@/components/ui/Card";
 import { Chip } from "@/components/ui/Chip";
 import { deleteEmployee, saveEmployee } from "@/app/actions/settings";
-import { WEEKDAY_LETTERS } from "@/lib/dates";
+import { type DateStr, WEEKDAY_LETTERS } from "@/lib/dates";
 import {
   AddButton, BackHeader, ConfirmButton, Field, PrimaryButton, TextInput, Toggle, inputClass, useRun,
 } from "./kit";
@@ -16,6 +16,7 @@ export interface EmployeeRow {
   id: string;
   name: string;
   alias: string | null;
+  startDate: DateStr | null;
   defaultDepartmentId: string | null;
   /** También cubre habitualmente (además del principal). */
   defaultExtraDepartmentIds: string[];
@@ -161,6 +162,7 @@ export function DaysChips({ value, onChange }: { value: number[]; onChange: (v: 
 function NewEmployee({ departments, onDone }: { departments: DeptOption[]; onDone: () => void }) {
   const [name, setName] = useState("");
   const [alias, setAlias] = useState("");
+  const [startDate, setStartDate] = useState("");
   const [dept, setDept] = useState<string | null>(null);
   const [days, setDays] = useState<number[]>([]);
   const [notes, setNotes] = useState("");
@@ -172,6 +174,16 @@ function NewEmployee({ departments, onDone }: { departments: DeptOption[]; onDon
       </Field>
       <Field label="Alias (vista Semana)">
         <input aria-label="Alias" value={alias} onChange={(e) => setAlias(e.target.value)} className={inputClass} maxLength={12} placeholder="Ej.: Gerard, Jose A." />
+      </Field>
+      <Field label="Fecha de inicio">
+        <input
+          type="date"
+          aria-label="Fecha de inicio"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          className={inputClass}
+        />
+        <p className="mt-1 text-[12px] text-muted">Vacío = desde siempre.</p>
       </Field>
       <Field label="Departamento habitual">
         <DepartmentSelect value={dept} onChange={setDept} departments={departments.filter((d) => d.active)} />
@@ -186,7 +198,7 @@ function NewEmployee({ departments, onDone }: { departments: DeptOption[]; onDon
         className="mt-2 w-full"
         disabled={pending || !name.trim()}
         onClick={() =>
-          run(() => saveEmployee({ name, alias, defaultDepartmentId: dept, fixedDaysOff: days, notes, active: true }), {
+          run(() => saveEmployee({ name, alias, startDate, defaultDepartmentId: dept, fixedDaysOff: days, notes, active: true }), {
             msg: "Empleado añadido",
             onDone,
           })
@@ -217,6 +229,7 @@ export function EditEmployee({
         id: next.id,
         name: next.name,
         alias: next.alias,
+        startDate: next.startDate,
         defaultDepartmentId: next.defaultDepartmentId,
         defaultExtraDepartmentIds: next.defaultExtraDepartmentIds.filter((d) => d !== next.defaultDepartmentId),
         fixedDaysOff: next.fixedDaysOff,
@@ -233,6 +246,30 @@ export function EditEmployee({
       <Field label="Alias (vista Semana)">
         <TextInput label="Alias" value={employee.alias ?? ""} maxLength={12} onCommit={(v) => save({ alias: v.trim() || null })} />
         <p className="mt-1 text-[12px] text-muted">Nombre corto que se ve en la cuadrícula semanal. Hasta 12 letras; mejor 8–10.</p>
+      </Field>
+      <Field label="Fecha de inicio">
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            aria-label="Fecha de inicio"
+            value={employee.startDate ?? ""}
+            onChange={(e) => save({ startDate: e.target.value || null })}
+            className={inputClass}
+          />
+          {employee.startDate && (
+            <button
+              type="button"
+              onClick={() => save({ startDate: null })}
+              disabled={pending}
+              className="min-h-11 shrink-0 rounded-control px-3 text-[14px] font-medium text-danger active:bg-danger/10 disabled:opacity-50"
+            >
+              Quitar
+            </button>
+          )}
+        </div>
+        <p className="mt-1 text-[12px] text-muted">
+          No sale en Hoy, Semana ni Informe antes de esta fecha. Vacío = desde siempre.
+        </p>
       </Field>
       <Field label="Departamento habitual">
         <DepartmentSelect

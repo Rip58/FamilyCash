@@ -31,6 +31,7 @@ import {
   type RosterMember,
   type StatusTypeLite,
   getDayRoster,
+  hasStarted,
 } from "@/lib/schedule";
 import { type EntryPatch, type ShiftTimes, applyEntryPatch } from "@/lib/segments";
 import { setAbsenceNotice } from "@/app/actions/absences";
@@ -160,11 +161,14 @@ export function DayView({
   const activeDepartments = useMemo(() => departments.filter((d) => d.active !== false), [departments]);
   const noteOptions = useMemo(
     () => ({
-      employees: employees.filter((e) => e.active).map((e) => ({ id: e.id, name: e.name })).sort((a, b) => a.name.localeCompare(b.name, "es")),
+      employees: employees
+        .filter((e) => e.active && hasStarted(e, date))
+        .map((e) => ({ id: e.id, name: e.name }))
+        .sort((a, b) => a.name.localeCompare(b.name, "es")),
       departments: activeDepartments.map((d) => ({ id: d.id, name: d.name })),
       sections: sections.map((s) => ({ id: s.id, name: s.name })),
     }),
-    [employees, activeDepartments, sections],
+    [employees, date, activeDepartments, sections],
   );
   const notesBy = useMemo(() => {
     const m = new Map<string, NoteView[]>();

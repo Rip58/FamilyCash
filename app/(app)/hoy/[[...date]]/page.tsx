@@ -74,6 +74,7 @@ export default async function Page({ params }: { params: Promise<{ date?: string
         employees={employees.map((e) => ({
           id: e.id,
           name: e.name,
+          startDate: e.startDate,
           defaultDepartmentId: e.defaultDepartmentId,
           defaultExtraDepartmentIds: e.defaultExtraDepartmentIds,
           sortOrder: e.sortOrder,

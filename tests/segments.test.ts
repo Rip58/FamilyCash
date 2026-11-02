@@ -11,7 +11,7 @@ const st = (code: string, isWorking: boolean): StatusTypeLite => ({
 });
 const statusTypes = [st("WORK", true), st("OFF", false), st("SICK", false)];
 const emp: EmployeeLite = {
-  id: "e1", name: "E1", defaultDepartmentId: "d1", sortOrder: 0, fixedDaysOff: [5], active: true,
+  id: "e1", name: "E1", startDate: null, defaultDepartmentId: "d1", sortOrder: 0, fixedDaysOff: [5], active: true,
 };
 const MON = "2026-09-28";
 const SAT = "2026-10-03";

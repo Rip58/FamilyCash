@@ -37,6 +37,8 @@ export interface EmployeeLite {
   id: string;
   name: string;
   alias?: string | null;
+  /** Primer día (noche) que trabaja; null = desde siempre. */
+  startDate: DateStr | null;
   defaultDepartmentId: string | null;
   /** Otros departamentos que cubre habitualmente (además del principal). */
   defaultExtraDepartmentIds?: string[];
@@ -46,6 +48,11 @@ export interface EmployeeLite {
   notes?: string | null;
   /** Orden de las filas en el Excel del planning (vista Semana sin departamentos). */
   rotaOrder?: number | null;
+}
+
+/** El empleado ya formaba parte de la plantilla en esta noche. */
+export function hasStarted(employee: Pick<EmployeeLite, "startDate">, date: DateStr): boolean {
+  return !employee.startDate || date >= employee.startDate;
 }
 
 export interface SegmentLite {
@@ -320,7 +327,7 @@ export function getDayRoster(input: DayRosterInput): DayRoster {
   const deptIds = new Set(departments.map((d) => d.id));
   const byGroupIds = new Set((input.groupCovers ?? []).filter((g) => g.date === date).map((g) => g.departmentId));
   const logged = new Map((input.loggedAbsences ?? []).filter((a) => a.date === date).map((a) => [a.employeeId, a]));
-  const employees = input.employees.filter((e) => e.active).sort(byOrderThenName);
+  const employees = input.employees.filter((e) => e.active && hasStarted(e, date)).sort(byOrderThenName);
 
   const members: RosterMember[] = employees.map((employee) => ({
     employee,
@@ -395,6 +402,8 @@ export interface WeekRow {
   employee: EmployeeLite;
   /** 7 celdas, lunes a domingo. */
   cells: EffectiveDay[];
+  /** El empleado ya había empezado cada uno de los siete días. */
+  started: boolean[];
   daysOff: number;
   /** daysOff distinto de daysOffPerWeek. */
   offWarning: boolean;
@@ -428,14 +437,21 @@ export function getWeekGrid(input: WeekGridInput): WeekGrid {
   const days = weekDays(input.date);
   const entries = entryMap(input.entries);
   const departments = input.departments.filter((d) => d.active !== false).sort(byOrderThenName);
-  const employees = input.employees.filter((e) => e.active).sort(byOrderThenName);
+  const employees = input.employees.filter((e) => e.active && hasStarted(e, days[6]!)).sort(byOrderThenName);
 
   const rows: WeekRow[] = employees.map((employee) => {
+    const started = days.map((d) => hasStarted(employee, d));
     const cells = days.map((d) =>
       getEffectiveDay(employee, d, entries.get(`${employee.id}|${d}`), input.statusTypes),
     );
-    const daysOff = cells.filter((c) => c.isDayOff).length;
-    return { employee, cells, daysOff, offWarning: daysOff !== input.daysOffPerWeek };
+    const daysOff = cells.filter((c, i) => started[i] && c.isDayOff).length;
+    return {
+      employee,
+      cells,
+      started,
+      daysOff,
+      offWarning: started.every(Boolean) && daysOff !== input.daysOffPerWeek,
+    };
   });
 
   const groups: WeekGroup[] = departments.map((department) => ({

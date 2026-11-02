@@ -12,7 +12,7 @@ const OFF = st("OFF", "Fiesta", false);
 const SICK = st("SICK", "Baja laboral", false);
 const ABSENT = st("ABSENT", "Falta", false);
 const statusTypes = [WORK, OFF, SICK, ABSENT];
-const ana: EmployeeLite = { id: "ana", name: "Ana", defaultDepartmentId: null, sortOrder: 0, fixedDaysOff: [], active: true };
+const ana: EmployeeLite = { id: "ana", name: "Ana", startDate: null, defaultDepartmentId: null, sortOrder: 0, fixedDaysOff: [], active: true };
 const entry = (date: string, s: StatusTypeLite, o: Partial<DayEntryLite> = {}): DayEntryLite => ({
   employeeId: "ana", date, statusTypeId: s.id, departmentId: null, reason: null,
   arrivedAt: null, leftAt: null, timeReason: null, segments: [], ...o,

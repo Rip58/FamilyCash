@@ -11,7 +11,7 @@ const statusTypes = [WORK, st("OFF", false), SICK];
 const dep = (id: string, targetStaff: number): DepartmentLite => ({ id, name: id, color: "#123", sortOrder: 0, targetStaff });
 const departments = [dep("drog", 2), dep("bot", 1), dep("perf", 1)];
 const emp = (id: string, dept: string | null): EmployeeLite => ({
-  id, name: id, defaultDepartmentId: dept, sortOrder: 0, fixedDaysOff: [], active: true,
+  id, name: id, startDate: null, defaultDepartmentId: dept, sortOrder: 0, fixedDaysOff: [], active: true,
 });
 const MON = "2026-09-28";
 const entry = (employeeId: string, o: Partial<DayEntryLite> = {}): DayEntryLite => ({

@@ -426,6 +426,15 @@ export function PeopleGrid({ data, flat = false }: { data: PeopleGridData; flat?
   const todayIndex = days.indexOf(today);
   const groups = flat ? data.flatGroups : data.groups;
   const statusById = useMemo(() => new Map(statuses.map((s) => [s.id, s])), [statuses]);
+  const notStartedKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const g of groups)
+      for (const r of g.rows)
+        r.cells.forEach((c, i) => {
+          if (c.notStarted) keys.add(keyOf(r.employeeId, days[i]!));
+        });
+    return keys;
+  }, [groups, days]);
 
   const shortById = useMemo(() => {
     const rows = groups.flatMap((g) => g.rows);
@@ -597,7 +606,9 @@ export function PeopleGrid({ data, flat = false }: { data: PeopleGridData; flat?
                 <span className="pl-2.5 text-[11px] font-medium text-muted">Trabajan</span>
                 {days.map((d) => {
                   const working = g.rows.filter(
-                    (r) => statusById.get(cells[keyOf(r.employeeId, d)]!.statusId)!.isWorking,
+                    (r) =>
+                      !notStartedKeys.has(keyOf(r.employeeId, d)) &&
+                      statusById.get(cells[keyOf(r.employeeId, d)]!.statusId)!.isWorking,
                   ).length;
                   return (
                     <span
@@ -613,10 +624,11 @@ export function PeopleGrid({ data, flat = false }: { data: PeopleGridData; flat?
               </div>
               {g.rows.map((r) => {
                 const values = days.map((d) => cells[keyOf(r.employeeId, d)]!);
-                const daysOff = values.filter((v) => isDayOffStatus(statusById.get(v.statusId)!)).length;
-                const warn = daysOff !== daysOffPerWeek;
+                const startedValues = values.filter((_, i) => !notStartedKeys.has(keyOf(r.employeeId, days[i]!)));
+                const daysOff = startedValues.filter((v) => isDayOffStatus(statusById.get(v.statusId)!)).length;
+                const warn = startedValues.length === days.length && daysOff !== daysOffPerWeek;
                 const summary = weekSummary(
-                  values.map((v) => ({ status: statusById.get(v.statusId)!, extraMinutes: v.extraMinutes })),
+                  startedValues.map((v) => ({ status: statusById.get(v.statusId)!, extraMinutes: v.extraMinutes })),
                   statuses,
                 );
                 return (
@@ -633,6 +645,17 @@ export function PeopleGrid({ data, flat = false }: { data: PeopleGridData; flat?
                       const v = values[i]!;
                       const status = statusById.get(v.statusId)!;
                       const target = { employeeId: r.employeeId, name: r.name, date: d };
+                      if (notStartedKeys.has(keyOf(r.employeeId, d))) {
+                        return (
+                          <span
+                            key={d}
+                            aria-label={`${r.name}, ${formatDayLong(d)}: aún no había empezado`}
+                            className="flex h-9 w-[34px] items-center justify-center text-[13px] text-muted/60"
+                          >
+                            –
+                          </span>
+                        );
+                      }
                       return (
                         <CellButton
                           key={d}

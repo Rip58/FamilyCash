@@ -135,6 +135,11 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+## Notas técnicas (fecha de inicio)
+- `Employee.startDate` es el primer día de turno del empleado (`null` = desde siempre). La regla pura es `hasStarted` en `lib/schedule.ts`.
+- Se aplica en `getDayRoster`, `getWeekGrid` (`WeekRow.started` marca los días de una semana parcial), `buildWeekSummary`, `planCopyWeek` y la exportación CSV; las acciones de Hoy/Semana también impiden escribir antes de esa fecha.
+- Si añades otra vista o escritura de empleados por fecha, usa `hasStarted`; no dupliques la comparación ni cambies `getEffectiveDay`.
+
 ## Notas técnicas (historial de empleado)
 - Informe → lupa → `/informe/empleado?id=` (ruta estática: gana al `[[...date]]`; tiene su `loading.tsx`). `EmployeePicker` (buscar por nombre, sin acentos) y `EmployeeHistoryView` (noches desplegables `<details>`, las 3 primeras abiertas; búsqueda dentro; Compartir/Copiar texto con `historyToText`).
 - Lógica pura sin zod en `lib/employee-history.ts` (`groupHistory`, `historyCounts`, `KIND_META`); apuntes de cada noche en `lib/employee-history-entry.ts` (`entryHistoryItems` con el día de `getEffectiveDay`: falta = tocaba trabajar y no vino o «Falta»; fiesta sin motivo no sale); consultas en `lib/employee-history-queries.ts` (DayEntry, Absence y las notas; `noteHistoryItem` da a cada tipo de nota su filtro: Notas, Tareas, Incidencias, Felicitaciones, Conversaciones, Peticiones, y lleva la nota entera en `note` para verla con fotos y editarla). Si añades otra tabla con apuntes sobre empleados, súmala ahí. Tests: `tests/employee-history.test.ts`.

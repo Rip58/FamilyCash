@@ -31,7 +31,8 @@ export default async function Page({
       name: r.employee.name,
       alias: r.employee.alias ?? null,
       departmentName: g.department?.name ?? null,
-      cells: r.cells.map((c) => ({
+      cells: r.cells.map((c, i) => ({
+        notStarted: !r.started[i],
         // Semana muestra SIEMPRE el planning; lo que pasó en Hoy, si difiere, es solo un aviso.
         statusId: (c.planned ?? c.status).id,
         reason: c.reason,

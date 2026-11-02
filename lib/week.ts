@@ -10,6 +10,7 @@ import {
   type EmployeeLite,
   type StatusTypeLite,
   getEffectiveDay,
+  hasStarted,
 } from "./schedule";
 
 const ABBR_BY_CODE: Record<string, string> = {
@@ -155,6 +156,7 @@ export function planCopyWeek(input: {
 
   for (const employee of employees.filter((e) => e.active)) {
     for (const date of weekDays(input.weekStart)) {
+      if (!hasStarted(employee, date)) continue;
       const p = prev.get(`${employee.id}|${addDays(date, -(input.offset ?? 7))}`);
       const c = cur.get(`${employee.id}|${date}`);
       if (c && input.keep?.(c)) continue;

@@ -26,7 +26,7 @@ import { getNotes, getPendingTasksBefore } from "@/lib/note-queries";
 import { noteLine } from "@/lib/notes";
 import { getDepartments, getEmployees, getEntriesBetween, getSections, getSettings, getStatusTypes } from "@/lib/queries";
 import { buildDayReport, buildWeekSummary } from "@/lib/report";
-import { getDayRoster, getWeekGrid } from "@/lib/schedule";
+import { getDayRoster, getWeekGrid, hasStarted } from "@/lib/schedule";
 
 export const metadata = { title: "Informe" };
 export const dynamic = "force-dynamic";
@@ -72,9 +72,10 @@ export default async function Page({
   let share: React.ReactNode = null;
   let addNote: React.ReactNode = null;
 
+  const optionDate = view === "semana" ? weekDays(date)[6]! : date;
   const options = {
     employees: employees
-      .filter((e) => e.active)
+      .filter((e) => e.active && hasStarted(e, optionDate))
       .map((e) => ({ id: e.id, name: e.name }))
       .sort((a, b) => a.name.localeCompare(b.name, "es")),
     departments: departments.filter((d) => d.active !== false).map((d) => ({ id: d.id, name: d.name })),

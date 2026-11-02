@@ -14,7 +14,7 @@ const SICK = st("SICK", false, 3);
 const statusTypes = [WORK, OFF, PAID, SICK];
 
 const emp = (id: string, o: Partial<EmployeeLite> = {}): EmployeeLite => ({
-  id, name: id, defaultDepartmentId: "d1", sortOrder: 0, fixedDaysOff: [5, 6], active: true, ...o,
+  id, name: id, startDate: null, defaultDepartmentId: "d1", sortOrder: 0, fixedDaysOff: [5, 6], active: true, ...o,
 });
 const entry = (employeeId: string, date: string, s: StatusTypeLite, o: Partial<DayEntryLite> = {}): DayEntryLite => ({
   employeeId, date, statusTypeId: s.id, departmentId: null, reason: null,

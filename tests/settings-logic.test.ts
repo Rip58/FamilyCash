@@ -40,7 +40,7 @@ const statuses: StatusTypeLite[] = [
   { id: "o", code: "OFF", label: "Fiesta", color: "#0f0", isWorking: false, sortOrder: 1 },
 ];
 const emp = (id: string, name: string, fixed: number[], active = true): EmployeeLite => ({
-  id, name, defaultDepartmentId: "d1", sortOrder: 0, fixedDaysOff: fixed, active,
+  id, name, startDate: null, defaultDepartmentId: "d1", sortOrder: 0, fixedDaysOff: fixed, active,
 });
 
 describe("CSV", () => {

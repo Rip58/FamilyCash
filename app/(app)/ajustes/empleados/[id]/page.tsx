@@ -9,7 +9,7 @@ import { db } from "@/lib/db";
 import { WEEKDAY_LETTERS, formatDayLong, formatStamp, fromDbDate, operationalToday } from "@/lib/dates";
 import { getDepartments, getEmployees, getEntriesBetween, getSections, getSettings, getStatusTypes } from "@/lib/queries";
 import { loadEmployeeHistory } from "@/lib/employee-history-queries";
-import { getEffectiveDay } from "@/lib/schedule";
+import { getEffectiveDay, hasStarted } from "@/lib/schedule";
 import { headers } from "next/headers";
 import { VacationPinCard } from "@/components/employee/VacationPinCard";
 import { ensureVacationPins, getVacationCampaign } from "@/lib/vacation-queries";
@@ -29,6 +29,8 @@ export default async function Page({
   const { tab: rawTab } = await searchParams;
   const employee = await db.employee.findUnique({ where: { id } });
   if (!employee) notFound();
+  const startDate = employee.startDate ? fromDbDate(employee.startDate) : null;
+  const employeeLite = { ...employee, startDate };
   const tabParam = Array.isArray(rawTab) ? rawTab[0] : rawTab;
   const tab = isFileTab(tabParam) ? tabParam : "datos";
 
@@ -55,7 +57,8 @@ export default async function Page({
     sections: sections.filter((s) => s.active).map((s) => ({ id: s.id, name: s.name })),
   };
   const entry = todayEntries.find((e) => e.employeeId === id) ?? null;
-  const day = getEffectiveDay(employee, today, entry, statusTypes);
+  const startedToday = hasStarted(employeeLite, today);
+  const day = startedToday ? getEffectiveDay(employeeLite, today, entry, statusTypes) : null;
   const dept = departments.find((d) => d.id === employee.defaultDepartmentId) ?? null;
   // Vacaciones: PIN fijo (se crea la primera vez) y el mensaje con el enlace cuando la página esté lista.
   const campaign = tab === "datos" && employee.active ? await getVacationCampaign() : null;
@@ -91,6 +94,7 @@ export default async function Page({
 
       <section aria-label="Resumen" className="mb-4 rounded-card bg-surface px-4 py-3">
         {employee.alias && <p className="text-[14px] text-muted">Alias: {employee.alias}</p>}
+        {startDate && <p className="text-[14px] text-muted">Desde el {formatDayLong(startDate).toLowerCase()}</p>}
         <div className="mt-1 flex flex-wrap items-center gap-2">
           {dept ? <Tag color={dept.color}>{dept.name}</Tag> : <span className="text-[14px] text-muted">Sin departamento</span>}
           {!employee.active && <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium text-muted">Inactivo</span>}
@@ -102,7 +106,11 @@ export default async function Page({
         </div>
         <p className="mt-2 flex flex-wrap items-center gap-2 text-[14px]" data-testid="today-status">
           <span className="text-muted">Hoy ({formatDayLong(today)}):</span>
-          <Tag color={day.status.color}>{day.status.label}</Tag>
+          {day ? (
+            <Tag color={day.status.color}>{day.status.label}</Tag>
+          ) : (
+            <span className="text-muted">Aún no ha empezado (empieza el {formatDayLong(startDate!).toLowerCase()})</span>
+          )}
         </p>
       </section>
 
@@ -117,6 +125,7 @@ export default async function Page({
             id: employee.id,
             name: employee.name,
             alias: employee.alias,
+            startDate,
             defaultDepartmentId: employee.defaultDepartmentId,
             defaultExtraDepartmentIds: employee.defaultExtraDepartmentIds ?? [],
             fixedDaysOff: employee.fixedDaysOff,

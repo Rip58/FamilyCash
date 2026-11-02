@@ -20,7 +20,7 @@ const NAMES = [
   "Ricardo Luis Ayazo Baldovino", "Sebastian Cerda", "Sergi Ben Amor",
 ];
 const employees: EmployeeLite[] = NAMES.map((name, i) => ({
-  id: `e${i}`, name, defaultDepartmentId: null, sortOrder: i, fixedDaysOff: [], active: true,
+  id: `e${i}`, name, startDate: null, defaultDepartmentId: null, sortOrder: i, fixedDaysOff: [], active: true,
 }));
 const T = "WORK", F = "OFF", V = "VACATION", B = "SICK", A = "ABSENT";
 const row = (name: string, d: string[]) => ({

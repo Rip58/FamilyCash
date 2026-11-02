@@ -29,7 +29,7 @@ const dep = (id: string, name: string, sortOrder: number, targetStaff: number): 
 });
 const departments = [dep("drog", "Droguería", 0, 2), dep("bot", "Botellería", 1, 1)];
 const emp = (id: string, o: Partial<EmployeeLite> = {}): EmployeeLite => ({
-  id, name: id, defaultDepartmentId: "drog", sortOrder: 0, fixedDaysOff: [], active: true, ...o,
+  id, name: id, startDate: null, defaultDepartmentId: "drog", sortOrder: 0, fixedDaysOff: [], active: true, ...o,
 });
 const entry = (employeeId: string, date: string, s: StatusTypeLite, o: Partial<DayEntryLite> = {}): DayEntryLite => ({
   employeeId, date, statusTypeId: s.id, departmentId: null, reason: null,

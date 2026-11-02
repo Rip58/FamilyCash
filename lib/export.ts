@@ -6,6 +6,7 @@ import {
   type EmployeeLite,
   type StatusTypeLite,
   getEffectiveDay,
+  hasStarted,
 } from "./schedule";
 
 export const CSV_HEADER = [
@@ -63,6 +64,7 @@ export function buildExportRows(input: ExportInput): string[][] {
   for (const date of daysInRange(from, to)) {
     for (const emp of employees) {
       const entry = entryMap.get(key(emp.id, date));
+      if (!hasStarted(emp, date)) continue;
       // Los inactivos solo aparecen los días con entrada.
       if (!emp.active && !entry) continue;
       const day = getEffectiveDay(emp, date, entry, statusTypes);

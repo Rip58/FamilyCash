@@ -7,7 +7,7 @@ const st = (code: string, isWorking: boolean, sortOrder: number): StatusTypeLite
 });
 const statusTypes = [st("WORK", true, 0), st("OFF", false, 1), st("VACATION", false, 2), st("SICK", false, 3)];
 const emp = (id: string, fixedDaysOff: number[] = []): EmployeeLite => ({
-  id, name: id, defaultDepartmentId: "d1", sortOrder: 0, fixedDaysOff, active: true,
+  id, name: id, startDate: null, defaultDepartmentId: "d1", sortOrder: 0, fixedDaysOff, active: true,
 });
 const entry = (employeeId: string, date: string, code: string, departmentId: string | null = null): DayEntryLite => ({
   employeeId, date, statusTypeId: `st-${code}`, departmentId, reason: null,

@@ -15,7 +15,7 @@ const dep = (id: string, name: string, sortOrder: number, targetStaff: number): 
 });
 const departments = [dep("drog", "Droguería", 0, 2), dep("bot", "Botellería", 1, 1)];
 const emp = (id: string, dept: string): EmployeeLite => ({
-  id, name: id, defaultDepartmentId: dept, sortOrder: 0, fixedDaysOff: [], active: true,
+  id, name: id, startDate: null, defaultDepartmentId: dept, sortOrder: 0, fixedDaysOff: [], active: true,
 });
 const entry = (employeeId: string, s: StatusTypeLite): DayEntryLite => ({
   employeeId, date: MON, statusTypeId: s.id, departmentId: null, reason: null,

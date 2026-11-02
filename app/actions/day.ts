@@ -9,12 +9,12 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { type DateStr, isDateStr, toDbDate } from "@/lib/dates";
+import { type DateStr, fromDbDate, isDateStr, toDbDate } from "@/lib/dates";
 import { formatOvertime, isValidOvertime } from "@/lib/overtime";
 import { authorizeNight, employeeName, logGuest } from "@/lib/guest-server";
 import { getSettings } from "@/lib/queries";
 import { syncAbsence } from "@/lib/absence-log";
-import { type DayEntryLite, type EmployeeLite, type StatusTypeLite, getEffectiveDay } from "@/lib/schedule";
+import { type DayEntryLite, type EmployeeLite, type StatusTypeLite, getEffectiveDay, hasStarted } from "@/lib/schedule";
 import {
   type EntryPatch,
   TIME_RE,
@@ -158,6 +158,7 @@ async function loadContext(tx: Tx, employeeId: string, date: DateStr) {
   const employee: EmployeeLite = {
     id: emp.id,
     name: emp.name,
+    startDate: emp.startDate ? fromDbDate(emp.startDate) : null,
     defaultDepartmentId: emp.defaultDepartmentId,
     sortOrder: emp.sortOrder,
     fixedDaysOff: emp.fixedDaysOff,
@@ -165,6 +166,7 @@ async function loadContext(tx: Tx, employeeId: string, date: DateStr) {
     active: emp.active,
     notes: emp.notes,
   };
+  if (!hasStarted(employee, date)) throw new UserError("Aún no había empezado ese día.");
   return {
     employee,
     statusTypes: statusTypes as StatusTypeLite[],

@@ -369,7 +369,8 @@ export function buildWeekSummary(input: BuildWeekSummaryInput): WeekSummary {
     const counts: Record<string, number> = {};
     let late = 0;
     let extra = 0;
-    for (const cell of row.cells) {
+    for (const [i, cell] of row.cells.entries()) {
+      if (!row.started[i]) continue;
       if (cell.isWorking && cell.extraMinutes) extra += cell.extraMinutes;
       if (!cell.isWorking) {
         counts[cell.status.id] = (counts[cell.status.id] ?? 0) + 1;

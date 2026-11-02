@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { revalidatePath, updateTag } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { isDateStr, toDbDate } from "@/lib/dates";
 import { REF_TAG } from "@/lib/queries";
 import { checkPassword } from "@/lib/password";
 import { isHexColor, isTime, isProtectedStatus, nextSortOrder, sortOrderUpdates, uniqueCode } from "@/lib/settings-logic";
@@ -36,6 +37,7 @@ const employeeSchema = z.object({
   id: id.optional(),
   name,
   alias: z.string().trim().max(12, "El alias puede tener como máximo 12 caracteres.").nullish().transform((v) => v || null),
+  startDate: z.union([z.literal(""), z.null(), z.string().refine(isDateStr, "Fecha de inicio no válida.")]).optional(),
   defaultDepartmentId: optionalId,
   defaultExtraDepartmentIds: z.array(id).max(50).optional(),
   fixedDaysOff: z
@@ -58,7 +60,8 @@ export async function saveEmployee(input: z.input<typeof employeeSchema>): Promi
   await requireOwner();
   const p = employeeSchema.safeParse(input);
   if (!p.success) return fail(zodError(p.error));
-  const { id: empId, ...data } = p.data;
+  const { id: empId, startDate, ...data } = p.data;
+  const startDateData = startDate === undefined ? {} : { startDate: startDate ? toDbDate(startDate) : null };
   if (data.defaultDepartmentId) {
     const dep = await db.department.findUnique({ where: { id: data.defaultDepartmentId } });
     if (!dep) return fail("El departamento no existe.");
@@ -73,7 +76,7 @@ export async function saveEmployee(input: z.input<typeof employeeSchema>): Promi
   }
   if (!empId) {
     const created = await db.employee.create({
-      data: { ...data, sortOrder: await endOfDepartment(data.defaultDepartmentId) },
+      data: { ...data, ...startDateData, sortOrder: await endOfDepartment(data.defaultDepartmentId) },
     });
     return done({ id: created.id });
   }
@@ -82,7 +85,7 @@ export async function saveEmployee(input: z.input<typeof employeeSchema>): Promi
   const moved = current.defaultDepartmentId !== data.defaultDepartmentId;
   await db.employee.update({
     where: { id: empId },
-    data: { ...data, ...(moved ? { sortOrder: await endOfDepartment(data.defaultDepartmentId) } : {}) },
+    data: { ...data, ...startDateData, ...(moved ? { sortOrder: await endOfDepartment(data.defaultDepartmentId) } : {}) },
   });
   return done({ id: empId });
 }

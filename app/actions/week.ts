@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { type DateStr, addDays, formatDayLong, isDateStr, toDbDate, weekDays, weekStart as weekStartOf } from "@/lib/dates";
 import { REF_TAG, getEmployees, getEntriesBetween, getStatusTypes } from "@/lib/queries";
-import { getEffectiveDay, isDayOffStatus } from "@/lib/schedule";
+import { getEffectiveDay, hasStarted, isDayOffStatus } from "@/lib/schedule";
 import { MAX_RANGE_DAYS, planCopyWeek, planRepeatWeek, planSetCell, rangeDates, remainingMonthWeeks } from "@/lib/week";
 import { requireOwner } from "@/lib/session";
 import { logPlanningChange } from "@/lib/planning-write";
@@ -53,6 +53,7 @@ export async function setCellStatus(
     ]);
     const employee = employees.find((e) => e.id === input.employeeId);
     if (!employee) return { ok: false, error: "Empleado no encontrado." };
+    if (!hasStarted(employee, input.date)) return { ok: false, error: "Aún no había empezado ese día." };
     if (!statusTypes.some((s) => s.id === input.statusTypeId)) {
       return { ok: false, error: "Estado no encontrado." };
     }
@@ -119,7 +120,7 @@ export async function setCellStatusRange(
     if (!employee) return { ok: false, error: "Empleado no encontrado." };
     if (!statusTypes.some((s) => s.id === input.statusTypeId)) return { ok: false, error: "Estado no encontrado." };
     await db.$transaction(async (tx) => {
-      for (const d of dates) {
+      for (const d of dates.filter((date) => hasStarted(employee, date))) {
         const existing = entries.find((e) => e.employeeId === employee.id && e.date === d) ?? null;
         const plan = planSetCell({ employee, date: d, statusTypeId: input.statusTypeId, reason: input.reason ?? null, existing, statusTypes });
         if (plan.kind === "delete") {
@@ -136,13 +137,13 @@ export async function setCellStatusRange(
           create: { employeeId: employee.id, date: toDbDate(d), statusTypeId: plan.statusTypeId, reason: plan.reason },
         });
       }
-      for (const d of dates) {
+      for (const d of dates.filter((date) => hasStarted(employee, date))) {
         const existing = entries.find((e) => e.employeeId === employee.id && e.date === d) ?? null;
         await logPlanningChange(tx, employee, d, existing, { statusTypeId: input.statusTypeId, reason: input.reason ?? null }, statusTypes);
       }
     });
     revalidate();
-    return { ok: true, changed: dates.length };
+    return { ok: true, changed: dates.filter((date) => hasStarted(employee, date)).length };
   } catch (e) {
     return fail(e);
   }
@@ -359,6 +360,7 @@ export async function applyImportedWeek(input: z.input<typeof importSchema>): Pr
       row.cells.forEach((statusTypeId, i) => {
         if (!statusTypeId || !known.has(statusTypeId)) return;
         const date = days[i]!;
+        if (!hasStarted(employee, date)) return;
         const existing = entries.find((e) => e.employeeId === employee.id && e.date === date) ?? null;
         if (existing?.statusTypeId === statusTypeId) return;
         if (!existing && getEffectiveDay(employee, date, null, statusTypes).status.id === statusTypeId) return;

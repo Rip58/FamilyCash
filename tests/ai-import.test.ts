@@ -4,7 +4,7 @@ import { geminiFallbackModel, geminiSchema, importPrompt, importSchema, matchEmp
 import type { EmployeeLite, StatusTypeLite } from "@/lib/schedule";
 
 const emp = (id: string, name: string, alias: string | null = null): EmployeeLite => ({
-  id, name, alias, defaultDepartmentId: null, sortOrder: 0, fixedDaysOff: [], active: true,
+  id, name, alias, startDate: null, defaultDepartmentId: null, sortOrder: 0, fixedDaysOff: [], active: true,
 });
 const st = (code: string, isWorking: boolean): StatusTypeLite => ({
   id: `st-${code}`, code, label: code, color: "#000", isWorking, sortOrder: 0,

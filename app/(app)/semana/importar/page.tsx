@@ -3,7 +3,7 @@ import { aiProviderLabel, isAiProvider } from "@/lib/ai-import-format";
 import { providerConfigured, providerModel } from "@/lib/ai-providers";
 import { addDays, isDateStr, operationalToday, weekDays, weekStart } from "@/lib/dates";
 import { getEmployees, getEntriesBetween, getSettings, getStatusTypes } from "@/lib/queries";
-import { getEffectiveDay } from "@/lib/schedule";
+import { getEffectiveDay, hasStarted } from "@/lib/schedule";
 import { compactNames } from "@/lib/week";
 
 export const metadata = { title: "Cargar semana desde imagen" };
@@ -21,7 +21,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
   const days = weekDays(week);
   const entries = await getEntriesBetween(days[0]!, days[6]!);
   const byKey = new Map(entries.map((e) => [`${e.employeeId}|${e.date}`, e]));
-  const employees = allEmployees.filter((e) => e.active);
+  const employees = allEmployees.filter((e) => e.active && hasStarted(e, days[6]!));
   const short = compactNames(employees);
   return (
     <WeekImport
