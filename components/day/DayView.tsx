@@ -38,7 +38,8 @@ import { setAbsenceNotice } from "@/app/actions/absences";
 import { setAisleStarts } from "@/app/actions/aisles";
 import { setGroupCover } from "@/app/actions/group";
 import { AbsentSheet } from "./AbsentSheet";
-import { AislesSheet, type AisleGroup } from "./AislesSheet";
+import { AislesSheet, type AisleCandidate, type AisleGroup } from "./AislesSheet";
+import type { AisleInfo } from "@/lib/aisle-format";
 import { EmployeeRow } from "./EmployeeRow";
 import { EmployeeSheet } from "./EmployeeSheet";
 import { MoveSheet } from "./MoveSheet";
@@ -63,8 +64,8 @@ interface DayViewProps {
   pendingDelays?: Record<string, PendingDelay[]>;
   /** Departamentos sin nadie que esta noche hace el «Grupo». */
   groupDepartmentIds?: string[];
-  /** Control de pasillos: hora a la que empezó cada departamento esta noche ("HH:mm"). */
-  aisleStarts?: Record<string, string>;
+  /** Control de pasillos: lo apuntado de cada departamento esta noche (hora, palés subidos y bajados). */
+  aisleLogs?: Record<string, AisleInfo>;
   /** Faltas del registro de esta noche (una falta resuelta en Semana sigue saliendo como falta). */
   loggedAbsences?: LoggedAbsence[];
   /** Abierto con el enlace del compañero (sin ficha ni otras noches). */
@@ -95,7 +96,7 @@ export function DayView({
   isToday = false,
   pendingDelays = {},
   groupDepartmentIds = [],
-  aisleStarts = {},
+  aisleLogs = {},
   loggedAbsences = [],
   guest = false,
   guestChanges = [],
@@ -161,16 +162,23 @@ export function DayView({
       }),
     [date, employees, optEntries, departments, statusTypes, groupIds, loggedAbsences],
   );
-  // Control de pasillos: los departamentos de la noche con su gente (los que trabajan en él y los que lo cubren).
-  const aisleGroups: AisleGroup[] = roster.departments
-    .filter((d) => d.staffed > 0 || d.byGroup)
-    .map((d) => ({
-      id: d.department.id,
-      name: d.department.name,
-      color: d.department.color,
-      people: [...d.present, ...d.covering].map((m) => m.employee.name),
-      byGroup: d.byGroup,
-    }));
+  // Control de pasillos: TODOS los departamentos de la noche, con su gente (los que trabajan en él y los que lo cubren).
+  const aisleGroups: AisleGroup[] = roster.departments.map((d) => ({
+    id: d.department.id,
+    name: d.department.name,
+    color: d.department.color,
+    people: [...d.present, ...d.covering].map((m) => ({
+      id: m.employee.id,
+      name: m.employee.name,
+      moved: m.employee.defaultDepartmentId !== d.department.id && !(m.employee.defaultExtraDepartmentIds ?? []).includes(d.department.id),
+    })),
+    byGroup: d.byGroup,
+  }));
+  // Quién trabaja esta noche (para ponerlo en un departamento) y dónde está ahora.
+  const aisleCandidates: AisleCandidate[] = [
+    ...roster.departments.flatMap((d) => d.present.map((m) => ({ id: m.employee.id, name: m.employee.name, from: d.department.name }))),
+    ...roster.unassigned.map((m) => ({ id: m.employee.id, name: m.employee.name, from: "Sin departamento" })),
+  ].sort((a, b) => a.name.localeCompare(b.name, "es"));
   const deptMap = useMemo(() => new Map(departments.map((d) => [d.id, d])), [departments]);
   const sectionNames = useMemo(() => new Map(sections.map((s) => [s.id, s.name])), [sections]);
   const activeSections = useMemo(() => sections, [sections]);
@@ -595,7 +603,13 @@ export function DayView({
           open={aisleSheet.open}
           onClose={() => setAisleSheet((s) => ({ ...s, open: false }))}
           groups={aisleGroups}
-          starts={aisleStarts}
+          candidates={aisleCandidates}
+          logs={aisleLogs}
+          onAssign={(id, departmentId) => {
+            const habitual = employees.find((e) => e.id === id)?.defaultDepartmentId ?? null;
+            opsFor(id).setDepartment(departmentId === habitual ? null : departmentId, []);
+          }}
+          onRelease={(id) => opsFor(id).setDepartment(null, [])}
           onSave={async (items) => {
             const r = await setAisleStarts({ date, items });
             if (!r.ok) setError(r.error);

@@ -1,6 +1,6 @@
 "use server";
 
-/** Control de pasillos (Hoy ⋯): a qué hora empezó cada departamento esa noche. */
+/** Control de pasillos (Hoy ⋯): hora de inicio y palés subidos/bajados de cada departamento esa noche. */
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { isDateStr, toDbDate } from "@/lib/dates";
@@ -15,6 +15,8 @@ const schema = z.object({
         departmentId: z.string().min(1).max(64),
         /** "HH:mm" o null para borrar. */
         startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(),
+        palletsUp: z.number().int().min(0).max(999).nullable(),
+        palletsDown: z.number().int().min(0).max(999).nullable(),
       }),
     )
     .min(1)
@@ -30,11 +32,11 @@ export async function setAisleStarts(input: z.input<typeof schema>): Promise<{ o
   try {
     await db.$transaction(
       items.map((it) =>
-        it.startTime
+        it.startTime || it.palletsUp !== null || it.palletsDown !== null
           ? db.aisleLog.upsert({
               where: { date_departmentId: { date: d, departmentId: it.departmentId } },
-              create: { date: d, departmentId: it.departmentId, startTime: it.startTime },
-              update: { startTime: it.startTime },
+              create: { date: d, departmentId: it.departmentId, startTime: it.startTime, palletsUp: it.palletsUp, palletsDown: it.palletsDown },
+              update: { startTime: it.startTime, palletsUp: it.palletsUp, palletsDown: it.palletsDown },
             })
           : db.aisleLog.deleteMany({ where: { date: d, departmentId: it.departmentId } }),
       ),
@@ -47,7 +49,16 @@ export async function setAisleStarts(input: z.input<typeof schema>): Promise<{ o
   if (who === "guest") {
     const deps = await db.department.findMany({ where: { id: { in: items.map((i) => i.departmentId) } }, select: { id: true, name: true } });
     const names = new Map(deps.map((x) => [x.id, x.name]));
-    const text = items.map((i) => `${names.get(i.departmentId) ?? "Departamento"} ${i.startTime ? `empieza a las ${i.startTime}` : "sin hora"}`).join(" · ");
+    const text = items
+      .map((i) => {
+        const parts = [
+          i.startTime && `empieza ${i.startTime}`,
+          i.palletsUp !== null && `${i.palletsUp} subidos`,
+          i.palletsDown !== null && `${i.palletsDown} bajados`,
+        ].filter(Boolean);
+        return `${names.get(i.departmentId) ?? "Departamento"} ${parts.join(", ") || "borrado"}`;
+      })
+      .join(" · ");
     await logGuest(date, `Pasillos: ${text}`);
   }
   return { ok: true };

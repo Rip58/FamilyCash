@@ -1,0 +1,2 @@
+ALTER TABLE "AisleLog" ADD COLUMN "palletsUp" INTEGER;
+ALTER TABLE "AisleLog" ADD COLUMN "palletsDown" INTEGER;

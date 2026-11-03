@@ -4,41 +4,100 @@ import { useState } from "react";
 import type { ActionResult } from "@/app/actions/day";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { TimeInput } from "@/components/ui/TimeInput";
-import { tint } from "@/components/ui/icons";
+import { Icon, tint } from "@/components/ui/icons";
+import { type AisleInfo, palletsDone, parsePallets } from "@/lib/aisle-format";
 import { madridTime } from "@/lib/dates";
+
+export interface AislePerson {
+  id: string;
+  name: string;
+  /** Está aquí por un cambio (no es su departamento habitual): se puede devolver a su sitio. */
+  moved: boolean;
+}
 
 export interface AisleGroup {
   id: string;
   name: string;
   color: string;
   /** Quién va en el departamento esa noche (los que trabajan en él y los que vienen a cubrirlo). */
-  people: string[];
+  people: AislePerson[];
   /** Sin nadie, lo hace el grupo. */
   byGroup: boolean;
+}
+
+/** Alguien que trabaja esta noche y se puede poner en un departamento. */
+export interface AisleCandidate {
+  id: string;
+  name: string;
+  /** Dónde está ahora ("Droguería", "Sin departamento"). */
+  from: string;
+}
+
+export interface AisleSave {
+  departmentId: string;
+  startTime: string | null;
+  palletsUp: number | null;
+  palletsDown: number | null;
 }
 
 interface AislesSheetProps {
   open: boolean;
   onClose: () => void;
   groups: AisleGroup[];
-  /** Hora de inicio ya guardada, por departamento. */
-  starts: Record<string, string>;
-  onSave: (items: { departmentId: string; startTime: string | null }[]) => Promise<ActionResult>;
+  candidates: AisleCandidate[];
+  /** Lo ya guardado, por departamento. */
+  logs: Record<string, AisleInfo>;
+  /** Poner a esa persona en ese departamento (solo ése). */
+  onAssign: (employeeId: string, departmentId: string) => void;
+  /** Devolver a esa persona a su departamento habitual. */
+  onRelease: (employeeId: string) => void;
+  onSave: (items: AisleSave[]) => Promise<ActionResult>;
 }
 
-/** Control de pasillos: cada departamento de la noche con su gente y la hora a la que ha empezado. */
-export function AislesSheet({ open, onClose, groups, starts, onSave }: AislesSheetProps) {
-  const [draft, setDraft] = useState<Record<string, string>>(starts);
+interface Draft {
+  start: string;
+  up: string;
+  down: string;
+}
+
+const fieldCls =
+  "min-h-11 w-full min-w-0 rounded-control bg-surface-2 px-3 text-[17px] tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-accent";
+
+const toDraft = (l?: AisleInfo): Draft => ({
+  start: l?.startTime ?? "",
+  up: l?.palletsUp === null || l?.palletsUp === undefined ? "" : String(l.palletsUp),
+  down: l?.palletsDown === null || l?.palletsDown === undefined ? "" : String(l.palletsDown),
+});
+
+/**
+ * Control de pasillos: TODOS los departamentos de la noche, con su gente (y un desplegable para poner a alguien
+ * si está vacío o hay un cambio), la hora a la que empezó y los palés subidos y bajados (hechos = subidos − bajados).
+ */
+export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign, onRelease, onSave }: AislesSheetProps) {
+  const [draft, setDraft] = useState<Record<string, Draft>>(() => Object.fromEntries(groups.map((g) => [g.id, toDraft(logs[g.id])])));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const changed = groups.filter((g) => (draft[g.id] ?? "") !== (starts[g.id] ?? ""));
-  const started = groups.filter((g) => (draft[g.id] ?? "") !== "").length;
+  const get = (id: string): Draft => draft[id] ?? toDraft(logs[id]);
+  const set = (id: string, patch: Partial<Draft>) => setDraft((d) => ({ ...d, [id]: { ...get(id), ...patch } }));
+
+  const changed = groups.filter((g) => {
+    const a = get(g.id);
+    const b = toDraft(logs[g.id]);
+    return a.start !== b.start || a.up !== b.up || a.down !== b.down;
+  });
+  const started = groups.filter((g) => get(g.id).start !== "").length;
+  const totalDone = groups.reduce((sum, g) => sum + (palletsDone(parsePallets(get(g.id).up), parsePallets(get(g.id).down)) ?? 0), 0);
 
   const save = async () => {
     setSaving(true);
     setError(null);
-    const r = await onSave(changed.map((g) => ({ departmentId: g.id, startTime: draft[g.id] || null })));
+    const r = await onSave(
+      changed.map((g) => {
+        const d = get(g.id);
+        return { departmentId: g.id, startTime: d.start || null, palletsUp: parsePallets(d.up), palletsDown: parsePallets(d.down) };
+      }),
+    );
     setSaving(false);
     if (r.ok) onClose();
     else setError(r.error);
@@ -48,35 +107,105 @@ export function AislesSheet({ open, onClose, groups, starts, onSave }: AislesShe
     <BottomSheet open={open} onClose={onClose} title="Control de pasillos">
       <div className="flex flex-col gap-2 pb-6">
         <p className="text-[13px] text-muted">
-          Pasillos que han empezado: {started} de {groups.length}
+          Han empezado {started} de {groups.length} · Palés hechos: <span className="font-semibold text-fg">{totalDone}</span>
         </p>
-        {groups.length === 0 && <p className="py-6 text-center text-[15px] text-muted">Esta noche no hay departamentos con personal.</p>}
-        {groups.map((g) => (
-          <section key={g.id} className="rounded-card bg-surface p-3" style={{ borderLeft: `4px solid ${g.color}` }}>
-            <h3 className="text-[16px] font-semibold">{g.name}</h3>
-            <p className="mb-2 mt-0.5 text-[14px] leading-snug text-muted">
-              {g.people.length > 0 ? g.people.join(", ") : g.byGroup ? "Lo hace el grupo" : "Sin nadie"}
-            </p>
-            <div className="flex items-end gap-2">
-              <TimeInput
-                label="Empezó a las"
-                value={draft[g.id] ?? ""}
-                onChange={(v) => setDraft((d) => ({ ...d, [g.id]: v }))}
-                clearable
-                className="flex-1"
-              />
-              <button
-                type="button"
-                onClick={() => setDraft((d) => ({ ...d, [g.id]: madridTime(new Date()) }))}
-                className="press min-h-11 shrink-0 rounded-control px-3.5 text-[15px] font-semibold text-accent"
-                style={{ backgroundColor: tint(g.color, 18) }}
+        {groups.map((g) => {
+          const d = get(g.id);
+          const done = palletsDone(parsePallets(d.up), parsePallets(d.down));
+          const here = new Set(g.people.map((p) => p.id));
+          const options = candidates.filter((c) => !here.has(c.id));
+          return (
+            <section key={g.id} className="rounded-card bg-surface p-3" style={{ borderLeft: `4px solid ${g.color}` }}>
+              <h3 className="text-[16px] font-semibold">{g.name}</h3>
+
+              <ul className="mb-2 mt-1 flex flex-wrap gap-1.5">
+                {g.people.map((p) => (
+                  <li
+                    key={p.id}
+                    className="flex min-h-9 items-center gap-1 rounded-full pl-3 text-[14px]"
+                    style={{ backgroundColor: tint(g.color, 18) }}
+                  >
+                    {p.name}
+                    {p.moved ? (
+                      <button
+                        type="button"
+                        aria-label={`Devolver a ${p.name} a su departamento`}
+                        onClick={() => onRelease(p.id)}
+                        className="press flex h-9 w-9 items-center justify-center text-muted"
+                      >
+                        <Icon name="close" className="h-4 w-4" strokeWidth={2.4} />
+                      </button>
+                    ) : (
+                      <span className="w-3" aria-hidden />
+                    )}
+                  </li>
+                ))}
+                {g.people.length === 0 && <li className="py-1.5 text-[14px] text-muted">{g.byGroup ? "Lo hace el grupo" : "Sin nadie"}</li>}
+              </ul>
+
+              <select
+                aria-label={`Poner a alguien en ${g.name}`}
+                value=""
+                onChange={(e) => e.target.value && onAssign(e.target.value, g.id)}
+                className={`${fieldCls} mb-2 text-[16px]`}
               >
-                Ahora
-              </button>
-            </div>
-          </section>
-        ))}
-        {error && <p role="alert" className="text-[14px] text-danger">{error}</p>}
+                <option value="">{g.people.length === 0 ? "Poner a alguien aquí…" : "Añadir o cambiar a alguien…"}</option>
+                {options.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} · {c.from}
+                  </option>
+                ))}
+              </select>
+
+              <div className="flex items-end gap-2">
+                <TimeInput label="Empezó a las" value={d.start} onChange={(v) => set(g.id, { start: v })} clearable className="flex-1" />
+                <button
+                  type="button"
+                  onClick={() => set(g.id, { start: madridTime(new Date()) })}
+                  className="press min-h-11 shrink-0 rounded-control px-3.5 text-[15px] font-semibold text-accent"
+                  style={{ backgroundColor: tint(g.color, 18) }}
+                >
+                  Ahora
+                </button>
+              </div>
+
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <label className="flex flex-col gap-1 text-[13px] text-muted">
+                  Palés subidos
+                  <input
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={3}
+                    value={d.up}
+                    onChange={(e) => set(g.id, { up: e.target.value.replace(/\D/g, "") })}
+                    className={fieldCls}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-[13px] text-muted">
+                  Palés bajados
+                  <input
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={3}
+                    value={d.down}
+                    onChange={(e) => set(g.id, { down: e.target.value.replace(/\D/g, "") })}
+                    className={fieldCls}
+                  />
+                </label>
+              </div>
+              {done !== null && (
+                <p className="mt-1.5 text-[14px]">
+                  Hechos: <span className="font-semibold">{done}</span>
+                </p>
+              )}
+            </section>
+          );
+        })}
+        {error && (
+          <p role="alert" className="text-[14px] text-danger">
+            {error}
+          </p>
+        )}
         <button
           type="button"
           disabled={saving || changed.length === 0}
@@ -85,6 +214,7 @@ export function AislesSheet({ open, onClose, groups, starts, onSave }: AislesShe
         >
           {saving ? "Guardando…" : changed.length > 0 ? `Guardar (${changed.length})` : "Guardar"}
         </button>
+        <p className="text-[12px] text-muted">Los cambios de personal se guardan al momento; la hora y los palés, al pulsar Guardar.</p>
       </div>
     </BottomSheet>
   );

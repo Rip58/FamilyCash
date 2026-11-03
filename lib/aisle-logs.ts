@@ -1,12 +1,15 @@
-/** Control de pasillos: lecturas (solo servidor). Por ahora solo la hora a la que empezó cada departamento. */
+/** Control de pasillos: lecturas (solo servidor). */
+import type { AisleInfo } from "./aisle-format";
 import { type DateStr, toDbDate } from "./dates";
 import { db } from "./db";
 
-/** Hora de inicio ("HH:mm") por departamento de una noche. */
-export async function getAisleStarts(date: DateStr): Promise<Record<string, string>> {
+/** Lo apuntado de cada departamento en una noche, por id de departamento. */
+export async function getAisleLogs(date: DateStr): Promise<Record<string, AisleInfo>> {
   const rows = await db.aisleLog.findMany({
-    where: { date: toDbDate(date), startTime: { not: null } },
-    select: { departmentId: true, startTime: true },
+    where: { date: toDbDate(date) },
+    select: { departmentId: true, startTime: true, palletsUp: true, palletsDown: true },
   });
-  return Object.fromEntries(rows.map((r) => [r.departmentId, r.startTime!]));
+  return Object.fromEntries(
+    rows.map((r) => [r.departmentId, { startTime: r.startTime, palletsUp: r.palletsUp, palletsDown: r.palletsDown }]),
+  );
 }
