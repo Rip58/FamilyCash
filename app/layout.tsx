@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { NoPageZoom } from "@/components/pwa/NoPageZoom";
+import { IdleReset } from "@/components/pwa/IdleReset";
 import { RegisterSW } from "@/components/pwa/RegisterSW";
 
 export const metadata: Metadata = {
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
         <RegisterSW />
         <NoPageZoom />
+        <IdleReset />
       </body>
     </html>
   );
