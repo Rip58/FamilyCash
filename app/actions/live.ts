@@ -2,7 +2,7 @@
 
 /**
  * Hoy en vivo: una «huella» barata de todo lo que se puede apuntar en una noche (lista, puestos, horas, notas y fotos,
- * Grupo, faltas y cambios del compañero). `useLiveNight` la consulta cada pocos segundos y, si cambia, refresca la
+ * Grupo, pasillos, faltas y cambios del compañero). `useLiveNight` la consulta cada pocos segundos y, si cambia, refresca la
  * página: así lo que apunta el compañero en /turno sale en tu Hoy (y al revés) sin tener que salir y volver.
  */
 import { z } from "zod";
@@ -24,6 +24,7 @@ export async function nightVersion(date: string): Promise<string | null> {
       (SELECT count(*) FROM "NightNotePhoto" ph JOIN "NightNote" n ON n."id" = ph."noteId" WHERE n."date" = ${d}),
       (SELECT count(*) || ':' || coalesce(max("createdAt")::text, '') FROM "GroupCover" WHERE "date" = ${d}),
       (SELECT count(*) || ':' || coalesce(max("updatedAt")::text, '') FROM "Absence" WHERE "date" = ${d}),
+      (SELECT count(*) || ':' || coalesce(max("updatedAt")::text, '') FROM "AisleLog" WHERE "date" = ${d}),
       (SELECT count(*) FROM "GuestChange" WHERE "date" = ${d})
     ) AS v`;
   return rows[0]?.v ?? null;

@@ -35,8 +35,10 @@ import {
 } from "@/lib/schedule";
 import { type EntryPatch, type ShiftTimes, applyEntryPatch } from "@/lib/segments";
 import { setAbsenceNotice } from "@/app/actions/absences";
+import { setAisleStarts } from "@/app/actions/aisles";
 import { setGroupCover } from "@/app/actions/group";
 import { AbsentSheet } from "./AbsentSheet";
+import { AislesSheet, type AisleGroup } from "./AislesSheet";
 import { EmployeeRow } from "./EmployeeRow";
 import { EmployeeSheet } from "./EmployeeSheet";
 import { MoveSheet } from "./MoveSheet";
@@ -61,6 +63,8 @@ interface DayViewProps {
   pendingDelays?: Record<string, PendingDelay[]>;
   /** Departamentos sin nadie que esta noche hace el «Grupo». */
   groupDepartmentIds?: string[];
+  /** Control de pasillos: hora a la que empezó cada departamento esta noche ("HH:mm"). */
+  aisleStarts?: Record<string, string>;
   /** Faltas del registro de esta noche (una falta resuelta en Semana sigue saliendo como falta). */
   loggedAbsences?: LoggedAbsence[];
   /** Abierto con el enlace del compañero (sin ficha ni otras noches). */
@@ -91,6 +95,7 @@ export function DayView({
   isToday = false,
   pendingDelays = {},
   groupDepartmentIds = [],
+  aisleStarts = {},
   loggedAbsences = [],
   guest = false,
   guestChanges = [],
@@ -102,6 +107,7 @@ export function DayView({
   const [move, setMove] = useState<{ id: string; open: boolean; checkIn?: boolean } | null>(null);
   const [absentSheet, setAbsentSheet] = useState<{ id: string; open: boolean; change?: boolean } | null>(null);
   const [closeSheet, setCloseSheet] = useState<{ open: boolean; n: number }>({ open: false, n: 0 });
+  const [aisleSheet, setAisleSheet] = useState<{ open: boolean; n: number }>({ open: false, n: 0 });
   const madridHour = useSyncExternalStore(subscribeNever, currentMadridHour, () => null);
   const [noteSheet, setNoteSheet] = useState<{ open: boolean; employeeId: string | null }>({ open: false, employeeId: null });
   const [flat, setFlat] = useState(false);
@@ -155,6 +161,16 @@ export function DayView({
       }),
     [date, employees, optEntries, departments, statusTypes, groupIds, loggedAbsences],
   );
+  // Control de pasillos: los departamentos de la noche con su gente (los que trabajan en él y los que lo cubren).
+  const aisleGroups: AisleGroup[] = roster.departments
+    .filter((d) => d.staffed > 0 || d.byGroup)
+    .map((d) => ({
+      id: d.department.id,
+      name: d.department.name,
+      color: d.department.color,
+      people: [...d.present, ...d.covering].map((m) => m.employee.name),
+      byGroup: d.byGroup,
+    }));
   const deptMap = useMemo(() => new Map(departments.map((d) => [d.id, d])), [departments]);
   const sectionNames = useMemo(() => new Map(sections.map((s) => [s.id, s.name])), [sections]);
   const activeSections = useMemo(() => sections, [sections]);
@@ -377,6 +393,11 @@ export function DayView({
               onSelect: toggleFlat,
             },
             {
+              icon: "route",
+              label: "Control de pasillos",
+              onSelect: () => setAisleSheet((s) => ({ open: true, n: s.n + 1 })),
+            },
+            {
               icon: "clockMoon",
               label: "Cierre de turno",
               hint: nightExtra !== 0 ? formatOvertime(nightExtra, true) : undefined,
@@ -564,6 +585,21 @@ export function DayView({
           onOvertime={() => {
             setSheet((s) => (s ? { ...s, open: false } : s));
             setCloseSheet((c) => ({ open: true, n: c.n + 1 }));
+          }}
+        />
+      )}
+
+      {aisleSheet.n > 0 && (
+        <AislesSheet
+          key={aisleSheet.n}
+          open={aisleSheet.open}
+          onClose={() => setAisleSheet((s) => ({ ...s, open: false }))}
+          groups={aisleGroups}
+          starts={aisleStarts}
+          onSave={async (items) => {
+            const r = await setAisleStarts({ date, items });
+            if (!r.ok) setError(r.error);
+            return r;
           }}
         />
       )}

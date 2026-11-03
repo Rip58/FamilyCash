@@ -194,3 +194,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Notas técnicas (reinicio por inactividad)
 - `components/pwa/IdleReset.tsx` (en el layout raíz, cubre también /turno y /vacaciones): si la app lleva más de `IDLE_RESET_MS` (15 min, `lib/idle-reset.ts`) sin estar a la vista, al volver hace `location.reload()`. Motivo: en iOS, tras congelar la PWA en segundo plano varias veces, el táctil a veces se descuadra (se toca en un sitio y responde otro) o la página se cuelga; una recarga completa lo arregla. Todo pasa por `check` (visibilitychange, pageshow, focus, pointerdown y latido de 20 s), que compara ANTES de renovar `lastSeen`. No recarga si hay un campo enfocado con texto escrito. Test: `tests/idle-reset.test.ts`.
+
+## Notas técnicas (control de pasillos)
+- Hoy → ⋯ → «Control de pasillos» (`components/day/AislesSheet.tsx`, también en /turno): los departamentos de la noche con personal (o «Grupo»), con quién va en cada uno (`present` + `covering`) y «Empezó a las» (`TimeInput` + «Ahora»), con un único «Guardar» (`setAisleStarts`, `app/actions/aisles.ts`, `authorizeNight`, el compañero también deja constancia en `GuestChange`).
+- `AisleLog` (migración `aisle_log`, en `BACKUP_TABLES`, en la huella de `nightVersion`): una fila por noche y departamento con `startTime` "HH:mm". Es la base para lo siguiente (nº de palés al empezar, despaletizar con hora de inicio y fin): añade las columnas ahí. Lectura `getAisleStarts(date)` en `lib/aisle-logs.ts`.

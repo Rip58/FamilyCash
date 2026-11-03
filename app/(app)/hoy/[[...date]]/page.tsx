@@ -6,6 +6,7 @@ import { addDays, formatDayLong, isDateStr, madridTime, operationalToday, toDbDa
 import { getNotes } from "@/lib/note-queries";
 import { getLoggedAbsences } from "@/lib/absence-log";
 import { db } from "@/lib/db";
+import { getAisleStarts } from "@/lib/aisle-logs";
 import { getGroupCovers } from "@/lib/group-covers";
 import { getPendingDelays } from "@/lib/overtime-queries";
 import { getDepartments, getEmployees, getEntriesBetween, getSections, getSettings, getStatusTypes } from "@/lib/queries";
@@ -25,7 +26,7 @@ export default async function Page({ params }: { params: Promise<{ date?: string
   const date = segs ? segs[0]! : today;
   const isToday = date === today;
 
-  const [employees, departments, statusTypes, sections, entries, notes, pendingDelays, groupCovers, loggedAbsences, guestChanges] = await Promise.all([
+  const [employees, departments, statusTypes, sections, entries, notes, pendingDelays, groupCovers, loggedAbsences, guestChanges, aisleStarts] = await Promise.all([
     getEmployees(),
     getDepartments(),
     getStatusTypes(),
@@ -37,6 +38,7 @@ export default async function Page({ params }: { params: Promise<{ date?: string
     getGroupCovers(date, date),
     getLoggedAbsences(db, date, date),
     db.guestChange.findMany({ where: { date: toDbDate(date) }, orderBy: { createdAt: "asc" } }),
+    getAisleStarts(date),
   ]);
 
   const title = `${formatDayLong(date)} · ${settings.shiftStart}–${settings.shiftEnd}`;
@@ -92,6 +94,7 @@ export default async function Page({ params }: { params: Promise<{ date?: string
         notes={notes}
         pendingDelays={pendingDelays}
         groupDepartmentIds={groupCovers.map((g) => g.departmentId)}
+        aisleStarts={aisleStarts}
         loggedAbsences={loggedAbsences}
         guestChanges={guestChanges.map((c) => ({ text: c.text, time: madridTime(c.createdAt) }))}
       />

@@ -6,6 +6,7 @@ import { addDays, formatDayLong, formatDayShort } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { GUEST_UNTIL, guestNight } from "@/lib/guest";
 import { guestNightNow } from "@/lib/guest-server";
+import { getAisleStarts } from "@/lib/aisle-logs";
 import { getGroupCovers } from "@/lib/group-covers";
 import { getNotes } from "@/lib/note-queries";
 import { getPendingDelays } from "@/lib/overtime-queries";
@@ -26,7 +27,7 @@ export default async function Page() {
   const night = (await guestNightNow()) ?? ((await isOwner()) ? guestNight(new Date()) : null);
   if (!night) return <GuestPinForm />;
 
-  const [settings, employees, departments, statusTypes, sections, entries, notes, pendingDelays, groupCovers, loggedAbsences] =
+  const [settings, employees, departments, statusTypes, sections, entries, notes, pendingDelays, groupCovers, loggedAbsences, aisleStarts] =
     await Promise.all([
       getSettings(),
       getEmployees(),
@@ -38,6 +39,7 @@ export default async function Page() {
       getPendingDelays(night),
       getGroupCovers(night, night),
       getLoggedAbsences(db, night, night),
+      getAisleStarts(night),
     ]);
 
   // El mismo informe que comparte el dueño desde Informe (solo de esta noche).
@@ -90,6 +92,7 @@ export default async function Page() {
         notes={notes}
         pendingDelays={pendingDelays}
         groupDepartmentIds={groupCovers.map((g) => g.departmentId)}
+        aisleStarts={aisleStarts}
         loggedAbsences={loggedAbsences}
       />
     </div>
