@@ -3,7 +3,6 @@
 import { useState } from "react";
 import type { ActionResult } from "@/app/actions/day";
 import { BottomSheet } from "@/components/ui/BottomSheet";
-import { TimeInput } from "@/components/ui/TimeInput";
 import { Icon, tint } from "@/components/ui/icons";
 import { type AisleInfo, MAX_AISLE_NOTE, palletsDone, parsePallets } from "@/lib/aisle-format";
 import { madridTime } from "@/lib/dates";
@@ -15,11 +14,18 @@ export interface AislePerson {
   removable: boolean;
 }
 
+/** Una fila del control: un departamento, o un pasillo separado dentro de él (Leche, Café…). */
 export interface AisleGroup {
-  id: string;
+  /** `aisleKey`: departamento o departamento:sección. */
+  key: string;
+  departmentId: string;
+  sectionId: string | null;
   name: string;
+  /** Departamento, si es un pasillo separado. */
+  parent: string | null;
   color: string;
-  /** Quién va en el departamento esa noche (los que trabajan en él y los que vienen a cubrirlo). */
+  /** "department": la gente sale de los puestos de la noche (`people`); "list": se apunta aquí, en este pasillo. */
+  mode: "department" | "list";
   people: AislePerson[];
   /** Sin nadie, lo hace el grupo. */
   byGroup: boolean;
@@ -27,7 +33,7 @@ export interface AisleGroup {
   hidden: boolean;
 }
 
-/** Alguien presente esta noche que se puede añadir a un departamento (solo se muestra el nombre). */
+/** Alguien presente esta noche que se puede añadir a un pasillo (solo se muestra el nombre). */
 export interface AisleCandidate {
   id: string;
   name: string;
@@ -35,6 +41,8 @@ export interface AisleCandidate {
 
 export interface AisleSave {
   departmentId: string;
+  sectionId: string | null;
+  employeeIds: string[];
   startTime: string | null;
   endTime: string | null;
   palletsUp: number | null;
@@ -48,14 +56,17 @@ interface AislesSheetProps {
   onClose: () => void;
   groups: AisleGroup[];
   candidates: AisleCandidate[];
-  /** Lo ya guardado, por departamento. */
+  /** Nombre de cada empleado (para las personas apuntadas en un pasillo separado). */
+  names: Record<string, string>;
+  /** Lo ya guardado, por clave de pasillo. */
   logs: Record<string, AisleInfo>;
   /** Añadir a esa persona a ese departamento (suma: puede hacer varios pasillos en la noche). */
   onAssign: (employeeId: string, departmentId: string) => void;
   /** Quitar a esa persona de ese departamento (los demás que hace se quedan). */
   onRemove: (employeeId: string, departmentId: string) => void;
   onSave: (items: AisleSave[]) => Promise<ActionResult>;
-  onToggleHidden: (departmentId: string, hidden: boolean) => void;
+  /** El ojo: oculta el pasillo SOLO esta noche. */
+  onToggleHidden: (departmentId: string, sectionId: string | null, hidden: boolean) => void;
 }
 
 interface Draft {
@@ -65,57 +76,92 @@ interface Draft {
   down: string;
   surplus: string;
   note: string;
+  /** Personas del pasillo (solo en los separados). */
+  people: string[];
 }
 
-const fieldCls =
-  "min-h-11 w-full min-w-0 rounded-control bg-surface-2 px-3 text-[17px] tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-accent";
-
+const num = (n: number | null | undefined) => (n === null || n === undefined ? "" : String(n));
 const toDraft = (l?: AisleInfo): Draft => ({
   start: l?.startTime ?? "",
   end: l?.endTime ?? "",
-  up: l?.palletsUp === null || l?.palletsUp === undefined ? "" : String(l.palletsUp),
-  down: l?.palletsDown === null || l?.palletsDown === undefined ? "" : String(l.palletsDown),
-  surplus: l?.palletsSurplus === null || l?.palletsSurplus === undefined ? "" : String(l.palletsSurplus),
+  up: num(l?.palletsUp),
+  down: num(l?.palletsDown),
+  surplus: num(l?.palletsSurplus),
   note: l?.note ?? "",
+  people: l?.employeeIds ?? [],
 });
 
+const same = (a: Draft, b: Draft) =>
+  a.start === b.start &&
+  a.end === b.end &&
+  a.up === b.up &&
+  a.down === b.down &&
+  a.surplus === b.surplus &&
+  a.note.trim() === b.note.trim() &&
+  a.people.length === b.people.length &&
+  a.people.every((p, i) => p === b.people[i]);
+
+const field =
+  "h-10 w-full min-w-0 rounded-control bg-surface-2 px-2.5 text-[15px] tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-accent";
+const tiny = "press h-6 rounded px-1.5 text-[12px] font-semibold";
+
+/** Etiqueta de un campo de la tarjeta (11 px) con acciones pequeñas a la derecha. */
+function Label({ children, actions }: { children: string; actions?: React.ReactNode }) {
+  return (
+    <span className="flex h-6 items-center justify-between text-[11px] font-medium text-muted">
+      {children}
+      {actions && <span className="flex items-center">{actions}</span>}
+    </span>
+  );
+}
+
 /**
- * Control de pasillos: TODOS los departamentos de la noche, con su gente (y un desplegable para añadir a alguien;
- * una persona puede hacer varios pasillos en la noche), la hora a la que empezó y los palés subidos y bajados (hechos = subidos − bajados).
+ * Control de pasillos, en módulos pequeños como el resto de la app: una tarjeta por pasillo (cabecera de 32 px con el
+ * nombre, los palés hechos y el ojo; debajo la gente, las dos horas, los tres palés y una nota). Un departamento se
+ * puede separar en pasillos (Leche, Café…) en Ajustes → Secciones.
  */
-export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign, onRemove, onSave, onToggleHidden }: AislesSheetProps) {
-  const [draft, setDraft] = useState<Record<string, Draft>>(() => Object.fromEntries(groups.map((g) => [g.id, toDraft(logs[g.id])])));
+export function AislesSheet({ open, onClose, groups, candidates, names, logs, onAssign, onRemove, onSave, onToggleHidden }: AislesSheetProps) {
+  const [draft, setDraft] = useState<Record<string, Draft>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // El ojo responde al momento; la página se refresca después y las props se ponen al día.
   const [hiddenNow, setHiddenNow] = useState<Record<string, boolean>>({});
-  const isHidden = (g: AisleGroup) => hiddenNow[g.id] ?? g.hidden;
+
+  const get = (g: AisleGroup): Draft => draft[g.key] ?? toDraft(logs[g.key]);
+  const set = (g: AisleGroup, patch: Partial<Draft>) => setDraft((d) => ({ ...d, [g.key]: { ...get(g), ...patch } }));
+  const isHidden = (g: AisleGroup) => hiddenNow[g.key] ?? g.hidden;
   const toggleHidden = (g: AisleGroup) => {
     const next = !isHidden(g);
-    setHiddenNow((h) => ({ ...h, [g.id]: next }));
-    onToggleHidden(g.id, next);
+    setHiddenNow((h) => ({ ...h, [g.key]: next }));
+    onToggleHidden(g.departmentId, g.sectionId, next);
   };
+
   const shown = groups.filter((g) => !isHidden(g));
   const hiddenGroups = groups.filter(isHidden);
-
-  const get = (id: string): Draft => draft[id] ?? toDraft(logs[id]);
-  const set = (id: string, patch: Partial<Draft>) => setDraft((d) => ({ ...d, [id]: { ...get(id), ...patch } }));
-
-  const changed = shown.filter((g) => {
-    const a = get(g.id);
-    const b = toDraft(logs[g.id]);
-    return a.start !== b.start || a.end !== b.end || a.up !== b.up || a.down !== b.down || a.surplus !== b.surplus || a.note.trim() !== b.note.trim();
-  });
-  const started = shown.filter((g) => get(g.id).start !== "" || get(g.id).end !== "").length;
-  const totalDone = shown.reduce((sum, g) => sum + (palletsDone(parsePallets(get(g.id).up), parsePallets(get(g.id).down)) ?? 0), 0);
+  const changed = shown.filter((g) => !same(get(g), toDraft(logs[g.key])));
+  const withData = shown.filter((g) => {
+    const d = get(g);
+    return d.start !== "" || d.end !== "" || d.up !== "" || d.down !== "" || d.surplus !== "";
+  }).length;
+  const totalDone = shown.reduce((n, g) => n + (palletsDone(parsePallets(get(g).up), parsePallets(get(g).down)) ?? 0), 0);
 
   const save = async () => {
     setSaving(true);
     setError(null);
     const r = await onSave(
       changed.map((g) => {
-        const d = get(g.id);
-        return { departmentId: g.id, startTime: d.start || null, endTime: d.end || null, palletsUp: parsePallets(d.up), palletsDown: parsePallets(d.down), palletsSurplus: parsePallets(d.surplus), note: d.note.trim() || null };
+        const d = get(g);
+        return {
+          departmentId: g.departmentId,
+          sectionId: g.sectionId,
+          employeeIds: g.mode === "list" ? d.people : [],
+          startTime: d.start || null,
+          endTime: d.end || null,
+          palletsUp: parsePallets(d.up),
+          palletsDown: parsePallets(d.down),
+          palletsSurplus: parsePallets(d.surplus),
+          note: d.note.trim() || null,
+        };
       }),
     );
     setSaving(false);
@@ -125,144 +171,175 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
 
   return (
     <BottomSheet open={open} onClose={onClose} title="Control de pasillos">
-      <div className="flex flex-col gap-2 pb-6">
-        <p className="text-[13px] text-muted">
-          Con datos: {started} de {shown.length} · Palés hechos: <span className="font-semibold text-fg">{totalDone}</span>
+      <div className="flex flex-col gap-2 pb-2">
+        <p className="px-1 text-[13px] text-muted">
+          Con datos: {withData} de {shown.length} · Palés hechos: <span className="font-semibold text-fg">{totalDone}</span>
         </p>
-        <p className="text-[12px] leading-snug text-muted">
-          Bajados sin tocar: bajan tal como subieron, no cuentan. Sobrante: se bajan por falta de sitio, cuentan como hechos.
+        <p className="px-1 text-[12px] leading-snug text-muted">
+          Sin tocar: bajan tal como subieron, no cuentan. Sobrante: se bajan por falta de sitio, cuentan como hechos.
         </p>
+
         {shown.map((g) => {
-          const d = get(g.id);
+          const d = get(g);
           const done = palletsDone(parsePallets(d.up), parsePallets(d.down));
-          const here = new Set(g.people.map((p) => p.id));
+          // Personas del pasillo: las de los puestos de la noche (departamento) o las apuntadas aquí (pasillo separado).
+          const people: AislePerson[] =
+            g.mode === "list"
+              ? d.people.map((id) => ({ id, name: names[id] ?? "?", removable: true }))
+              : g.people;
+          const here = new Set(people.map((p) => p.id));
           const options = candidates.filter((c) => !here.has(c.id));
           return (
-            <section key={g.id} className="rounded-card bg-surface p-3" style={{ borderLeft: `4px solid ${g.color}` }}>
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="text-[16px] font-semibold">{g.name}</h3>
+            <section key={g.key} aria-label={g.name} className="overflow-hidden rounded-card bg-surface">
+              <header className="flex h-8 items-center gap-2 pl-3 pr-1" style={{ backgroundColor: tint(g.color, 18) }}>
+                <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ backgroundColor: g.color }} />
+                <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold">
+                  {g.name}
+                  {g.parent && <span className="font-normal text-muted"> · {g.parent}</span>}
+                </h3>
+                {done !== null && <span className="text-[12px] font-semibold tabular-nums text-success">{done} hechos</span>}
                 <button
                   type="button"
                   aria-label={`Ocultar ${g.name} esta noche`}
                   onClick={() => toggleHidden(g)}
-                  className="press -mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted"
+                  className="press -my-1.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted"
                 >
-                  <Icon name="eye" className="h-[22px] w-[22px]" />
+                  <Icon name="eye" className="h-5 w-5" />
                 </button>
-              </div>
+              </header>
 
-              <ul className="mb-2 mt-1 flex flex-wrap gap-1.5">
-                {g.people.map((p) => (
-                  <li
-                    key={p.id}
-                    className="flex min-h-9 items-center gap-1 rounded-full pl-3 text-[14px]"
-                    style={{ backgroundColor: tint(g.color, 18) }}
+              <div className="space-y-1 p-2">
+                <div className="flex flex-wrap items-center gap-1">
+                  {people.map((p) => (
+                    <span key={p.id} className="flex h-8 items-center rounded-full pl-2.5 text-[13px]" style={{ backgroundColor: tint(g.color, 14) }}>
+                      {p.name}
+                      {p.removable ? (
+                        <button
+                          type="button"
+                          aria-label={`Quitar a ${p.name} de ${g.name}`}
+                          onClick={() => (g.mode === "list" ? set(g, { people: d.people.filter((x) => x !== p.id) }) : onRemove(p.id, g.departmentId))}
+                          className="press flex h-8 w-7 items-center justify-center text-muted"
+                        >
+                          <Icon name="close" className="h-3.5 w-3.5" strokeWidth={2.4} />
+                        </button>
+                      ) : (
+                        <span className="w-2.5" aria-hidden />
+                      )}
+                    </span>
+                  ))}
+                  {people.length === 0 && <span className="px-1 text-[13px] text-muted">{g.byGroup ? "Lo hace el grupo" : "Sin nadie"}</span>}
+                  <select
+                    aria-label={`Añadir a alguien en ${g.name}`}
+                    value=""
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      if (!id) return;
+                      if (g.mode === "list") set(g, { people: [...d.people, id] });
+                      else onAssign(id, g.departmentId);
+                    }}
+                    className="h-8 rounded-full bg-surface-2 px-3 text-[13px] font-semibold text-accent outline-none"
                   >
-                    {p.name}
-                    {p.removable ? (
-                      <button
-                        type="button"
-                        aria-label={`Quitar a ${p.name} de ${g.name}`}
-                        onClick={() => onRemove(p.id, g.id)}
-                        className="press flex h-9 w-9 items-center justify-center text-muted"
-                      >
-                        <Icon name="close" className="h-4 w-4" strokeWidth={2.4} />
-                      </button>
-                    ) : (
-                      <span className="w-3" aria-hidden />
-                    )}
-                  </li>
-                ))}
-                {g.people.length === 0 && <li className="py-1.5 text-[14px] text-muted">{g.byGroup ? "Lo hace el grupo" : "Sin nadie"}</li>}
-              </ul>
-
-              <select
-                aria-label={`Poner a alguien en ${g.name}`}
-                value=""
-                onChange={(e) => e.target.value && onAssign(e.target.value, g.id)}
-                className={`${fieldCls} mb-2 text-[16px]`}
-              >
-                <option value="">{g.people.length === 0 ? "Poner a alguien aquí…" : "Añadir a alguien…"}</option>
-                {options.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-
-              {(
-                [
-                  ["start", "Empezó a las"],
-                  ["end", "Acabó a las"],
-                ] as const
-              ).map(([key, label]) => (
-                <div key={key} className="mt-1 flex items-end gap-2">
-                  <TimeInput label={label} value={d[key]} onChange={(v) => set(g.id, { [key]: v })} clearable className="flex-1" />
-                  <button
-                    type="button"
-                    onClick={() => set(g.id, { [key]: madridTime(new Date()) })}
-                    className="press min-h-11 shrink-0 rounded-control px-3.5 text-[15px] font-semibold text-accent"
-                    style={{ backgroundColor: tint(g.color, 18) }}
-                  >
-                    Ahora
-                  </button>
+                    <option value="">+ Añadir</option>
+                    {options.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              ))}
 
-              <div className="mt-2 grid grid-cols-3 gap-2">
-                {(
-                  [
-                    ["up", "Subidos"],
-                    ["down", "Bajados sin tocar"],
-                    ["surplus", "Sobrante"],
-                  ] as const
-                ).map(([key, label]) => (
-                  <label key={key} className="flex flex-col justify-end gap-1 text-[13px] leading-tight text-muted">
-                    {label}
-                    <input
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={3}
-                      value={d[key]}
-                      onChange={(e) => set(g.id, { [key]: e.target.value.replace(/\D/g, "") })}
-                      className={fieldCls}
-                    />
-                  </label>
-                ))}
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(
+                    [
+                      ["start", "Empezó"],
+                      ["end", "Acabó"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <label key={key} className="block">
+                      <Label
+                        actions={
+                          <>
+                            {d[key] && (
+                              <button type="button" aria-label={`Borrar hora de ${label.toLowerCase()}`} onClick={() => set(g, { [key]: "" })} className={`${tiny} text-muted`}>
+                                ✕
+                              </button>
+                            )}
+                            <button type="button" onClick={() => set(g, { [key]: madridTime(new Date()) })} className={`${tiny} text-accent`}>
+                              Ahora
+                            </button>
+                          </>
+                        }
+                      >
+                        {label}
+                      </Label>
+                      <input
+                        type="time"
+                        step={60}
+                        value={d[key]}
+                        onChange={(e) => set(g, { [key]: e.target.value })}
+                        aria-label={`${label} a las (${g.name})`}
+                        className={field}
+                      />
+                    </label>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(
+                    [
+                      ["up", "Subidos"],
+                      ["down", "Sin tocar"],
+                      ["surplus", "Sobrante"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <label key={key} className="block">
+                      <Label>{label}</Label>
+                      <input
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={3}
+                        value={d[key]}
+                        onChange={(e) => set(g, { [key]: e.target.value.replace(/\D/g, "") })}
+                        aria-label={`${label} (${g.name})`}
+                        className={field}
+                      />
+                    </label>
+                  ))}
+                </div>
+
+                <input
+                  aria-label={`Nota de ${g.name}`}
+                  placeholder="Nota (opcional)"
+                  maxLength={MAX_AISLE_NOTE}
+                  value={d.note}
+                  onChange={(e) => set(g, { note: e.target.value })}
+                  className={`${field} tabular-nums`}
+                />
               </div>
-              <input
-                aria-label={`Nota de ${g.name}`}
-                placeholder="Nota (se ha encontrado mal, no ha podido hacer más…)"
-                maxLength={MAX_AISLE_NOTE}
-                value={d.note}
-                onChange={(e) => set(g.id, { note: e.target.value })}
-                className={`${fieldCls} mt-2 text-[16px]`}
-              />
-              {done !== null && (
-                <p className="mt-1.5 text-[14px]">
-                  Hechos: <span className="font-semibold">{done}</span>
-                </p>
-              )}
             </section>
           );
         })}
+
         {hiddenGroups.length > 0 && (
-          <section aria-label="Pasillos ocultos" className="rounded-card bg-surface px-3 py-2">
-            <h3 className="text-[13px] font-semibold text-muted">Ocultos esta noche · {hiddenGroups.length}</h3>
+          <section aria-label="Pasillos ocultos" className="rounded-card bg-surface px-3 py-1.5">
+            <h3 className="text-[12px] font-semibold text-muted">Ocultos esta noche · {hiddenGroups.length}</h3>
             <ul>
               {hiddenGroups.map((g) => (
-                <li key={g.id} className="flex min-h-11 items-center justify-between gap-2">
-                  <span className="flex min-w-0 items-center gap-2 text-[15px] text-muted">
+                <li key={g.key} className="flex min-h-11 items-center justify-between gap-2">
+                  <span className="flex min-w-0 items-center gap-2 text-[14px] text-muted">
                     <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ backgroundColor: g.color }} />
-                    <span className="truncate">{g.name}</span>
+                    <span className="truncate">
+                      {g.name}
+                      {g.parent && ` · ${g.parent}`}
+                    </span>
                   </span>
                   <button
                     type="button"
                     aria-label={`Mostrar ${g.name} en el resumen`}
                     onClick={() => toggleHidden(g)}
-                    className="press flex h-11 items-center gap-1.5 rounded-control px-3 text-[14px] font-semibold text-accent"
+                    className="press flex h-11 items-center gap-1.5 rounded-control px-2 text-[13px] font-semibold text-accent"
                   >
-                    <Icon name="eyeOff" className="h-5 w-5" />
+                    <Icon name="eyeOff" className="h-[18px] w-[18px]" />
                     Mostrar
                   </button>
                 </li>
@@ -270,22 +347,25 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
             </ul>
           </section>
         )}
+
         {error && (
-          <p role="alert" className="text-[14px] text-danger">
+          <p role="alert" className="px-1 text-[14px] text-danger">
             {error}
           </p>
         )}
+        <p className="px-1 text-[11px] text-muted">
+          Los cambios de personal en un departamento y el ojo (solo esta noche) se guardan al momento; lo demás, al pulsar Guardar.
+        </p>
+      </div>
+      <div className="sticky bottom-0 -mx-4 bg-bg/95 px-4 pb-3 pt-2 backdrop-blur">
         <button
           type="button"
           disabled={saving || changed.length === 0}
           onClick={() => void save()}
-          className="press mt-1 min-h-12 rounded-control bg-accent text-[16px] font-semibold text-accent-fg disabled:opacity-40"
+          className="press min-h-12 w-full rounded-control bg-accent text-[16px] font-semibold text-accent-fg disabled:opacity-40"
         >
           {saving ? "Guardando…" : changed.length > 0 ? `Guardar (${changed.length})` : "Guardar"}
         </button>
-        <p className="text-[12px] text-muted">
-          Los cambios de personal y el ojo (solo esta noche) se guardan al momento; la hora, los palés y las notas, al pulsar Guardar.
-        </p>
       </div>
     </BottomSheet>
   );

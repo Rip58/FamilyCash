@@ -300,13 +300,17 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
           ctx.fill();
         }
         const heights = [
-          cell(xs[0]! + 28, cols[0]! - 28, a.name, 26, 700, C.fg),
+          0,
           cell(xs[1]!, cols[1]!, a.people.join(", ") || "Grupo", 24, 400, C.fg),
           cell(xs[2]!, cols[2]!, num(a.up), 26, 600, C.fg, true),
           0,
           cell(xs[4]!, cols[4]!, num(a.done), 26, 700, C.green, true),
           0,
         ];
+        // Pasillo: el nombre y, si es un pasillo separado, su departamento debajo en pequeño.
+        let hn = cell(xs[0]! + 28, cols[0]! - 28, a.name, 26, 700, C.fg);
+        if (a.parent) hn += cell(xs[0]! + 28, cols[0]! - 28, a.parent, 20, 500, C.muted, false, hn);
+        heights[0] = hn;
         // Hora: la de inicio y, si hay, la de fin debajo en pequeño.
         let hh2 = cell(xs[5]!, cols[5]!, a.startTime ?? "–", 24, 400, C.fg, true);
         if (a.endTime) hh2 += cell(xs[5]!, cols[5]!, `a ${a.endTime}`, 20, 500, C.muted, true, hh2);

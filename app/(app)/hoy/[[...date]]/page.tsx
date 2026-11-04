@@ -89,7 +89,7 @@ export default async function Page({ params }: { params: Promise<{ date?: string
         statusTypes={statusTypes}
         sections={sections
           .filter((s) => s.active)
-          .map((s) => ({ id: s.id, name: s.name, departmentId: s.departmentId }))}
+          .map((s) => ({ id: s.id, name: s.name, departmentId: s.departmentId, aisle: s.aisle }))}
         entries={entries}
         notes={notes}
         pendingDelays={pendingDelays}

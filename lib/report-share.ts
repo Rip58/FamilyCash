@@ -19,6 +19,8 @@ export interface ShareAway {
 /** Una fila de la tabla de pasillos: departamento, quién lo ha hecho, hora, palés y nota. */
 export interface ShareAisle {
   name: string;
+  /** Departamento si es un pasillo separado (Leche › Droguería); null = es el departamento. */
+  parent: string | null;
   color: string;
   people: string[];
   startTime: string | null;
@@ -153,6 +155,7 @@ export function buildShareModel(report: DayReport): ShareModel {
 
   const aisles: ShareAisle[] = report.aisles.map((a) => ({
     name: a.name,
+    parent: a.parent,
     color: a.color,
     people: a.people,
     startTime: a.startTime,
@@ -259,7 +262,7 @@ export function shareModelToText(m: ShareModel): string {
     L.push("", `📦 PASILLOS${m.pallets ? ` (${m.pallets.done} palés hechos)` : ""}`);
     for (const a of m.aisles) {
       const line = [a.people.join(", ") || "Grupo", ...aisleDetails(a), a.note && `Nota: ${a.note}`].filter(Boolean);
-      L.push(`${colorEmoji(a.color)} ${a.name}: ${line.join(" · ")}`);
+      L.push(`${colorEmoji(a.color)} ${a.parent ? `${a.parent} › ` : ""}${a.name}: ${line.join(" · ")}`);
     }
   }
 

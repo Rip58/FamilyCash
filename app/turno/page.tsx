@@ -82,7 +82,7 @@ export default async function Page() {
         }))}
         departments={departments}
         statusTypes={statusTypes}
-        sections={sections.filter((s) => s.active).map((s) => ({ id: s.id, name: s.name, departmentId: s.departmentId }))}
+        sections={sections.filter((s) => s.active).map((s) => ({ id: s.id, name: s.name, departmentId: s.departmentId, aisle: s.aisle }))}
         // De los días de alrededor (para las fiestas pegadas a vacaciones) solo hace falta el estado.
         entries={entries.map((e) =>
           e.date === night

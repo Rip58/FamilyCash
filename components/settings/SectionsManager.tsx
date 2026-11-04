@@ -14,6 +14,8 @@ export interface SectionRow {
   name: string;
   departmentId: string | null;
   active: boolean;
+  /** Sale como fila propia en el control de pasillos. */
+  aisle: boolean;
 }
 
 export function SectionsManager({ sections, departments }: { sections: SectionRow[]; departments: DeptOption[] }) {
@@ -27,7 +29,7 @@ export function SectionsManager({ sections, departments }: { sections: SectionRo
     <div>
       <BackHeader title="Secciones" action={<AddButton label="Añadir" onClick={() => setCreating(true)} />} />
       <p className="mb-3 px-1 text-[13px] text-muted">
-        Pasillos o tareas para los tramos de trabajo. Arrastra para reordenar.
+        Pasillos o tareas para los tramos de trabajo. Arrastra para reordenar. Marca «Pasillo del control» para separar un departamento en pasillos (Leche, Café…) en el control de pasillos.
       </p>
       <div className="overflow-hidden rounded-card bg-surface">
         <SortableList
@@ -45,7 +47,10 @@ export function SectionsManager({ sections, departments }: { sections: SectionRo
                   {s.name}
                   {!s.active && " (inactiva)"}
                 </span>
-                <span className="truncate text-[13px] text-muted">{deptName(s.departmentId)}</span>
+                <span className="truncate text-[13px] text-muted">
+                  {deptName(s.departmentId)}
+                  {s.aisle && " · pasillo del control"}
+                </span>
               </button>
               <span aria-hidden className="text-muted">›</span>
             </div>
@@ -69,6 +74,7 @@ export function SectionsManager({ sections, departments }: { sections: SectionRo
 function NewSection({ departments, onDone }: { departments: DeptOption[]; onDone: () => void }) {
   const [name, setName] = useState("");
   const [dept, setDept] = useState<string | null>(null);
+  const [aisle, setAisle] = useState(false);
   const { pending, run } = useRun();
   return (
     <div className="pb-2">
@@ -78,10 +84,14 @@ function NewSection({ departments, onDone }: { departments: DeptOption[]; onDone
       <Field label="Departamento (opcional)">
         <DepartmentSelect noneLabel="Ninguno" value={dept} onChange={setDept} departments={departments.filter((d) => d.active)} />
       </Field>
+      <Toggle label="Pasillo del control" checked={aisle} onChange={setAisle} disabled={pending} />
+      <p className="px-1 pb-1 text-[12px] text-muted">
+        Para separar un departamento en pasillos (Leche, Café…): elige el departamento y activa esto.
+      </p>
       <PrimaryButton
         className="mt-2 w-full"
         disabled={pending || !name.trim()}
-        onClick={() => run(() => saveSection({ name, departmentId: dept, active: true }), { msg: "Sección añadida", onDone })}
+        onClick={() => run(() => saveSection({ name, departmentId: dept, active: true, aisle }), { msg: "Sección añadida", onDone })}
       >
         Añadir sección
       </PrimaryButton>
@@ -119,6 +129,8 @@ function EditSection({
         />
       </Field>
       <Toggle label="Activa" checked={section.active} onChange={(v) => save({ active: v })} disabled={pending} />
+      <Toggle label="Pasillo del control" checked={section.aisle} onChange={(v) => save({ aisle: v })} disabled={pending} />
+      <p className="px-1 pb-1 text-[12px] text-muted">Sale como fila propia en el control de pasillos, dentro de su departamento.</p>
       <div className="mt-2">
         <ConfirmButton
           label="Borrar sección"

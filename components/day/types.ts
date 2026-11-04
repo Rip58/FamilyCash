@@ -4,6 +4,8 @@ export interface SectionLite {
   id: string;
   name: string;
   departmentId: string | null;
+  /** Sale como fila propia en el control de pasillos. */
+  aisle?: boolean;
 }
 
 export interface SegmentInput {

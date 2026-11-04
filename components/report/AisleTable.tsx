@@ -20,9 +20,12 @@ export function AisleTable({ aisles, pallets }: { aisles: ShareAisle[]; pallets:
         <span role="columnheader" className="text-center">Hora</span>
       </div>
       {aisles.map((a) => (
-        <div key={a.name} role="rowgroup" className="border-b border-line border-l-[3px] py-1.5 pl-1.5" style={{ borderLeftColor: a.color }}>
+        <div key={`${a.parent ?? ""}/${a.name}`} role="rowgroup" className="border-b border-line border-l-[3px] py-1.5 pl-1.5" style={{ borderLeftColor: a.color }}>
           <div role="row" className={`${GRID} items-start`}>
-            <span role="cell" className="min-w-0 break-words font-semibold">{a.name}</span>
+            <span role="cell" className="min-w-0 break-words font-semibold">
+              {a.name}
+              {a.parent && <span className="block text-[10px] font-medium text-muted">{a.parent}</span>}
+            </span>
             <span role="cell" className="min-w-0 break-words">{a.people.join(", ") || "Grupo"}</span>
             <span role="cell" className="text-center font-semibold tabular-nums">{num(a.up)}</span>
             <span role="cell" className="text-center tabular-nums">

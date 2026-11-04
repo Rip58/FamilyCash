@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { palletsDone, parsePallets } from "@/lib/aisle-format";
+import { aisleKey, palletsDone, parsePallets } from "@/lib/aisle-format";
 
 describe("palés del pasillo", () => {
+  it("clave: el departamento o departamento:sección", () => {
+    expect(aisleKey("drog", null)).toBe("drog");
+    expect(aisleKey("drog", "lec")).toBe("drog:lec");
+  });
   it("hechos = subidos − bajados sin tocar (los sobrantes no se restan)", () => {
     expect(palletsDone(12, 2)).toBe(10);
     expect(palletsDone(12, null)).toBe(12);

@@ -9,7 +9,7 @@
 import { type DateStr, formatDayLong, formatWeekRange, isoWeekNumber, weekDays } from "./dates";
 import { totalOvertime } from "./overtime";
 import { type NoteView, sortNotes } from "./notes";
-import { type AisleInfo, palletsDone } from "./aisle-format";
+import { type AisleInfo, aisleKey, palletsDone } from "./aisle-format";
 import { buildShareModel, shareModelToText } from "./report-share";
 import { type DayRoster, type RosterMember, type StatusTypeLite, type WeekGrid, isDayOffStatus } from "./schedule";
 
@@ -151,6 +151,8 @@ export interface ReportDepartment {
 export interface ReportAisle {
   id: string;
   name: string;
+  /** Departamento al que pertenece si es un pasillo separado (Leche dentro de Droguería); null = es el departamento. */
+  parent: string | null;
   color: string;
   /** Quién lo ha hecho (los del departamento y los que lo han cubierto). */
   people: string[];
@@ -201,7 +203,7 @@ export interface DayReport {
 export interface BuildDayReportInput {
   roster: DayRoster;
   shift: ShiftConfig;
-  sections: { id: string; name: string }[];
+  sections: { id: string; name: string; departmentId?: string | null; aisle?: boolean; active?: boolean }[];
   /** Todos los departamentos (para el nombre del departamento habitual). */
   departments: { id: string; name: string }[];
   /** Notas de la noche (opcional). */
@@ -310,25 +312,41 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
   const absentCount = absences.reduce((n, g) => n + g.members.length, 0);
   const emptyDepartments = roster.emptyDepartments.map((d) => d.name);
   const notes = sortNotes(input.notes ?? []);
+  // Control de pasillos: una fila por departamento, o una por pasillo (sección marcada) si se ha separado en pasillos.
+  const personName = new Map<string, string>();
+  for (const d of roster.departments) for (const m of [...d.present, ...d.absent, ...d.covering]) personName.set(m.employee.id, m.employee.name);
+  for (const m of roster.unassigned) personName.set(m.employee.id, m.employee.name);
+  for (const g of roster.absentByStatus) for (const m of g.members) personName.set(m.employee.id, m.employee.name);
+  const aisleSections = input.sections.filter((s) => s.aisle && s.active !== false && s.departmentId);
   const aisles: ReportAisle[] = roster.departments.flatMap((r) => {
-    const l = input.aisleLogs?.[r.department.id];
-    if (l?.hidden) return []; // el ojo: oculto del resumen esa noche
-    if (!l || (!l.startTime && !l.endTime && l.palletsUp === null && l.palletsDown === null && l.palletsSurplus === null && !l.note)) return [];
-    return [
-      {
-        id: r.department.id,
-        name: r.department.name,
-        color: r.department.color,
-        people: [...r.present, ...r.covering].map((m) => m.employee.name),
-        startTime: l.startTime,
-        endTime: l.endTime,
-        palletsUp: l.palletsUp,
-        palletsDown: l.palletsDown,
-        palletsSurplus: l.palletsSurplus,
-        note: l.note,
-        done: palletsDone(l.palletsUp, l.palletsDown),
-      },
-    ];
+    const subs = aisleSections.filter((s) => s.departmentId === r.department.id);
+    const rows = subs.length > 0
+      ? subs.map((s) => ({ section: s as { id: string; name: string } | null, people: null as string[] | null }))
+      : [{ section: null, people: null }];
+    return rows.flatMap(({ section }) => {
+      const l = input.aisleLogs?.[aisleKey(r.department.id, section?.id ?? null)];
+      if (l?.hidden) return []; // el ojo: oculto del resumen esa noche
+      if (!l || (!l.startTime && !l.endTime && l.palletsUp === null && l.palletsDown === null && l.palletsSurplus === null && !l.note)) return [];
+      const people = section
+        ? l.employeeIds.map((id) => personName.get(id)).filter((n): n is string => !!n).sort((x, y) => x.localeCompare(y, "es"))
+        : [...r.present, ...r.covering].map((m) => m.employee.name);
+      return [
+        {
+          id: aisleKey(r.department.id, section?.id ?? null),
+          name: section?.name ?? r.department.name,
+          parent: section ? r.department.name : null,
+          color: r.department.color,
+          people,
+          startTime: l.startTime,
+          endTime: l.endTime,
+          palletsUp: l.palletsUp,
+          palletsDown: l.palletsDown,
+          palletsSurplus: l.palletsSurplus,
+          note: l.note,
+          done: palletsDone(l.palletsUp, l.palletsDown),
+        },
+      ];
+    });
   });
 
   const hasIncidents =

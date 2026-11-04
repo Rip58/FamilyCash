@@ -40,7 +40,7 @@ import { useRouter } from "next/navigation";
 import { setGroupCover } from "@/app/actions/group";
 import { AbsentSheet } from "./AbsentSheet";
 import { AislesSheet, type AisleCandidate, type AisleGroup } from "./AislesSheet";
-import type { AisleInfo } from "@/lib/aisle-format";
+import { type AisleInfo, aisleKey } from "@/lib/aisle-format";
 import { EmployeeRow } from "./EmployeeRow";
 import { EmployeeSheet } from "./EmployeeSheet";
 import { MoveSheet } from "./MoveSheet";
@@ -169,18 +169,43 @@ export function DayView({
   const personDepts = new Map<string, string[]>();
   for (const d of roster.departments) for (const m of d.present) personDepts.set(m.employee.id, [d.department.id, ...(personDepts.get(m.employee.id) ?? [])]);
   for (const d of roster.departments) for (const m of d.covering) personDepts.set(m.employee.id, [...(personDepts.get(m.employee.id) ?? []), d.department.id]);
-  const aisleGroups: AisleGroup[] = roster.departments.map((d) => ({
-    id: d.department.id,
-    name: d.department.name,
-    color: d.department.color,
-    people: [...d.present, ...d.covering].map((m) => {
-      const mine = personDepts.get(m.employee.id) ?? [];
-      const habitual = [m.employee.defaultDepartmentId, ...(m.employee.defaultExtraDepartmentIds ?? [])];
-      return { id: m.employee.id, name: m.employee.name, removable: mine.length > 1 || !habitual.includes(d.department.id) };
-    }),
-    byGroup: d.byGroup,
-    hidden: aisleLogs[d.department.id]?.hidden === true,
-  }));
+  // Un departamento sale como una fila; si tiene pasillos separados (secciones marcadas en Ajustes → Secciones: Leche,
+  // Café…), salen ellos en su lugar, cada uno con su gente, horas, palés y nota.
+  const aisleGroups: AisleGroup[] = roster.departments.flatMap((d): AisleGroup[] => {
+    const subs = sections.filter((s) => s.aisle && s.departmentId === d.department.id);
+    if (subs.length > 0) {
+      return subs.map((s) => ({
+        key: aisleKey(d.department.id, s.id),
+        departmentId: d.department.id,
+        sectionId: s.id,
+        name: s.name,
+        parent: d.department.name,
+        color: d.department.color,
+        mode: "list",
+        people: [],
+        byGroup: false,
+        hidden: aisleLogs[aisleKey(d.department.id, s.id)]?.hidden === true,
+      }));
+    }
+    return [
+      {
+        key: d.department.id,
+        departmentId: d.department.id,
+        sectionId: null,
+        name: d.department.name,
+        parent: null,
+        color: d.department.color,
+        mode: "department",
+        people: [...d.present, ...d.covering].map((m) => {
+          const mine = personDepts.get(m.employee.id) ?? [];
+          const habitual = [m.employee.defaultDepartmentId, ...(m.employee.defaultExtraDepartmentIds ?? [])];
+          return { id: m.employee.id, name: m.employee.name, removable: mine.length > 1 || !habitual.includes(d.department.id) };
+        }),
+        byGroup: d.byGroup,
+        hidden: aisleLogs[d.department.id]?.hidden === true,
+      },
+    ];
+  });
   // A quién se puede añadir a un pasillo: SOLO los que están presentes esta noche (trabajan; ni fiesta, ni vacaciones, ni
   // baja, ni faltas), y solo el nombre.
   const aisleCandidates: AisleCandidate[] = [
@@ -614,6 +639,7 @@ export function DayView({
           onClose={() => setAisleSheet((s) => ({ ...s, open: false }))}
           groups={aisleGroups}
           candidates={aisleCandidates}
+          names={Object.fromEntries(employees.map((e) => [e.id, e.name]))}
           logs={aisleLogs}
           onAssign={(id, departmentId) => {
             const mine = personDepts.get(id) ?? [];
@@ -626,9 +652,9 @@ export function DayView({
             // Sin ninguno más, vuelve a su departamento habitual.
             opsFor(id).setDepartment(rest[0] ?? null, rest.slice(1));
           }}
-          onToggleHidden={(departmentId, hidden) =>
+          onToggleHidden={(departmentId, sectionId, hidden) =>
             startTransition(async () => {
-              const r = await setAisleHidden({ date, departmentId, hidden });
+              const r = await setAisleHidden({ date, departmentId, sectionId, hidden });
               if (r.ok) router.refresh();
               else setError(r.error);
             })

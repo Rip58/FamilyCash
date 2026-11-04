@@ -15,11 +15,18 @@ export interface AisleInfo {
   note: string | null;
   /** Oculto con el ojo SOLO esa noche: no sale en el resumen del informe. */
   hidden: boolean;
+  /** Quién lo ha hecho (solo en pasillos con sección; en un departamento sale de sus puestos). */
+  employeeIds: string[];
 }
 
 export const MAX_AISLE_NOTE = 200;
 
 export const MAX_PALLETS = 999;
+
+/** Clave de una fila del control de pasillos: el departamento, o «departamento:sección» si se ha separado en pasillos. */
+export function aisleKey(departmentId: string, sectionId: string | null): string {
+  return sectionId ? `${departmentId}:${sectionId}` : departmentId;
+}
 
 /**
  * Palés hechos: subidos − bajados sin tocar. Los sobrantes NO se restan (se bajan por falta de sitio, pero están

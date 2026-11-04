@@ -199,6 +199,8 @@ const sectionSchema = z.object({
   name,
   departmentId: optionalId,
   active: z.boolean(),
+  /** Sale como fila propia en el control de pasillos. */
+  aisle: z.boolean().optional(),
 });
 
 export async function saveSection(input: z.input<typeof sectionSchema>): Promise<ActionResult<{ id: string }>> {
