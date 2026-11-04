@@ -17,6 +17,7 @@ const schema = z.object({
         startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(),
         palletsUp: z.number().int().min(0).max(999).nullable(),
         palletsDown: z.number().int().min(0).max(999).nullable(),
+        downSurplus: z.boolean(),
       }),
     )
     .min(1)
@@ -35,8 +36,8 @@ export async function setAisleStarts(input: z.input<typeof schema>): Promise<{ o
         it.startTime || it.palletsUp !== null || it.palletsDown !== null
           ? db.aisleLog.upsert({
               where: { date_departmentId: { date: d, departmentId: it.departmentId } },
-              create: { date: d, departmentId: it.departmentId, startTime: it.startTime, palletsUp: it.palletsUp, palletsDown: it.palletsDown },
-              update: { startTime: it.startTime, palletsUp: it.palletsUp, palletsDown: it.palletsDown },
+              create: { date: d, departmentId: it.departmentId, startTime: it.startTime, palletsUp: it.palletsUp, palletsDown: it.palletsDown, downSurplus: it.downSurplus },
+              update: { startTime: it.startTime, palletsUp: it.palletsUp, palletsDown: it.palletsDown, downSurplus: it.downSurplus },
             })
           : db.aisleLog.deleteMany({ where: { date: d, departmentId: it.departmentId } }),
       ),
@@ -54,7 +55,7 @@ export async function setAisleStarts(input: z.input<typeof schema>): Promise<{ o
         const parts = [
           i.startTime && `empieza ${i.startTime}`,
           i.palletsUp !== null && `${i.palletsUp} subidos`,
-          i.palletsDown !== null && `${i.palletsDown} bajados`,
+          i.palletsDown !== null && `${i.palletsDown} bajados${i.downSurplus ? " (sobrante)" : ""}`,
         ].filter(Boolean);
         return `${names.get(i.departmentId) ?? "Departamento"} ${parts.join(", ") || "borrado"}`;
       })

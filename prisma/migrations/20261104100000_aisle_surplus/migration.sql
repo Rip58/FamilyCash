@@ -1,0 +1,1 @@
+ALTER TABLE "AisleLog" ADD COLUMN "downSurplus" BOOLEAN NOT NULL DEFAULT false;

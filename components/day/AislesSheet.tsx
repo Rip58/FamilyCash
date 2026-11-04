@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ActionResult } from "@/app/actions/day";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { TimeInput } from "@/components/ui/TimeInput";
+import { Toggle } from "@/components/ui/Toggle";
 import { Icon, tint } from "@/components/ui/icons";
 import { type AisleInfo, palletsDone, parsePallets } from "@/lib/aisle-format";
 import { madridTime } from "@/lib/dates";
@@ -38,6 +39,7 @@ export interface AisleSave {
   startTime: string | null;
   palletsUp: number | null;
   palletsDown: number | null;
+  downSurplus: boolean;
 }
 
 interface AislesSheetProps {
@@ -58,6 +60,7 @@ interface Draft {
   start: string;
   up: string;
   down: string;
+  surplus: boolean;
 }
 
 const fieldCls =
@@ -67,6 +70,7 @@ const toDraft = (l?: AisleInfo): Draft => ({
   start: l?.startTime ?? "",
   up: l?.palletsUp === null || l?.palletsUp === undefined ? "" : String(l.palletsUp),
   down: l?.palletsDown === null || l?.palletsDown === undefined ? "" : String(l.palletsDown),
+  surplus: l?.downSurplus ?? false,
 });
 
 /**
@@ -84,10 +88,10 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
   const changed = groups.filter((g) => {
     const a = get(g.id);
     const b = toDraft(logs[g.id]);
-    return a.start !== b.start || a.up !== b.up || a.down !== b.down;
+    return a.start !== b.start || a.up !== b.up || a.down !== b.down || a.surplus !== b.surplus;
   });
   const started = groups.filter((g) => get(g.id).start !== "").length;
-  const totalDone = groups.reduce((sum, g) => sum + (palletsDone(parsePallets(get(g.id).up), parsePallets(get(g.id).down)) ?? 0), 0);
+  const totalDone = groups.reduce((sum, g) => sum + (palletsDone(parsePallets(get(g.id).up), parsePallets(get(g.id).down), get(g.id).surplus) ?? 0), 0);
 
   const save = async () => {
     setSaving(true);
@@ -95,7 +99,7 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
     const r = await onSave(
       changed.map((g) => {
         const d = get(g.id);
-        return { departmentId: g.id, startTime: d.start || null, palletsUp: parsePallets(d.up), palletsDown: parsePallets(d.down) };
+        return { departmentId: g.id, startTime: d.start || null, palletsUp: parsePallets(d.up), palletsDown: parsePallets(d.down), downSurplus: d.surplus };
       }),
     );
     setSaving(false);
@@ -111,7 +115,7 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
         </p>
         {groups.map((g) => {
           const d = get(g.id);
-          const done = palletsDone(parsePallets(d.up), parsePallets(d.down));
+          const done = palletsDone(parsePallets(d.up), parsePallets(d.down), d.surplus);
           const here = new Set(g.people.map((p) => p.id));
           const options = candidates.filter((c) => !here.has(c.id));
           return (
@@ -193,6 +197,13 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
                   />
                 </label>
               </div>
+              {d.down !== "" && (
+                <Toggle
+                  checked={d.surplus}
+                  onChange={(v) => set(g.id, { surplus: v })}
+                  label="Los bajados son sobrante (cuentan como hechos)"
+                />
+              )}
               {done !== null && (
                 <p className="mt-1.5 text-[14px]">
                   Hechos: <span className="font-semibold">{done}</span>
