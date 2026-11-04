@@ -1,13 +1,11 @@
 "use server";
 
 /** Control de pasillos (Hoy ⋯): hora de inicio y palés subidos/bajados de cada departamento esa noche. */
-import { revalidatePath, updateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { isDateStr, toDbDate } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { authorizeNight, logGuest } from "@/lib/guest-server";
-import { REF_TAG } from "@/lib/queries";
-import { requireOwner } from "@/lib/session";
 
 const schema = z.object({
   date: z.string().refine(isDateStr),
@@ -42,7 +40,8 @@ export async function setAisleStarts(input: z.input<typeof schema>): Promise<{ o
               create: { date: d, departmentId: it.departmentId, startTime: it.startTime, palletsUp: it.palletsUp, palletsDown: it.palletsDown, palletsSurplus: it.palletsSurplus, note: it.note || null },
               update: { startTime: it.startTime, palletsUp: it.palletsUp, palletsDown: it.palletsDown, palletsSurplus: it.palletsSurplus, note: it.note || null },
             })
-          : db.aisleLog.deleteMany({ where: { date: d, departmentId: it.departmentId } }),
+          : // Sin datos: se borra la fila, salvo que el pasillo esté oculto esa noche (entonces solo se vacía).
+            db.aisleLog.deleteMany({ where: { date: d, departmentId: it.departmentId, hidden: false } }),
       ),
     );
   } catch {
@@ -70,19 +69,42 @@ export async function setAisleStarts(input: z.input<typeof schema>): Promise<{ o
   return { ok: true };
 }
 
-const hiddenSchema = z.object({ departmentId: z.string().min(1).max(64), hidden: z.boolean() });
+const hiddenSchema = z.object({
+  date: z.string().refine(isDateStr),
+  departmentId: z.string().min(1).max(64),
+  hidden: z.boolean(),
+});
 
-/** El ojo del Control de pasillos: oculta (o vuelve a mostrar) un departamento en el control y en su resumen del informe. Solo el dueño. */
+/** El ojo del Control de pasillos: oculta (o vuelve a mostrar) un pasillo en el resumen del informe SOLO esa noche. */
 export async function setAisleHidden(input: z.input<typeof hiddenSchema>): Promise<{ ok: true } | { ok: false; error: string }> {
-  await requireOwner();
   const p = hiddenSchema.safeParse(input);
   if (!p.success) return { ok: false, error: "Datos no válidos." };
+  const { date, departmentId, hidden } = p.data;
+  const who = await authorizeNight(date);
+  const d = toDbDate(date);
   try {
-    await db.department.update({ where: { id: p.data.departmentId }, data: { aisleHidden: p.data.hidden } });
+    if (hidden) {
+      await db.aisleLog.upsert({
+        where: { date_departmentId: { date: d, departmentId } },
+        create: { date: d, departmentId, hidden: true },
+        update: { hidden: true },
+      });
+    } else {
+      await db.aisleLog.updateMany({ where: { date: d, departmentId }, data: { hidden: false } });
+      // Si la fila no guarda nada más, se borra.
+      await db.aisleLog.deleteMany({
+        where: { date: d, departmentId, startTime: null, palletsUp: null, palletsDown: null, palletsSurplus: null, note: null },
+      });
+    }
   } catch {
     return { ok: false, error: "No se pudo guardar. Inténtalo de nuevo." };
   }
-  updateTag(REF_TAG);
-  revalidatePath("/", "layout");
+  revalidatePath("/hoy", "layout");
+  revalidatePath("/turno");
+  revalidatePath("/informe", "layout");
+  if (who === "guest") {
+    const dep = (await db.department.findUnique({ where: { id: departmentId }, select: { name: true } }))?.name ?? "Departamento";
+    await logGuest(date, `Pasillos: ${dep} ${hidden ? "oculto esta noche" : "vuelve a mostrarse"}`);
+  }
   return { ok: true };
 }

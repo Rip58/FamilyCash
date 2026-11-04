@@ -179,8 +179,8 @@ export function DayView({
       return { id: m.employee.id, name: m.employee.name, removable: mine.length > 1 || !habitual.includes(d.department.id) };
     }),
     byGroup: d.byGroup,
-    hidden: d.department.aisleHidden === true,
-  })).filter((g) => !guest || !g.hidden); // el compañero no ve los ocultos
+    hidden: aisleLogs[d.department.id]?.hidden === true,
+  }));
   // Quién trabaja esta noche (para añadirlo a un departamento) y dónde está ahora.
   const nameOfDept = new Map(roster.departments.map((d) => [d.department.id, d.department.name]));
   const aisleCandidates: AisleCandidate[] = [
@@ -630,10 +630,9 @@ export function DayView({
             // Sin ninguno más, vuelve a su departamento habitual.
             opsFor(id).setDepartment(rest[0] ?? null, rest.slice(1));
           }}
-          canHide={!guest}
           onToggleHidden={(departmentId, hidden) =>
             startTransition(async () => {
-              const r = await setAisleHidden({ departmentId, hidden });
+              const r = await setAisleHidden({ date, departmentId, hidden });
               if (r.ok) router.refresh();
               else setError(r.error);
             })

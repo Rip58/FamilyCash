@@ -311,7 +311,7 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
   const notes = sortNotes(input.notes ?? []);
   const aisles: ReportAisle[] = roster.departments.flatMap((r) => {
     const l = input.aisleLogs?.[r.department.id];
-    if (r.department.aisleHidden) return []; // el ojo: oculto del resumen
+    if (l?.hidden) return []; // el ojo: oculto del resumen esa noche
     if (!l || (!l.startTime && l.palletsUp === null && l.palletsDown === null && l.palletsSurplus === null && !l.note)) return [];
     return [
       {

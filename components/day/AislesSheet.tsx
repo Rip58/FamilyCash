@@ -23,7 +23,7 @@ export interface AisleGroup {
   people: AislePerson[];
   /** Sin nadie, lo hace el grupo. */
   byGroup: boolean;
-  /** Oculto con el ojo: no sale en el resumen del informe. */
+  /** Oculto con el ojo esta noche: no sale en el resumen del informe. */
   hidden: boolean;
 }
 
@@ -56,8 +56,6 @@ interface AislesSheetProps {
   /** Quitar a esa persona de ese departamento (los demás que hace se quedan). */
   onRemove: (employeeId: string, departmentId: string) => void;
   onSave: (items: AisleSave[]) => Promise<ActionResult>;
-  /** Mostrar el ojo para ocultar pasillos (solo el dueño: es un ajuste de los departamentos). */
-  canHide: boolean;
   onToggleHidden: (departmentId: string, hidden: boolean) => void;
 }
 
@@ -84,7 +82,7 @@ const toDraft = (l?: AisleInfo): Draft => ({
  * Control de pasillos: TODOS los departamentos de la noche, con su gente (y un desplegable para añadir a alguien;
  * una persona puede hacer varios pasillos en la noche), la hora a la que empezó y los palés subidos y bajados (hechos = subidos − bajados).
  */
-export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign, onRemove, onSave, canHide, onToggleHidden }: AislesSheetProps) {
+export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign, onRemove, onSave, onToggleHidden }: AislesSheetProps) {
   const [draft, setDraft] = useState<Record<string, Draft>>(() => Object.fromEntries(groups.map((g) => [g.id, toDraft(logs[g.id])])));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,7 +95,7 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
     onToggleHidden(g.id, next);
   };
   const shown = groups.filter((g) => !isHidden(g));
-  const hiddenGroups = canHide ? groups.filter(isHidden) : [];
+  const hiddenGroups = groups.filter(isHidden);
 
   const get = (id: string): Draft => draft[id] ?? toDraft(logs[id]);
   const set = (id: string, patch: Partial<Draft>) => setDraft((d) => ({ ...d, [id]: { ...get(id), ...patch } }));
@@ -142,16 +140,14 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
             <section key={g.id} className="rounded-card bg-surface p-3" style={{ borderLeft: `4px solid ${g.color}` }}>
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-[16px] font-semibold">{g.name}</h3>
-                {canHide && (
-                  <button
-                    type="button"
-                    aria-label={`Ocultar ${g.name} del resumen`}
-                    onClick={() => toggleHidden(g)}
-                    className="press -mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted"
-                  >
-                    <Icon name="eye" className="h-[22px] w-[22px]" />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  aria-label={`Ocultar ${g.name} esta noche`}
+                  onClick={() => toggleHidden(g)}
+                  className="press -mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted"
+                >
+                  <Icon name="eye" className="h-[22px] w-[22px]" />
+                </button>
               </div>
 
               <ul className="mb-2 mt-1 flex flex-wrap gap-1.5">
@@ -244,7 +240,7 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
         })}
         {hiddenGroups.length > 0 && (
           <section aria-label="Pasillos ocultos" className="rounded-card bg-surface px-3 py-2">
-            <h3 className="text-[13px] font-semibold text-muted">Ocultos del resumen · {hiddenGroups.length}</h3>
+            <h3 className="text-[13px] font-semibold text-muted">Ocultos esta noche · {hiddenGroups.length}</h3>
             <ul>
               {hiddenGroups.map((g) => (
                 <li key={g.id} className="flex min-h-11 items-center justify-between gap-2">
@@ -280,7 +276,7 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
           {saving ? "Guardando…" : changed.length > 0 ? `Guardar (${changed.length})` : "Guardar"}
         </button>
         <p className="text-[12px] text-muted">
-          Los cambios de personal y el ojo se guardan al momento; la hora, los palés y las notas, al pulsar Guardar.
+          Los cambios de personal y el ojo (solo esta noche) se guardan al momento; la hora, los palés y las notas, al pulsar Guardar.
         </p>
       </div>
     </BottomSheet>

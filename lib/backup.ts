@@ -118,6 +118,8 @@ export function parseBackup(data: unknown): BackupFile {
     if (tables[t] === undefined) tables[t] = [];
     else if (!Array.isArray(tables[t])) throw new Error(`La tabla ${t} de la copia no es válida.`);
   }
+  // Copias con el ojo de pasillos antiguo (por departamento): ahora es de cada noche, la columna ya no existe.
+  for (const r of tables.department as Row[]) delete r.aisleHidden;
   // Copias con el antiguo interruptor «bajados = sobrante»: ahora son dos cantidades (sin tocar / sobrante).
   for (const r of tables.aisleLog as Row[]) {
     if ("downSurplus" in r) {

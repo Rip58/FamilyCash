@@ -21,6 +21,15 @@ describe("copia de seguridad", () => {
   });
 });
 
+describe("copias con el ojo de pasillos por departamento", () => {
+  it("quitan la columna que ya no existe", () => {
+    const tables: Record<string, unknown[]> = Object.fromEntries(BACKUP_TABLES.map((t) => [t, []]));
+    tables.department = [{ id: "d", name: "Droguería", aisleHidden: true }];
+    const rows = parseBackup({ format: "familycash-backup", version: 2, createdAt: "x", tables }).tables.department as Record<string, unknown>[];
+    expect(rows).toEqual([{ id: "d", name: "Droguería" }]);
+  });
+});
+
 describe("copias con el antiguo interruptor de sobrante", () => {
   it("lo pasan a cantidad de sobrante o de sin tocar", () => {
     const tables: Record<string, unknown[]> = Object.fromEntries(BACKUP_TABLES.map((t) => [t, []]));

@@ -11,6 +11,8 @@ export interface AisleInfo {
   palletsSurplus: number | null;
   /** Nota del pasillo esa noche. */
   note: string | null;
+  /** Oculto con el ojo SOLO esa noche: no sale en el resumen del informe. */
+  hidden: boolean;
 }
 
 export const MAX_AISLE_NOTE = 200;
