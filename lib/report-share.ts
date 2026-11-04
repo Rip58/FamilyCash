@@ -172,9 +172,9 @@ export function buildShareModel(report: DayReport): ShareModel {
     people: a.people,
     details: [
       a.startTime && `empezó ${a.startTime}`,
-      a.palletsUp !== null && `${a.palletsUp} subidos`,
-      a.palletsDown !== null && `${a.palletsDown} bajados${a.downSurplus ? " (sobrante)" : ""}`,
-      a.done !== null && `${a.done} hechos`,
+      a.palletsUp !== null && `${a.palletsUp} ${a.palletsUp === 1 ? "subido" : "subidos"}`,
+      a.palletsDown !== null && `${a.palletsDown} ${a.palletsDown === 1 ? "bajado" : "bajados"}${a.downSurplus ? " (sobrante)" : ""}`,
+      a.done !== null && `${a.done} ${a.done === 1 ? "hecho" : "hechos"}`,
     ].filter((x): x is string => Boolean(x)),
   }));
   const withPallets = report.aisles.filter((a) => a.done !== null);
