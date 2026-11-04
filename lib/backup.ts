@@ -118,6 +118,16 @@ export function parseBackup(data: unknown): BackupFile {
     if (tables[t] === undefined) tables[t] = [];
     else if (!Array.isArray(tables[t])) throw new Error(`La tabla ${t} de la copia no es válida.`);
   }
+  // Copias con el antiguo interruptor «bajados = sobrante»: ahora son dos cantidades (sin tocar / sobrante).
+  for (const r of tables.aisleLog as Row[]) {
+    if ("downSurplus" in r) {
+      if (r.downSurplus === true) {
+        r.palletsSurplus = r.palletsDown ?? null;
+        r.palletsDown = null;
+      }
+      delete r.downSurplus;
+    }
+  }
   return b as BackupFile;
 }
 

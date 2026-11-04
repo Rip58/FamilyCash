@@ -4,7 +4,6 @@ import { useState } from "react";
 import type { ActionResult } from "@/app/actions/day";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { TimeInput } from "@/components/ui/TimeInput";
-import { Toggle } from "@/components/ui/Toggle";
 import { Icon, tint } from "@/components/ui/icons";
 import { type AisleInfo, palletsDone, parsePallets } from "@/lib/aisle-format";
 import { madridTime } from "@/lib/dates";
@@ -39,7 +38,7 @@ export interface AisleSave {
   startTime: string | null;
   palletsUp: number | null;
   palletsDown: number | null;
-  downSurplus: boolean;
+  palletsSurplus: number | null;
 }
 
 interface AislesSheetProps {
@@ -60,7 +59,7 @@ interface Draft {
   start: string;
   up: string;
   down: string;
-  surplus: boolean;
+  surplus: string;
 }
 
 const fieldCls =
@@ -70,7 +69,7 @@ const toDraft = (l?: AisleInfo): Draft => ({
   start: l?.startTime ?? "",
   up: l?.palletsUp === null || l?.palletsUp === undefined ? "" : String(l.palletsUp),
   down: l?.palletsDown === null || l?.palletsDown === undefined ? "" : String(l.palletsDown),
-  surplus: l?.downSurplus ?? false,
+  surplus: l?.palletsSurplus === null || l?.palletsSurplus === undefined ? "" : String(l.palletsSurplus),
 });
 
 /**
@@ -91,7 +90,7 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
     return a.start !== b.start || a.up !== b.up || a.down !== b.down || a.surplus !== b.surplus;
   });
   const started = groups.filter((g) => get(g.id).start !== "").length;
-  const totalDone = groups.reduce((sum, g) => sum + (palletsDone(parsePallets(get(g.id).up), parsePallets(get(g.id).down), get(g.id).surplus) ?? 0), 0);
+  const totalDone = groups.reduce((sum, g) => sum + (palletsDone(parsePallets(get(g.id).up), parsePallets(get(g.id).down)) ?? 0), 0);
 
   const save = async () => {
     setSaving(true);
@@ -99,7 +98,7 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
     const r = await onSave(
       changed.map((g) => {
         const d = get(g.id);
-        return { departmentId: g.id, startTime: d.start || null, palletsUp: parsePallets(d.up), palletsDown: parsePallets(d.down), downSurplus: d.surplus };
+        return { departmentId: g.id, startTime: d.start || null, palletsUp: parsePallets(d.up), palletsDown: parsePallets(d.down), palletsSurplus: parsePallets(d.surplus) };
       }),
     );
     setSaving(false);
@@ -115,7 +114,7 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
         </p>
         {groups.map((g) => {
           const d = get(g.id);
-          const done = palletsDone(parsePallets(d.up), parsePallets(d.down), d.surplus);
+          const done = palletsDone(parsePallets(d.up), parsePallets(d.down));
           const here = new Set(g.people.map((p) => p.id));
           const options = candidates.filter((c) => !here.has(c.id));
           return (
@@ -173,37 +172,30 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
                 </button>
               </div>
 
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <label className="flex flex-col gap-1 text-[13px] text-muted">
-                  Palés subidos
-                  <input
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={3}
-                    value={d.up}
-                    onChange={(e) => set(g.id, { up: e.target.value.replace(/\D/g, "") })}
-                    className={fieldCls}
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-[13px] text-muted">
-                  Palés bajados
-                  <input
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={3}
-                    value={d.down}
-                    onChange={(e) => set(g.id, { down: e.target.value.replace(/\D/g, "") })}
-                    className={fieldCls}
-                  />
-                </label>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {(
+                  [
+                    ["up", "Subidos"],
+                    ["down", "Bajados sin tocar"],
+                    ["surplus", "Sobrante"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label key={key} className="flex flex-col justify-end gap-1 text-[13px] leading-tight text-muted">
+                    {label}
+                    <input
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={3}
+                      value={d[key]}
+                      onChange={(e) => set(g.id, { [key]: e.target.value.replace(/\D/g, "") })}
+                      className={fieldCls}
+                    />
+                  </label>
+                ))}
               </div>
-              {d.down !== "" && (
-                <Toggle
-                  checked={d.surplus}
-                  onChange={(v) => set(g.id, { surplus: v })}
-                  label="Los bajados son sobrante (cuentan como hechos)"
-                />
-              )}
+              <p className="mt-1 text-[12px] leading-snug text-muted">
+                Sin tocar: bajan tal como subieron, no cuentan. Sobrante: se bajan por falta de sitio, cuentan como hechos.
+              </p>
               {done !== null && (
                 <p className="mt-1.5 text-[14px]">
                   Hechos: <span className="font-semibold">{done}</span>

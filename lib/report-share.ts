@@ -35,7 +35,7 @@ export interface ShareAisle {
   name: string;
   color: string;
   people: string[];
-  /** "empezó 22:10", "14 subidos", "2 bajados (sobrante)", "14 hechos". */
+  /** "empezó 22:10", "14 subidos", "2 bajados sin tocar", "3 sobrantes", "12 hechos". */
   details: string[];
 }
 
@@ -173,7 +173,8 @@ export function buildShareModel(report: DayReport): ShareModel {
     details: [
       a.startTime && `empezó ${a.startTime}`,
       a.palletsUp !== null && `${a.palletsUp} ${a.palletsUp === 1 ? "subido" : "subidos"}`,
-      a.palletsDown !== null && `${a.palletsDown} ${a.palletsDown === 1 ? "bajado" : "bajados"}${a.downSurplus ? " (sobrante)" : ""}`,
+      a.palletsDown !== null && `${a.palletsDown} ${a.palletsDown === 1 ? "bajado" : "bajados"} sin tocar`,
+      a.palletsSurplus !== null && `${a.palletsSurplus} ${a.palletsSurplus === 1 ? "sobrante" : "sobrantes"}`,
       a.done !== null && `${a.done} ${a.done === 1 ? "hecho" : "hechos"}`,
     ].filter((x): x is string => Boolean(x)),
   }));

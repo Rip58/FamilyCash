@@ -21,6 +21,21 @@ describe("copia de seguridad", () => {
   });
 });
 
+describe("copias con el antiguo interruptor de sobrante", () => {
+  it("lo pasan a cantidad de sobrante o de sin tocar", () => {
+    const tables: Record<string, unknown[]> = Object.fromEntries(BACKUP_TABLES.map((t) => [t, []]));
+    tables.aisleLog = [
+      { id: "a", palletsDown: 4, downSurplus: true },
+      { id: "b", palletsDown: 2, downSurplus: false },
+    ];
+    const rows = parseBackup({ format: "familycash-backup", version: 2, createdAt: "x", tables }).tables.aisleLog as Record<string, unknown>[];
+    expect(rows).toEqual([
+      { id: "a", palletsDown: null, palletsSurplus: 4 },
+      { id: "b", palletsDown: 2 },
+    ]);
+  });
+});
+
 describe("copias de la versión 1 (antes de unificar las notas)", () => {
   it("pasan la nota del día, notas de Hoy, de ficha, avisos y peticiones a nightNote", () => {
     const tables: Record<string, unknown[]> = Object.fromEntries(BACKUP_TABLES.map((t) => [t, []]));

@@ -2,15 +2,11 @@ import { describe, expect, it } from "vitest";
 import { palletsDone, parsePallets } from "@/lib/aisle-format";
 
 describe("palés del pasillo", () => {
-  it("hechos = subidos − bajados", () => {
+  it("hechos = subidos − bajados sin tocar (los sobrantes no se restan)", () => {
     expect(palletsDone(12, 2)).toBe(10);
     expect(palletsDone(12, null)).toBe(12);
     expect(palletsDone(3, 5)).toBe(0);
     expect(palletsDone(null, 2)).toBeNull();
-  });
-  it("si los bajados son sobrante, cuentan como hechos", () => {
-    expect(palletsDone(12, 2, true)).toBe(12);
-    expect(palletsDone(null, 2, true)).toBeNull();
   });
   it("lee el campo numérico", () => {
     expect(parsePallets("")).toBeNull();

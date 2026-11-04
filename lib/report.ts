@@ -156,8 +156,10 @@ export interface ReportAisle {
   people: string[];
   startTime: string | null;
   palletsUp: number | null;
+  /** Bajados sin tocar. */
   palletsDown: number | null;
-  downSurplus: boolean;
+  /** Bajados por sobrante (cuentan como hechos). */
+  palletsSurplus: number | null;
   /** Palés hechos (`palletsDone`); null si no se apuntaron los subidos. */
   done: number | null;
 }
@@ -307,7 +309,7 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
   const notes = sortNotes(input.notes ?? []);
   const aisles: ReportAisle[] = roster.departments.flatMap((r) => {
     const l = input.aisleLogs?.[r.department.id];
-    if (!l || (!l.startTime && l.palletsUp === null && l.palletsDown === null)) return [];
+    if (!l || (!l.startTime && l.palletsUp === null && l.palletsDown === null && l.palletsSurplus === null)) return [];
     return [
       {
         id: r.department.id,
@@ -317,8 +319,8 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
         startTime: l.startTime,
         palletsUp: l.palletsUp,
         palletsDown: l.palletsDown,
-        downSurplus: l.downSurplus,
-        done: palletsDone(l.palletsUp, l.palletsDown, l.downSurplus),
+        palletsSurplus: l.palletsSurplus,
+        done: palletsDone(l.palletsUp, l.palletsDown),
       },
     ];
   });

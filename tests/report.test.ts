@@ -245,27 +245,28 @@ describe("exportación visual", () => {
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(order[0]).toBeGreaterThan(0);
   });
-  it("resumen de pasillos: quién, hora y palés (sobrante cuenta como hecho); una persona en varios", () => {
+  it("resumen de pasillos: quién, hora y palés (los sobrantes no restan, los bajados sin tocar sí); una persona en varios", () => {
     const deps = [...departments, dep("cer", "Cervezas", 2, 1), dep("vac", "Vacío", 3, 1)];
     const employees = [emp("Ana"), emp("Luis", { defaultDepartmentId: "bot", defaultExtraDepartmentIds: ["cer"] })];
     const entries = employees.map((e) => entry(e.id, MON, WORK));
     const roster = getDayRoster({ date: MON, employees, entries, departments: deps, statusTypes });
     const aisleLogs = {
-      drog: { startTime: "22:10", palletsUp: 14, palletsDown: 2, downSurplus: false },
-      cer: { startTime: null, palletsUp: 6, palletsDown: 3, downSurplus: true },
-      vac: { startTime: null, palletsUp: null, palletsDown: null, downSurplus: false },
+      drog: { startTime: "22:10", palletsUp: 14, palletsDown: 2, palletsSurplus: null },
+      cer: { startTime: null, palletsUp: 6, palletsDown: null, palletsSurplus: 3 },
+      vac: { startTime: null, palletsUp: null, palletsDown: null, palletsSurplus: null },
     };
     const report = buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments: deps, aisleLogs });
     expect(report.aisles.map((a) => [a.name, a.people, a.done])).toEqual([
       ["Droguería", ["Ana"], 12],
       ["Cervezas", ["Luis"], 6],
     ]);
+    // Bajados sin tocar restan; los sobrantes no.
     const m = buildShareModel(report);
     expect(m.palletsDone).toBe(18);
     const t = shareModelToText(m);
     expect(t).toContain("📦 PASILLOS (18 palés hechos)");
-    expect(t).toContain("Droguería: Ana · empezó 22:10 · 14 subidos · 2 bajados · 12 hechos");
-    expect(t).toContain("Cervezas: Luis · 6 subidos · 3 bajados (sobrante) · 6 hechos");
+    expect(t).toContain("Droguería: Ana · empezó 22:10 · 14 subidos · 2 bajados sin tocar · 12 hechos");
+    expect(t).toContain("Cervezas: Luis · 6 subidos · 3 sobrantes · 6 hechos");
     expect(buildShareModel(buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments: deps })).aisles).toEqual([]);
   });
   it("quien cubre otros departamentos sale también en ellos (Edwin: Droguería + Cervezas y Aceitunas)", () => {

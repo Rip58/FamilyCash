@@ -317,8 +317,8 @@ model AisleLog {            // control de pasillos: lo que se apunta de un depar
   department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
   startTime    String?                          // "HH:mm" en que empezó el pasillo
   palletsUp    Int?                             // palés subidos al departamento
-  palletsDown  Int?                             // palés que han vuelto a bajar
-  downSurplus  Boolean    @default(false)       // los bajados son sobrante (no hay sitio): cuentan como hechos
+  palletsDown  Int?                             // palés bajados SIN TOCAR (tal como subieron): no cuentan como hechos
+  palletsSurplus Int?                           // palés bajados por sobrante (no hay sitio): cuentan como hechos
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   @@unique([date, departmentId])

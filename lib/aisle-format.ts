@@ -5,22 +5,21 @@ export interface AisleInfo {
   startTime: string | null;
   /** Palés subidos al departamento. */
   palletsUp: number | null;
-  /** Palés que han vuelto a bajar. */
+  /** Palés que han vuelto a bajar SIN TOCAR (tal como subieron del camión): no cuentan como hechos. */
   palletsDown: number | null;
-  /** Los bajados son sobrante (no hay sitio donde guardarlos): se dan por hechos. */
-  downSurplus: boolean;
+  /** Palés bajados por sobrante (no hay sitio donde guardarlos): se dan por hechos. */
+  palletsSurplus: number | null;
 }
 
 export const MAX_PALLETS = 999;
 
 /**
- * Palés que se han hecho: subidos − bajados, salvo que los bajados sean sobrante (no hay sitio para guardarlos),
- * que se dan por hechos. null si no se han apuntado los subidos.
+ * Palés hechos: subidos − bajados sin tocar. Los sobrantes NO se restan (se bajan por falta de sitio, pero están
+ * hechos). null si no se han apuntado los subidos.
  */
-export function palletsDone(up: number | null, down: number | null, downSurplus = false): number | null {
+export function palletsDone(up: number | null, untouched: number | null): number | null {
   if (up === null) return null;
-  if (downSurplus) return up;
-  return Math.max(0, up - (down ?? 0));
+  return Math.max(0, up - (untouched ?? 0));
 }
 
 /** Texto de un campo numérico → entero 0–999 o null si está vacío/no válido. */

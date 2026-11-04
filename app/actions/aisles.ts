@@ -17,7 +17,7 @@ const schema = z.object({
         startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(),
         palletsUp: z.number().int().min(0).max(999).nullable(),
         palletsDown: z.number().int().min(0).max(999).nullable(),
-        downSurplus: z.boolean(),
+        palletsSurplus: z.number().int().min(0).max(999).nullable(),
       }),
     )
     .min(1)
@@ -33,11 +33,11 @@ export async function setAisleStarts(input: z.input<typeof schema>): Promise<{ o
   try {
     await db.$transaction(
       items.map((it) =>
-        it.startTime || it.palletsUp !== null || it.palletsDown !== null
+        it.startTime || it.palletsUp !== null || it.palletsDown !== null || it.palletsSurplus !== null
           ? db.aisleLog.upsert({
               where: { date_departmentId: { date: d, departmentId: it.departmentId } },
-              create: { date: d, departmentId: it.departmentId, startTime: it.startTime, palletsUp: it.palletsUp, palletsDown: it.palletsDown, downSurplus: it.downSurplus },
-              update: { startTime: it.startTime, palletsUp: it.palletsUp, palletsDown: it.palletsDown, downSurplus: it.downSurplus },
+              create: { date: d, departmentId: it.departmentId, startTime: it.startTime, palletsUp: it.palletsUp, palletsDown: it.palletsDown, palletsSurplus: it.palletsSurplus },
+              update: { startTime: it.startTime, palletsUp: it.palletsUp, palletsDown: it.palletsDown, palletsSurplus: it.palletsSurplus },
             })
           : db.aisleLog.deleteMany({ where: { date: d, departmentId: it.departmentId } }),
       ),
@@ -55,7 +55,8 @@ export async function setAisleStarts(input: z.input<typeof schema>): Promise<{ o
         const parts = [
           i.startTime && `empieza ${i.startTime}`,
           i.palletsUp !== null && `${i.palletsUp} subidos`,
-          i.palletsDown !== null && `${i.palletsDown} bajados${i.downSurplus ? " (sobrante)" : ""}`,
+          i.palletsDown !== null && `${i.palletsDown} bajados sin tocar`,
+          i.palletsSurplus !== null && `${i.palletsSurplus} sobrantes`,
         ].filter(Boolean);
         return `${names.get(i.departmentId) ?? "Departamento"} ${parts.join(", ") || "borrado"}`;
       })
