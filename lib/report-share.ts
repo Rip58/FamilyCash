@@ -3,20 +3,6 @@ import { formatOvertime } from "./overtime";
 import { groupNotesByWho, noteLine } from "./notes";
 import type { DayReport } from "./report";
 
-export interface ShareMember {
-  name: string;
-  /** Detalles cortos: "⏰ 22:15", "de Botellería", "+1 h"… */
-  tags: string[];
-}
-
-export interface ShareDepartment {
-  name: string;
-  color: string;
-  members: ShareMember[];
-  /** «Sin departamento» (va siempre al final y a lo ancho). */
-  unassigned?: boolean;
-}
-
 export interface ShareMissing {
   name: string;
   label: string;
@@ -70,7 +56,8 @@ export interface ShareModel {
   title: string;
   shift: string;
   counts: { working: number; off: number; away: number; missing: number };
-  working: ShareDepartment[];
+  /** Quién trabaja esta noche, por orden alfabético (sin separar por departamentos: eso va en la tabla de pasillos). */
+  working: string[];
   off: string[];
   away: ShareAway[];
   missing: ShareMissing[];
@@ -118,40 +105,11 @@ export function pdfShareModel(report: DayReport): ShareModel {
   return { ...m, notes: [...m.notes, { who: null, items: [line], incident: [false] }] };
 }
 
-/** A partir de cuántas personas un departamento va a lo ancho en la imagen; los demás, en 2 columnas. */
-export const WIDE_DEPARTMENT_MIN = 3;
-
-/** Imagen: primero los departamentos grandes a lo ancho, luego los pequeños en 2 columnas y «Sin departamento» al final. */
-export function workingLayout(working: ShareDepartment[]): { wide: ShareDepartment[]; grid: ShareDepartment[]; rest: ShareDepartment[] } {
-  const named = working.filter((d) => !d.unassigned);
-  return {
-    wide: named.filter((d) => d.members.length >= WIDE_DEPARTMENT_MIN),
-    grid: named.filter((d) => d.members.length < WIDE_DEPARTMENT_MIN),
-    rest: working.filter((d) => d.unassigned),
-  };
-}
-
 export function buildShareModel(report: DayReport): ShareModel {
-  const late = new Map(report.lateArrivals.map((l) => [l.name, l]));
-  const member = (m: DayReport["unassigned"][number]): ShareMember => {
-    const tags: string[] = [];
-    if (m.movedFrom) tags.push(`de ${m.movedFrom}`);
-    const l = late.get(m.name);
-    if (l) tags.push(`⏰ ${l.arrivedAt}`);
-    if (m.extraMinutes) tags.push(formatOvertime(m.extraMinutes, true));
-    return { name: m.name, tags };
-  };
-  const working: ShareDepartment[] = report.departments.map((d) => ({
-    name: d.name,
-    color: d.color,
-    // Los que vienen a cubrirlo también (p. ej. hace Droguería y además Cervezas), sin repetir sus horarios.
-    members: d.byGroup
-      ? [{ name: "Grupo", tags: [] }]
-      : [...d.members.map(member), ...d.covering.map((m) => ({ name: m.name, tags: [] }))],
-  }));
-  if (report.unassigned.length > 0) {
-    working.push({ name: "Sin departamento", color: "#8e8e93", members: report.unassigned.map(member), unassigned: true });
-  }
+  // Trabajan: solo los nombres (el reparto por departamentos va en la tabla de pasillos, más abajo).
+  const working = [...report.departments.flatMap((d) => d.members), ...report.unassigned]
+    .map((m) => m.name)
+    .sort((x, y) => x.localeCompare(y, "es"));
 
   // Faltan = les tocaba trabajar y no han venido, o tienen «Falta» (ABSENT). Fiesta, vacaciones y bajas son normales.
   const off = report.absences
@@ -258,10 +216,7 @@ export function shareModelToText(m: ShareModel): string {
 
   if (m.working.length > 0) {
     L.push("", `✅ TRABAJAN (${m.counts.working})`);
-    for (const d of m.working) {
-      const names = d.members.map((p) => (p.tags.length > 0 ? `${p.name} (${p.tags.join(", ")})` : p.name));
-      L.push(`${colorEmoji(d.color)} ${d.name}: ${names.join(", ")}`);
-    }
+    L.push(m.working.join(", "));
   }
 
   if (m.off.length > 0) {

@@ -1,4 +1,4 @@
-import { buildShareModel, colorEmoji, pdfShareModel, shareModelToText, workingLayout } from "@/lib/report-share";
+import { buildShareModel, colorEmoji, pdfShareModel, shareModelToText } from "@/lib/report-share";
 import { describe, expect, it } from "vitest";
 import type { NoteView } from "@/lib/notes";
 import {
@@ -148,9 +148,11 @@ describe("buildDayReport", () => {
     // Orden: trabajan → fiesta → faltan.
     expect(t.indexOf("TRABAJAN")).toBeGreaterThan(0);
     expect(t.indexOf("VACACIONES")).toBeGreaterThan(t.indexOf("TRABAJAN"));
-    expect(t).toMatch(/Droguería: Ana \(⏰ 22:15\)/);
+    // «Trabajan» = solo nombres, sin separar por departamentos (eso va en la tabla de pasillos).
+    expect(t).toMatch(/✅ TRABAJAN \(\d+\)\n[^\n]*Ana[^\n]*/);
+    expect(t).not.toContain("Droguería:");
     expect(t).not.toContain("*");
-    expect(t).toContain("Carla (de Botellería)");
+    expect(t).not.toContain("de Botellería");
     expect(t).toContain("Noche tranquila");
   });
 });
@@ -282,21 +284,15 @@ describe("exportación visual", () => {
     expect(m.aisles.map((a) => a.name)).toEqual(["Droguería"]);
     expect(m.pallets?.up).toBe(5);
   });
-  it("quien cubre otros departamentos sale también en ellos (Edwin: Droguería + Cervezas y Aceitunas)", () => {
+  it("«Trabajan» son solo nombres por orden alfabético: quien cubre varios departamentos sale una vez", () => {
     const deps = [...departments, dep("cer", "Cervezas", 2, 1), dep("ace", "Aceitunas", 3, 1)];
-    const employees = [emp("Ana"), emp("Luis"), emp("Marta"), emp("Edwin", { defaultExtraDepartmentIds: ["cer", "ace"] }), emp("Pau", { defaultDepartmentId: "bot" })];
+    const employees = [emp("Marta"), emp("Ana"), emp("Luis"), emp("Edwin", { defaultExtraDepartmentIds: ["cer", "ace"] }), emp("Pau", { defaultDepartmentId: "bot" })];
     const entries = employees.map((e) => entry(e.id, MON, WORK));
     const roster = getDayRoster({ date: MON, employees, entries, departments: deps, statusTypes });
     const m = buildShareModel(buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments: deps }));
-    const byName = Object.fromEntries(m.working.map((d) => [d.name, d.members.map((x) => x.name)]));
-    expect(byName).toEqual({ Droguería: ["Ana", "Edwin", "Luis", "Marta"], Botellería: ["Pau"], Cervezas: ["Edwin"], Aceitunas: ["Edwin"] });
-    // Se cuentan personas, no puestos.
+    expect(m.working).toEqual(["Ana", "Edwin", "Luis", "Marta", "Pau"]);
     expect(m.counts.working).toBe(5);
-    expect(shareModelToText(m)).toContain("Cervezas: Edwin");
-    // Imagen: Droguería (4) a lo ancho; los de una persona en 2 columnas.
-    const l = workingLayout(m.working);
-    expect(l.wide.map((d) => d.name)).toEqual(["Droguería"]);
-    expect(l.grid.map((d) => d.name)).toEqual(["Botellería", "Cervezas", "Aceitunas"]);
+    expect(shareModelToText(m)).toContain("✅ TRABAJAN (5)\nAna, Edwin, Luis, Marta, Pau");
   });
   it("PDF: las notas con foto no se repiten en la 1.ª página (van con su foto)", () => {
     const roster = getDayRoster({ date: MON, employees: [emp("Ana")], entries: [entry("Ana", MON, WORK)], departments, statusTypes });
@@ -308,7 +304,7 @@ describe("exportación visual", () => {
     const pdf = pdfShareModel(report).notes.flatMap((g) => g.items);
     expect(pdf).toEqual(["Sin foto", "📷 2 notas con foto: en las páginas siguientes"]);
   });
-  it("«Grupo»: departamento sin nadie que hacen los compañeros: no es vacío, sale en el informe y no cuenta como persona", () => {
+  it("«Grupo»: departamento sin nadie que hacen los compañeros: no es vacío y no cuenta como persona", () => {
     const deps = [...departments, dep("cer", "Cervezas", 2, 1)];
     const employees = [emp("Ana"), emp("Pau", { defaultDepartmentId: "bot" })];
     const entries = employees.map((e) => entry(e.id, MON, WORK));
@@ -318,9 +314,9 @@ describe("exportación visual", () => {
     expect(roster.emptyDepartments).toEqual([]);
     expect(roster.groupDepartments.map((d) => d.name)).toEqual(["Cervezas"]);
     const m = buildShareModel(buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments: deps }));
-    expect(m.working.find((d) => d.name === "Cervezas")?.members.map((x) => x.name)).toEqual(["Grupo"]);
+    // El «Grupo» no es una persona: no sale en «Trabajan» ni cuenta.
+    expect(m.working).toEqual(["Ana", "Pau"]);
     expect(m.counts.working).toBe(2);
-    expect(shareModelToText(m)).toContain("Cervezas: Grupo");
   });
   it("«Grupo» no cuenta si al final hay alguien en el departamento", () => {
     const employees = [emp("Ana")];
