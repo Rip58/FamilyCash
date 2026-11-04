@@ -38,7 +38,7 @@ export interface SettingsData {
  */
 export const REF_TAG = "ref";
 /** Súbelo si una migración cambia estos datos, para no servir la caché anterior tras el despliegue. */
-const REF_CACHE_VERSION = "ref-v11";
+const REF_CACHE_VERSION = "ref-v12";
 const refCache = <T>(fn: () => Promise<T>, key: string) =>
   unstable_cache(fn, [REF_CACHE_VERSION, key], { tags: [REF_TAG], revalidate: 300 });
 

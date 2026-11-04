@@ -38,6 +38,7 @@ export interface AisleCandidate {
 export interface AisleSave {
   departmentId: string;
   startTime: string | null;
+  endTime: string | null;
   palletsUp: number | null;
   palletsDown: number | null;
   palletsSurplus: number | null;
@@ -61,6 +62,7 @@ interface AislesSheetProps {
 
 interface Draft {
   start: string;
+  end: string;
   up: string;
   down: string;
   surplus: string;
@@ -72,6 +74,7 @@ const fieldCls =
 
 const toDraft = (l?: AisleInfo): Draft => ({
   start: l?.startTime ?? "",
+  end: l?.endTime ?? "",
   up: l?.palletsUp === null || l?.palletsUp === undefined ? "" : String(l.palletsUp),
   down: l?.palletsDown === null || l?.palletsDown === undefined ? "" : String(l.palletsDown),
   surplus: l?.palletsSurplus === null || l?.palletsSurplus === undefined ? "" : String(l.palletsSurplus),
@@ -103,9 +106,9 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
   const changed = shown.filter((g) => {
     const a = get(g.id);
     const b = toDraft(logs[g.id]);
-    return a.start !== b.start || a.up !== b.up || a.down !== b.down || a.surplus !== b.surplus || a.note.trim() !== b.note.trim();
+    return a.start !== b.start || a.end !== b.end || a.up !== b.up || a.down !== b.down || a.surplus !== b.surplus || a.note.trim() !== b.note.trim();
   });
-  const started = shown.filter((g) => get(g.id).start !== "").length;
+  const started = shown.filter((g) => get(g.id).start !== "" || get(g.id).end !== "").length;
   const totalDone = shown.reduce((sum, g) => sum + (palletsDone(parsePallets(get(g.id).up), parsePallets(get(g.id).down)) ?? 0), 0);
 
   const save = async () => {
@@ -114,7 +117,7 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
     const r = await onSave(
       changed.map((g) => {
         const d = get(g.id);
-        return { departmentId: g.id, startTime: d.start || null, palletsUp: parsePallets(d.up), palletsDown: parsePallets(d.down), palletsSurplus: parsePallets(d.surplus), note: d.note.trim() || null };
+        return { departmentId: g.id, startTime: d.start || null, endTime: d.end || null, palletsUp: parsePallets(d.up), palletsDown: parsePallets(d.down), palletsSurplus: parsePallets(d.surplus), note: d.note.trim() || null };
       }),
     );
     setSaving(false);
@@ -126,7 +129,7 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
     <BottomSheet open={open} onClose={onClose} title="Control de pasillos">
       <div className="flex flex-col gap-2 pb-6">
         <p className="text-[13px] text-muted">
-          Han empezado {started} de {shown.length} · Palés hechos: <span className="font-semibold text-fg">{totalDone}</span>
+          Con datos: {started} de {shown.length} · Palés hechos: <span className="font-semibold text-fg">{totalDone}</span>
         </p>
         <p className="text-[12px] leading-snug text-muted">
           Bajados sin tocar: bajan tal como subieron, no cuentan. Sobrante: se bajan por falta de sitio, cuentan como hechos.
@@ -189,17 +192,24 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
                 ))}
               </select>
 
-              <div className="flex items-end gap-2">
-                <TimeInput label="Empezó a las" value={d.start} onChange={(v) => set(g.id, { start: v })} clearable className="flex-1" />
-                <button
-                  type="button"
-                  onClick={() => set(g.id, { start: madridTime(new Date()) })}
-                  className="press min-h-11 shrink-0 rounded-control px-3.5 text-[15px] font-semibold text-accent"
-                  style={{ backgroundColor: tint(g.color, 18) }}
-                >
-                  Ahora
-                </button>
-              </div>
+              {(
+                [
+                  ["start", "Empezó a las"],
+                  ["end", "Acabó a las"],
+                ] as const
+              ).map(([key, label]) => (
+                <div key={key} className="mt-1 flex items-end gap-2">
+                  <TimeInput label={label} value={d[key]} onChange={(v) => set(g.id, { [key]: v })} clearable className="flex-1" />
+                  <button
+                    type="button"
+                    onClick={() => set(g.id, { [key]: madridTime(new Date()) })}
+                    className="press min-h-11 shrink-0 rounded-control px-3.5 text-[15px] font-semibold text-accent"
+                    style={{ backgroundColor: tint(g.color, 18) }}
+                  >
+                    Ahora
+                  </button>
+                </div>
+              ))}
 
               <div className="mt-2 grid grid-cols-3 gap-2">
                 {(

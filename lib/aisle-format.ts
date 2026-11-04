@@ -3,6 +3,8 @@
 export interface AisleInfo {
   /** "HH:mm" en que empezó el departamento. */
   startTime: string | null;
+  /** "HH:mm" en que acabó (opcional). */
+  endTime: string | null;
   /** Palés subidos al departamento. */
   palletsUp: number | null;
   /** Palés que han vuelto a bajar SIN TOCAR (tal como subieron del camión): no cuentan como hechos. */

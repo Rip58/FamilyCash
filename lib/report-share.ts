@@ -36,6 +36,7 @@ export interface ShareAisle {
   color: string;
   people: string[];
   startTime: string | null;
+  endTime: string | null;
   up: number | null;
   /** Bajados sin tocar. */
   down: number | null;
@@ -57,6 +58,7 @@ export interface SharePallets {
 export function aisleDetails(a: ShareAisle): string[] {
   return [
     a.startTime && `empezó ${a.startTime}`,
+    a.endTime && `acabó ${a.endTime}`,
     a.up !== null && `${a.up} ${a.up === 1 ? "subido" : "subidos"}`,
     a.down !== null && `${a.down} ${a.down === 1 ? "bajado" : "bajados"} sin tocar`,
     a.surplus !== null && `${a.surplus} ${a.surplus === 1 ? "sobrante" : "sobrantes"}`,
@@ -196,6 +198,7 @@ export function buildShareModel(report: DayReport): ShareModel {
     color: a.color,
     people: a.people,
     startTime: a.startTime,
+    endTime: a.endTime,
     up: a.palletsUp,
     down: a.palletsDown,
     surplus: a.palletsSurplus,

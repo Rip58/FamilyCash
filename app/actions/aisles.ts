@@ -15,6 +15,7 @@ const schema = z.object({
         departmentId: z.string().min(1).max(64),
         /** "HH:mm" o null para borrar. */
         startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(),
+        endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(),
         palletsUp: z.number().int().min(0).max(999).nullable(),
         palletsDown: z.number().int().min(0).max(999).nullable(),
         palletsSurplus: z.number().int().min(0).max(999).nullable(),
@@ -34,11 +35,11 @@ export async function setAisleStarts(input: z.input<typeof schema>): Promise<{ o
   try {
     await db.$transaction(
       items.map((it) =>
-        it.startTime || it.palletsUp !== null || it.palletsDown !== null || it.palletsSurplus !== null || !!it.note
+        it.startTime || it.endTime || it.palletsUp !== null || it.palletsDown !== null || it.palletsSurplus !== null || !!it.note
           ? db.aisleLog.upsert({
               where: { date_departmentId: { date: d, departmentId: it.departmentId } },
-              create: { date: d, departmentId: it.departmentId, startTime: it.startTime, palletsUp: it.palletsUp, palletsDown: it.palletsDown, palletsSurplus: it.palletsSurplus, note: it.note || null },
-              update: { startTime: it.startTime, palletsUp: it.palletsUp, palletsDown: it.palletsDown, palletsSurplus: it.palletsSurplus, note: it.note || null },
+              create: { date: d, departmentId: it.departmentId, startTime: it.startTime, endTime: it.endTime, palletsUp: it.palletsUp, palletsDown: it.palletsDown, palletsSurplus: it.palletsSurplus, note: it.note || null },
+              update: { startTime: it.startTime, endTime: it.endTime, palletsUp: it.palletsUp, palletsDown: it.palletsDown, palletsSurplus: it.palletsSurplus, note: it.note || null },
             })
           : // Sin datos: se borra la fila, salvo que el pasillo esté oculto esa noche (entonces solo se vacía).
             db.aisleLog.deleteMany({ where: { date: d, departmentId: it.departmentId, hidden: false } }),
@@ -56,6 +57,7 @@ export async function setAisleStarts(input: z.input<typeof schema>): Promise<{ o
       .map((i) => {
         const parts = [
           i.startTime && `empieza ${i.startTime}`,
+          i.endTime && `acaba ${i.endTime}`,
           i.palletsUp !== null && `${i.palletsUp} subidos`,
           i.palletsDown !== null && `${i.palletsDown} bajados sin tocar`,
           i.palletsSurplus !== null && `${i.palletsSurplus} sobrantes`,
@@ -93,7 +95,7 @@ export async function setAisleHidden(input: z.input<typeof hiddenSchema>): Promi
       await db.aisleLog.updateMany({ where: { date: d, departmentId }, data: { hidden: false } });
       // Si la fila no guarda nada más, se borra.
       await db.aisleLog.deleteMany({
-        where: { date: d, departmentId, startTime: null, palletsUp: null, palletsDown: null, palletsSurplus: null, note: null },
+        where: { date: d, departmentId, startTime: null, endTime: null, palletsUp: null, palletsDown: null, palletsSurplus: null, note: null },
       });
     }
   } catch {

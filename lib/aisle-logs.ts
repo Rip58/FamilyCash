@@ -7,9 +7,9 @@ import { db } from "./db";
 export async function getAisleLogs(date: DateStr): Promise<Record<string, AisleInfo>> {
   const rows = await db.aisleLog.findMany({
     where: { date: toDbDate(date) },
-    select: { departmentId: true, startTime: true, palletsUp: true, palletsDown: true, palletsSurplus: true, note: true, hidden: true },
+    select: { departmentId: true, startTime: true, endTime: true, palletsUp: true, palletsDown: true, palletsSurplus: true, note: true, hidden: true },
   });
   return Object.fromEntries(
-    rows.map((r) => [r.departmentId, { startTime: r.startTime, palletsUp: r.palletsUp, palletsDown: r.palletsDown, palletsSurplus: r.palletsSurplus, note: r.note, hidden: r.hidden }]),
+    rows.map((r) => [r.departmentId, { startTime: r.startTime, endTime: r.endTime, palletsUp: r.palletsUp, palletsDown: r.palletsDown, palletsSurplus: r.palletsSurplus, note: r.note, hidden: r.hidden }]),
   );
 }

@@ -30,7 +30,10 @@ export function AisleTable({ aisles, pallets }: { aisles: ShareAisle[]; pallets:
               {a.surplus !== null && <span className="block text-[10px] font-medium text-muted">+{a.surplus} sobr.</span>}
             </span>
             <span role="cell" className="text-center font-bold tabular-nums text-success">{num(a.done)}</span>
-            <span role="cell" className="text-center tabular-nums">{a.startTime ?? "–"}</span>
+            <span role="cell" className="text-center tabular-nums">
+              {a.startTime ?? "–"}
+              {a.endTime && <span className="block text-[10px] font-medium text-muted">a {a.endTime}</span>}
+            </span>
           </div>
           {a.note && (
             <p className="mt-1 rounded-control px-2 py-1 text-[12px] text-muted" style={{ backgroundColor: tint(a.color, 12) }}>

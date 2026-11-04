@@ -155,6 +155,7 @@ export interface ReportAisle {
   /** Quién lo ha hecho (los del departamento y los que lo han cubierto). */
   people: string[];
   startTime: string | null;
+  endTime: string | null;
   palletsUp: number | null;
   /** Bajados sin tocar. */
   palletsDown: number | null;
@@ -312,7 +313,7 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
   const aisles: ReportAisle[] = roster.departments.flatMap((r) => {
     const l = input.aisleLogs?.[r.department.id];
     if (l?.hidden) return []; // el ojo: oculto del resumen esa noche
-    if (!l || (!l.startTime && l.palletsUp === null && l.palletsDown === null && l.palletsSurplus === null && !l.note)) return [];
+    if (!l || (!l.startTime && !l.endTime && l.palletsUp === null && l.palletsDown === null && l.palletsSurplus === null && !l.note)) return [];
     return [
       {
         id: r.department.id,
@@ -320,6 +321,7 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
         color: r.department.color,
         people: [...r.present, ...r.covering].map((m) => m.employee.name),
         startTime: l.startTime,
+        endTime: l.endTime,
         palletsUp: l.palletsUp,
         palletsDown: l.palletsDown,
         palletsSurplus: l.palletsSurplus,

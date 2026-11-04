@@ -333,8 +333,12 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
           cell(xs[2]!, cols[2]!, num(a.up), 26, 600, C.fg, true),
           0,
           cell(xs[4]!, cols[4]!, num(a.done), 26, 700, C.green, true),
-          cell(xs[5]!, cols[5]!, a.startTime ?? "–", 24, 400, C.fg, true),
+          0,
         ];
+        // Hora: la de inicio y, si hay, la de fin debajo en pequeño.
+        let hh2 = cell(xs[5]!, cols[5]!, a.startTime ?? "–", 24, 400, C.fg, true);
+        if (a.endTime) hh2 += cell(xs[5]!, cols[5]!, `a ${a.endTime}`, 20, 500, C.muted, true, hh2);
+        heights[5] = hh2;
         // Bajados: sin tocar arriba y, si hay, el sobrante debajo en pequeño.
         let hb = cell(xs[3]!, cols[3]!, num(a.down), 26, 600, C.fg, true);
         if (a.surplus !== null) hb += cell(xs[3]!, cols[3]!, `+${a.surplus} sobr.`, 20, 500, C.muted, true, hb);

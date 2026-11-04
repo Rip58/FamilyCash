@@ -251,9 +251,9 @@ describe("exportación visual", () => {
     const entries = employees.map((e) => entry(e.id, MON, WORK));
     const roster = getDayRoster({ date: MON, employees, entries, departments: deps, statusTypes });
     const aisleLogs = {
-      drog: { startTime: "22:10", palletsUp: 14, palletsDown: 2, palletsSurplus: null, note: "Se encontró mal y paró", hidden: false },
-      cer: { startTime: null, palletsUp: 6, palletsDown: null, palletsSurplus: 3, note: null, hidden: false },
-      vac: { startTime: null, palletsUp: null, palletsDown: null, palletsSurplus: null, note: null, hidden: false },
+      drog: { startTime: "22:10", endTime: "23:40", palletsUp: 14, palletsDown: 2, palletsSurplus: null, note: "Se encontró mal y paró", hidden: false },
+      cer: { startTime: null, endTime: null, palletsUp: 6, palletsDown: null, palletsSurplus: 3, note: null, hidden: false },
+      vac: { startTime: null, endTime: null, palletsUp: null, palletsDown: null, palletsSurplus: null, note: null, hidden: false },
     };
     const report = buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments: deps, aisleLogs });
     expect(report.aisles.map((a) => [a.name, a.people, a.done])).toEqual([
@@ -263,10 +263,10 @@ describe("exportación visual", () => {
     // Bajados sin tocar restan; los sobrantes no.
     const m = buildShareModel(report);
     expect(m.pallets).toEqual({ up: 20, down: 2, surplus: 3, done: 18 });
-    expect(m.aisles[0]).toMatchObject({ name: "Droguería", up: 14, down: 2, surplus: null, done: 12, startTime: "22:10", note: "Se encontró mal y paró" });
+    expect(m.aisles[0]).toMatchObject({ name: "Droguería", endTime: "23:40", up: 14, down: 2, surplus: null, done: 12, startTime: "22:10", note: "Se encontró mal y paró" });
     const t = shareModelToText(m);
     expect(t).toContain("📦 PASILLOS (18 palés hechos)");
-    expect(t).toContain("Droguería: Ana · empezó 22:10 · 14 subidos · 2 bajados sin tocar · 12 hechos · Nota: Se encontró mal y paró");
+    expect(t).toContain("Droguería: Ana · empezó 22:10 · acabó 23:40 · 14 subidos · 2 bajados sin tocar · 12 hechos · Nota: Se encontró mal y paró");
     expect(t).toContain("Cervezas: Luis · 6 subidos · 3 sobrantes · 6 hechos");
     expect(buildShareModel(buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments: deps })).aisles).toEqual([]);
   });
@@ -275,8 +275,8 @@ describe("exportación visual", () => {
     const entries = employees.map((e) => entry(e.id, MON, WORK));
     const roster = getDayRoster({ date: MON, employees, entries, departments, statusTypes });
     const aisleLogs = {
-      drog: { startTime: "22:00", palletsUp: 5, palletsDown: null, palletsSurplus: null, note: null, hidden: false },
-      bot: { startTime: "22:00", palletsUp: 8, palletsDown: null, palletsSurplus: null, note: null, hidden: true },
+      drog: { startTime: "22:00", endTime: null, palletsUp: 5, palletsDown: null, palletsSurplus: null, note: null, hidden: false },
+      bot: { startTime: "22:00", endTime: null, palletsUp: 8, palletsDown: null, palletsSurplus: null, note: null, hidden: true },
     };
     const m = buildShareModel(buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments, aisleLogs }));
     expect(m.aisles.map((a) => a.name)).toEqual(["Droguería"]);
