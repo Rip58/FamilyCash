@@ -162,23 +162,34 @@ export function DayView({
       }),
     [date, employees, optEntries, departments, statusTypes, groupIds, loggedAbsences],
   );
-  // Control de pasillos: TODOS los departamentos de la noche, con su gente (los que trabajan en él y los que lo cubren).
+  // Control de pasillos: TODOS los departamentos de la noche, con su gente. Una persona puede hacer varios pasillos:
+  // `personDepts` = sus departamentos de la noche (el principal primero, luego los que además cubre).
+  const personDepts = new Map<string, string[]>();
+  for (const d of roster.departments) for (const m of d.present) personDepts.set(m.employee.id, [d.department.id, ...(personDepts.get(m.employee.id) ?? [])]);
+  for (const d of roster.departments) for (const m of d.covering) personDepts.set(m.employee.id, [...(personDepts.get(m.employee.id) ?? []), d.department.id]);
   const aisleGroups: AisleGroup[] = roster.departments.map((d) => ({
     id: d.department.id,
     name: d.department.name,
     color: d.department.color,
-    people: [...d.present, ...d.covering].map((m) => ({
-      id: m.employee.id,
-      name: m.employee.name,
-      moved: m.employee.defaultDepartmentId !== d.department.id && !(m.employee.defaultExtraDepartmentIds ?? []).includes(d.department.id),
-    })),
+    people: [...d.present, ...d.covering].map((m) => {
+      const mine = personDepts.get(m.employee.id) ?? [];
+      const habitual = [m.employee.defaultDepartmentId, ...(m.employee.defaultExtraDepartmentIds ?? [])];
+      return { id: m.employee.id, name: m.employee.name, removable: mine.length > 1 || !habitual.includes(d.department.id) };
+    }),
     byGroup: d.byGroup,
   }));
-  // Quién trabaja esta noche (para ponerlo en un departamento) y dónde está ahora.
+  // Quién trabaja esta noche (para añadirlo a un departamento) y dónde está ahora.
+  const nameOfDept = new Map(roster.departments.map((d) => [d.department.id, d.department.name]));
   const aisleCandidates: AisleCandidate[] = [
-    ...roster.departments.flatMap((d) => d.present.map((m) => ({ id: m.employee.id, name: m.employee.name, from: d.department.name }))),
-    ...roster.unassigned.map((m) => ({ id: m.employee.id, name: m.employee.name, from: "Sin departamento" })),
-  ].sort((a, b) => a.name.localeCompare(b.name, "es"));
+    ...roster.departments.flatMap((d) => d.present.map((m) => m.employee)),
+    ...roster.unassigned.map((m) => m.employee),
+  ]
+    .map((e) => ({
+      id: e.id,
+      name: e.name,
+      from: (personDepts.get(e.id) ?? []).map((x) => nameOfDept.get(x) ?? "").filter(Boolean).join(" + ") || "Sin departamento",
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "es"));
   const deptMap = useMemo(() => new Map(departments.map((d) => [d.id, d])), [departments]);
   const sectionNames = useMemo(() => new Map(sections.map((s) => [s.id, s.name])), [sections]);
   const activeSections = useMemo(() => sections, [sections]);
@@ -606,10 +617,16 @@ export function DayView({
           candidates={aisleCandidates}
           logs={aisleLogs}
           onAssign={(id, departmentId) => {
-            const habitual = employees.find((e) => e.id === id)?.defaultDepartmentId ?? null;
-            opsFor(id).setDepartment(departmentId === habitual ? null : departmentId, []);
+            const mine = personDepts.get(id) ?? [];
+            if (mine.includes(departmentId)) return;
+            // Se suma a lo que ya hace; si no tenía departamento, éste pasa a ser el principal.
+            opsFor(id).setDepartment(mine[0] ?? departmentId, mine.length > 0 ? [...mine.slice(1), departmentId] : []);
           }}
-          onRelease={(id) => opsFor(id).setDepartment(null, [])}
+          onRemove={(id, departmentId) => {
+            const rest = (personDepts.get(id) ?? []).filter((x) => x !== departmentId);
+            // Sin ninguno más, vuelve a su departamento habitual.
+            opsFor(id).setDepartment(rest[0] ?? null, rest.slice(1));
+          }}
           onSave={async (items) => {
             const r = await setAisleStarts({ date, items });
             if (!r.ok) setError(r.error);

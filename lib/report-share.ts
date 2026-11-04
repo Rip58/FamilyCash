@@ -30,6 +30,15 @@ export interface ShareAway {
   members: { name: string; reason: string | null }[];
 }
 
+/** Un pasillo del resumen de la noche: departamento, quién lo ha hecho y sus datos (hora, palés). */
+export interface ShareAisle {
+  name: string;
+  color: string;
+  people: string[];
+  /** "empezó 22:10", "14 subidos", "2 bajados (sobrante)", "14 hechos". */
+  details: string[];
+}
+
 export interface ShareModel {
   title: string;
   shift: string;
@@ -41,6 +50,10 @@ export interface ShareModel {
   emptyDepartments: string[];
   times: string[];
   overtime: { total: string; items: string[] } | null;
+  /** Resumen de pasillos (control de pasillos); vacío si no se apuntó nada. */
+  aisles: ShareAisle[];
+  /** Palés hechos en total esa noche (null si no hay palés apuntados). */
+  palletsDone: number | null;
   /** Notas juntas por persona (o departamento); `who` null = generales. */
   notes: { who: string | null; items: string[]; /** Por nota: es una incidencia (en rojo en la imagen y el PDF). */ incident: boolean[] }[];
 }
@@ -153,6 +166,19 @@ export function buildShareModel(report: DayReport): ShareModel {
     } else notes.push({ who: p.name, items: [item], incident: [true] });
   }
 
+  const aisles: ShareAisle[] = report.aisles.map((a) => ({
+    name: a.name,
+    color: a.color,
+    people: a.people,
+    details: [
+      a.startTime && `empezó ${a.startTime}`,
+      a.palletsUp !== null && `${a.palletsUp} subidos`,
+      a.palletsDown !== null && `${a.palletsDown} bajados${a.downSurplus ? " (sobrante)" : ""}`,
+      a.done !== null && `${a.done} hechos`,
+    ].filter((x): x is string => Boolean(x)),
+  }));
+  const withPallets = report.aisles.filter((a) => a.done !== null);
+
   return {
     title: report.title,
     shift: `${report.shift.start}–${report.shift.end}`,
@@ -178,6 +204,8 @@ export function buildShareModel(report: DayReport): ShareModel {
             ),
           }
         : null,
+    aisles,
+    palletsDone: withPallets.length > 0 ? withPallets.reduce((n, a) => n + (a.done ?? 0), 0) : null,
     notes,
   };
 }
@@ -239,6 +267,13 @@ export function shareModelToText(m: ShareModel): string {
       if (!g.who) for (const t of g.items) L.push(`• ${t}`);
       else if (g.items.length === 1) L.push(`• ${g.who}: ${g.items[0]}`);
       else L.push(`• ${g.who}:`, ...g.items.map((t) => `   – ${t}`));
+    }
+  }
+
+  if (m.aisles.length > 0) {
+    L.push("", `📦 PASILLOS${m.palletsDone !== null ? ` (${m.palletsDone} palés hechos)` : ""}`);
+    for (const a of m.aisles) {
+      L.push(`${colorEmoji(a.color)} ${a.name}: ${[a.people.join(", ") || "Grupo", ...a.details].join(" · ")}`);
     }
   }
 

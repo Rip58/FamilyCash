@@ -44,7 +44,7 @@ export default async function Page() {
 
   // El mismo informe que comparte el dueño desde Informe (solo de esta noche).
   const roster = getDayRoster({ date: night, employees, entries, departments, statusTypes, groupCovers, loggedAbsences });
-  const report = buildDayReport({ roster, shift: settings, sections, departments, notes });
+  const report = buildDayReport({ roster, shift: settings, sections, departments, notes, aisleLogs });
 
   return (
     <div className="pt-2">

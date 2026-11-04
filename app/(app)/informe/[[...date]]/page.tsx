@@ -21,6 +21,7 @@ import {
 } from "@/lib/dates";
 import { getLoggedAbsences } from "@/lib/absence-log";
 import { db } from "@/lib/db";
+import { getAisleLogs } from "@/lib/aisle-logs";
 import { getGroupCovers } from "@/lib/group-covers";
 import { getNotes, getPendingTasksBefore } from "@/lib/note-queries";
 import { noteLine } from "@/lib/notes";
@@ -84,9 +85,13 @@ export default async function Page({
 
   if (view === "dia") {
     const [entries, notes] = await Promise.all([getEntriesBetween(addDays(date, -7), addDays(date, 7)), getNotes(date, date)]);
-    const [groupCovers, loggedAbsences] = await Promise.all([getGroupCovers(date, date), getLoggedAbsences(db, date, date)]);
+    const [groupCovers, loggedAbsences, aisleLogs] = await Promise.all([
+      getGroupCovers(date, date),
+      getLoggedAbsences(db, date, date),
+      getAisleLogs(date),
+    ]);
     const roster = getDayRoster({ date, employees, entries, departments, statusTypes, groupCovers, loggedAbsences });
-    const report = buildDayReport({ roster, shift: settings, sections, departments, notes });
+    const report = buildDayReport({ roster, shift: settings, sections, departments, notes, aisleLogs });
     title = formatDayLong(date);
     subtitle = `Turno ${settings.shiftStart}–${settings.shiftEnd} · ${report.presentCount} trabajan`;
     addNote = (

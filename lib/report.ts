@@ -9,6 +9,7 @@
 import { type DateStr, formatDayLong, formatWeekRange, isoWeekNumber, weekDays } from "./dates";
 import { totalOvertime } from "./overtime";
 import { type NoteView, sortNotes } from "./notes";
+import { type AisleInfo, palletsDone } from "./aisle-format";
 import { buildShareModel, shareModelToText } from "./report-share";
 import { type DayRoster, type RosterMember, type StatusTypeLite, type WeekGrid, isDayOffStatus } from "./schedule";
 
@@ -146,6 +147,21 @@ export interface ReportDepartment {
   byGroup: boolean;
 }
 
+/** Resumen de un pasillo (departamento) de la noche: quién lo ha hecho, a qué hora empezó y los palés. */
+export interface ReportAisle {
+  id: string;
+  name: string;
+  color: string;
+  /** Quién lo ha hecho (los del departamento y los que lo han cubierto). */
+  people: string[];
+  startTime: string | null;
+  palletsUp: number | null;
+  palletsDown: number | null;
+  downSurplus: boolean;
+  /** Palés hechos (`palletsDone`); null si no se apuntaron los subidos. */
+  done: number | null;
+}
+
 export interface DayReport {
   date: DateStr;
   title: string;
@@ -171,6 +187,8 @@ export interface DayReport {
   unassigned: ReportMember[];
   /** Horas extra apuntadas la noche (solo quien trabajó). */
   overtime: { items: OvertimeItem[]; totalMinutes: number };
+  /** Control de pasillos: solo los departamentos de los que se apuntó algo (hora o palés). */
+  aisles: ReportAisle[];
   hasIncidents: boolean;
   isEmpty: boolean;
 }
@@ -183,6 +201,8 @@ export interface BuildDayReportInput {
   departments: { id: string; name: string }[];
   /** Notas de la noche (opcional). */
   notes?: NoteView[];
+  /** Control de pasillos de la noche, por departamento. */
+  aisleLogs?: Record<string, AisleInfo>;
 }
 
 export function buildDayReport(input: BuildDayReportInput): DayReport {
@@ -285,6 +305,23 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
   const absentCount = absences.reduce((n, g) => n + g.members.length, 0);
   const emptyDepartments = roster.emptyDepartments.map((d) => d.name);
   const notes = sortNotes(input.notes ?? []);
+  const aisles: ReportAisle[] = roster.departments.flatMap((r) => {
+    const l = input.aisleLogs?.[r.department.id];
+    if (!l || (!l.startTime && l.palletsUp === null && l.palletsDown === null)) return [];
+    return [
+      {
+        id: r.department.id,
+        name: r.department.name,
+        color: r.department.color,
+        people: [...r.present, ...r.covering].map((m) => m.employee.name),
+        startTime: l.startTime,
+        palletsUp: l.palletsUp,
+        palletsDown: l.palletsDown,
+        downSurplus: l.downSurplus,
+        done: palletsDone(l.palletsUp, l.palletsDown, l.downSurplus),
+      },
+    ];
+  });
 
   const hasIncidents =
     lateArrivals.length > 0 || leaveDeviations.length > 0 || absentCount > 0 || emptyDepartments.length > 0;
@@ -315,6 +352,7 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
     departments,
     unassigned,
     overtime: { items: overtimeItems, totalMinutes: totalOvertime(overtimeItems.map((i) => ({ extraMinutes: i.minutes }))) },
+    aisles,
     hasIncidents,
     isEmpty: roster.presentCount === 0 && absentCount === 0 && notes.length === 0,
   };

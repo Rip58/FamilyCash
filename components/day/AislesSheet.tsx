@@ -12,8 +12,8 @@ import { madridTime } from "@/lib/dates";
 export interface AislePerson {
   id: string;
   name: string;
-  /** Está aquí por un cambio (no es su departamento habitual): se puede devolver a su sitio. */
-  moved: boolean;
+  /** Se le puede quitar de este departamento (hace más de uno, o está aquí por un cambio y vuelve al suyo). */
+  removable: boolean;
 }
 
 export interface AisleGroup {
@@ -30,7 +30,7 @@ export interface AisleGroup {
 export interface AisleCandidate {
   id: string;
   name: string;
-  /** Dónde está ahora ("Droguería", "Sin departamento"). */
+  /** Dónde está ahora ("Droguería", "Droguería + Cervezas", "Sin departamento"). */
   from: string;
 }
 
@@ -49,10 +49,10 @@ interface AislesSheetProps {
   candidates: AisleCandidate[];
   /** Lo ya guardado, por departamento. */
   logs: Record<string, AisleInfo>;
-  /** Poner a esa persona en ese departamento (solo ése). */
+  /** Añadir a esa persona a ese departamento (suma: puede hacer varios pasillos en la noche). */
   onAssign: (employeeId: string, departmentId: string) => void;
-  /** Devolver a esa persona a su departamento habitual. */
-  onRelease: (employeeId: string) => void;
+  /** Quitar a esa persona de ese departamento (los demás que hace se quedan). */
+  onRemove: (employeeId: string, departmentId: string) => void;
   onSave: (items: AisleSave[]) => Promise<ActionResult>;
 }
 
@@ -74,10 +74,10 @@ const toDraft = (l?: AisleInfo): Draft => ({
 });
 
 /**
- * Control de pasillos: TODOS los departamentos de la noche, con su gente (y un desplegable para poner a alguien
- * si está vacío o hay un cambio), la hora a la que empezó y los palés subidos y bajados (hechos = subidos − bajados).
+ * Control de pasillos: TODOS los departamentos de la noche, con su gente (y un desplegable para añadir a alguien;
+ * una persona puede hacer varios pasillos en la noche), la hora a la que empezó y los palés subidos y bajados (hechos = subidos − bajados).
  */
-export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign, onRelease, onSave }: AislesSheetProps) {
+export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign, onRemove, onSave }: AislesSheetProps) {
   const [draft, setDraft] = useState<Record<string, Draft>>(() => Object.fromEntries(groups.map((g) => [g.id, toDraft(logs[g.id])])));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -130,11 +130,11 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
                     style={{ backgroundColor: tint(g.color, 18) }}
                   >
                     {p.name}
-                    {p.moved ? (
+                    {p.removable ? (
                       <button
                         type="button"
-                        aria-label={`Devolver a ${p.name} a su departamento`}
-                        onClick={() => onRelease(p.id)}
+                        aria-label={`Quitar a ${p.name} de ${g.name}`}
+                        onClick={() => onRemove(p.id, g.id)}
                         className="press flex h-9 w-9 items-center justify-center text-muted"
                       >
                         <Icon name="close" className="h-4 w-4" strokeWidth={2.4} />
@@ -153,7 +153,7 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
                 onChange={(e) => e.target.value && onAssign(e.target.value, g.id)}
                 className={`${fieldCls} mb-2 text-[16px]`}
               >
-                <option value="">{g.people.length === 0 ? "Poner a alguien aquí…" : "Añadir o cambiar a alguien…"}</option>
+                <option value="">{g.people.length === 0 ? "Poner a alguien aquí…" : "Añadir a alguien…"}</option>
                 {options.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name} · {c.from}

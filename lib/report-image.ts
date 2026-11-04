@@ -286,6 +286,12 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
     );
   }
 
+  if (m.aisles.length > 0) {
+    card(`Pasillos${m.palletsDone !== null ? ` · ${m.palletsDone} palés hechos` : ""}`, C.blue, C.blueBg, () => {
+      for (const a of m.aisles) inline(a.name, [a.people.join(", ") || "Grupo", ...a.details].join(" · "), a.color);
+    });
+  }
+
   return y + PAD - 24;
 }
 
