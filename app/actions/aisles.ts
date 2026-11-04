@@ -25,7 +25,7 @@ const schema = z.object({
         palletsUp: z.number().int().min(0).max(999).nullable(),
         palletsDown: z.number().int().min(0).max(999).nullable(),
         palletsSurplus: z.number().int().min(0).max(999).nullable(),
-        note: z.string().trim().max(200).nullable(),
+        note: z.string().trim().max(1000).nullable(),
       }),
     )
     .min(1)

@@ -309,14 +309,27 @@ export function AislesSheet({ open, onClose, groups, candidates, names, logs, on
                   ))}
                 </div>
 
-                <input
+                {/* Se agranda sola según se escribe (hasta MAX_AISLE_NOTE caracteres). */}
+                <textarea
                   aria-label={`Nota de ${g.name}`}
                   placeholder="Nota (opcional)"
                   maxLength={MAX_AISLE_NOTE}
+                  rows={1}
                   value={d.note}
+                  ref={(el) => {
+                    if (el) {
+                      el.style.height = "auto";
+                      el.style.height = `${el.scrollHeight}px`;
+                    }
+                  }}
                   onChange={(e) => set(g, { note: e.target.value })}
-                  className={`${field} tabular-nums`}
+                  className="block min-h-10 w-full resize-none rounded-control bg-surface-2 px-2.5 py-2 text-[15px] leading-snug outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 />
+                {d.note.length > MAX_AISLE_NOTE * 0.8 && (
+                  <p className="px-1 text-right text-[11px] tabular-nums text-muted">
+                    {d.note.length}/{MAX_AISLE_NOTE}
+                  </p>
+                )}
               </div>
             </section>
           );

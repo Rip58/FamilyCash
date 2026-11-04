@@ -39,7 +39,7 @@ export function AisleTable({ aisles, pallets }: { aisles: ShareAisle[]; pallets:
             </span>
           </div>
           {a.note && (
-            <p className="mt-1 rounded-control px-2 py-1 text-[12px] text-muted" style={{ backgroundColor: tint(a.color, 12) }}>
+            <p className="mt-1 whitespace-pre-line rounded-control px-2 py-1 text-[12px] text-muted" style={{ backgroundColor: tint(a.color, 12) }}>
               <span className="font-semibold">Nota:</span> {a.note}
             </p>
           )}

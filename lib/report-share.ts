@@ -261,7 +261,7 @@ export function shareModelToText(m: ShareModel): string {
   if (m.aisles.length > 0) {
     L.push("", `📦 PASILLOS${m.pallets ? ` (${m.pallets.done} palés hechos)` : ""}`);
     for (const a of m.aisles) {
-      const line = [a.people.join(", ") || "Grupo", ...aisleDetails(a), a.note && `Nota: ${a.note}`].filter(Boolean);
+      const line = [a.people.join(", ") || "Grupo", ...aisleDetails(a), a.note && `Nota: ${a.note.replace(/\s*\n\s*/g, " ")}`].filter(Boolean);
       L.push(`${colorEmoji(a.color)} ${a.parent ? `${a.parent} › ` : ""}${a.name}: ${line.join(" · ")}`);
     }
   }
