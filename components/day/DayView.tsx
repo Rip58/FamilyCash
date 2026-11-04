@@ -181,17 +181,13 @@ export function DayView({
     byGroup: d.byGroup,
     hidden: aisleLogs[d.department.id]?.hidden === true,
   }));
-  // Quién trabaja esta noche (para añadirlo a un departamento) y dónde está ahora.
-  const nameOfDept = new Map(roster.departments.map((d) => [d.department.id, d.department.name]));
+  // A quién se puede añadir a un pasillo: SOLO los que están presentes esta noche (trabajan; ni fiesta, ni vacaciones, ni
+  // baja, ni faltas), y solo el nombre.
   const aisleCandidates: AisleCandidate[] = [
     ...roster.departments.flatMap((d) => d.present.map((m) => m.employee)),
     ...roster.unassigned.map((m) => m.employee),
   ]
-    .map((e) => ({
-      id: e.id,
-      name: e.name,
-      from: (personDepts.get(e.id) ?? []).map((x) => nameOfDept.get(x) ?? "").filter(Boolean).join(" + ") || "Sin departamento",
-    }))
+    .map((e) => ({ id: e.id, name: e.name }))
     .sort((a, b) => a.name.localeCompare(b.name, "es"));
   const deptMap = useMemo(() => new Map(departments.map((d) => [d.id, d])), [departments]);
   const sectionNames = useMemo(() => new Map(sections.map((s) => [s.id, s.name])), [sections]);

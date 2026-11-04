@@ -27,12 +27,10 @@ export interface AisleGroup {
   hidden: boolean;
 }
 
-/** Alguien que trabaja esta noche y se puede poner en un departamento. */
+/** Alguien presente esta noche que se puede añadir a un departamento (solo se muestra el nombre). */
 export interface AisleCandidate {
   id: string;
   name: string;
-  /** Dónde está ahora ("Droguería", "Droguería + Cervezas", "Sin departamento"). */
-  from: string;
 }
 
 export interface AisleSave {
@@ -187,7 +185,7 @@ export function AislesSheet({ open, onClose, groups, candidates, logs, onAssign,
                 <option value="">{g.people.length === 0 ? "Poner a alguien aquí…" : "Añadir a alguien…"}</option>
                 {options.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name} · {c.from}
+                    {c.name}
                   </option>
                 ))}
               </select>
