@@ -30,13 +30,38 @@ export interface ShareAway {
   members: { name: string; reason: string | null }[];
 }
 
-/** Un pasillo del resumen de la noche: departamento, quién lo ha hecho y sus datos (hora, palés). */
+/** Una fila de la tabla de pasillos: departamento, quién lo ha hecho, hora, palés y nota. */
 export interface ShareAisle {
   name: string;
   color: string;
   people: string[];
-  /** "empezó 22:10", "14 subidos", "2 bajados sin tocar", "3 sobrantes", "12 hechos". */
-  details: string[];
+  startTime: string | null;
+  up: number | null;
+  /** Bajados sin tocar. */
+  down: number | null;
+  /** Bajados por sobrante (cuentan como hechos). */
+  surplus: number | null;
+  done: number | null;
+  note: string | null;
+}
+
+/** Totales de palés de la noche (suman los pasillos con datos). */
+export interface SharePallets {
+  up: number;
+  down: number;
+  surplus: number;
+  done: number;
+}
+
+/** Datos de un pasillo en una línea de texto: «empezó 22:10 · 14 subidos · 2 bajados sin tocar · 3 sobrantes · 12 hechos». */
+export function aisleDetails(a: ShareAisle): string[] {
+  return [
+    a.startTime && `empezó ${a.startTime}`,
+    a.up !== null && `${a.up} ${a.up === 1 ? "subido" : "subidos"}`,
+    a.down !== null && `${a.down} ${a.down === 1 ? "bajado" : "bajados"} sin tocar`,
+    a.surplus !== null && `${a.surplus} ${a.surplus === 1 ? "sobrante" : "sobrantes"}`,
+    a.done !== null && `${a.done} ${a.done === 1 ? "hecho" : "hechos"}`,
+  ].filter((x): x is string => Boolean(x));
 }
 
 export interface ShareModel {
@@ -52,8 +77,8 @@ export interface ShareModel {
   overtime: { total: string; items: string[] } | null;
   /** Resumen de pasillos (control de pasillos); vacío si no se apuntó nada. */
   aisles: ShareAisle[];
-  /** Palés hechos en total esa noche (null si no hay palés apuntados). */
-  palletsDone: number | null;
+  /** Palés de la noche en total (null si no hay palés apuntados). */
+  pallets: SharePallets | null;
   /** Notas juntas por persona (o departamento); `who` null = generales. */
   notes: { who: string | null; items: string[]; /** Por nota: es una incidencia (en rojo en la imagen y el PDF). */ incident: boolean[] }[];
 }
@@ -170,15 +195,15 @@ export function buildShareModel(report: DayReport): ShareModel {
     name: a.name,
     color: a.color,
     people: a.people,
-    details: [
-      a.startTime && `empezó ${a.startTime}`,
-      a.palletsUp !== null && `${a.palletsUp} ${a.palletsUp === 1 ? "subido" : "subidos"}`,
-      a.palletsDown !== null && `${a.palletsDown} ${a.palletsDown === 1 ? "bajado" : "bajados"} sin tocar`,
-      a.palletsSurplus !== null && `${a.palletsSurplus} ${a.palletsSurplus === 1 ? "sobrante" : "sobrantes"}`,
-      a.done !== null && `${a.done} ${a.done === 1 ? "hecho" : "hechos"}`,
-    ].filter((x): x is string => Boolean(x)),
+    startTime: a.startTime,
+    up: a.palletsUp,
+    down: a.palletsDown,
+    surplus: a.palletsSurplus,
+    done: a.done,
+    note: a.note,
   }));
-  const withPallets = report.aisles.filter((a) => a.done !== null);
+  const withPallets = aisles.filter((a) => a.up !== null || a.down !== null || a.surplus !== null);
+  const sum = (f: (a: ShareAisle) => number | null) => aisles.reduce((n, a) => n + (f(a) ?? 0), 0);
 
   return {
     title: report.title,
@@ -206,7 +231,8 @@ export function buildShareModel(report: DayReport): ShareModel {
           }
         : null,
     aisles,
-    palletsDone: withPallets.length > 0 ? withPallets.reduce((n, a) => n + (a.done ?? 0), 0) : null,
+    pallets:
+      withPallets.length > 0 ? { up: sum((a) => a.up), down: sum((a) => a.down), surplus: sum((a) => a.surplus), done: sum((a) => a.done) } : null,
     notes,
   };
 }
@@ -272,9 +298,10 @@ export function shareModelToText(m: ShareModel): string {
   }
 
   if (m.aisles.length > 0) {
-    L.push("", `📦 PASILLOS${m.palletsDone !== null ? ` (${m.palletsDone} palés hechos)` : ""}`);
+    L.push("", `📦 PASILLOS${m.pallets ? ` (${m.pallets.done} palés hechos)` : ""}`);
     for (const a of m.aisles) {
-      L.push(`${colorEmoji(a.color)} ${a.name}: ${[a.people.join(", ") || "Grupo", ...a.details].join(" · ")}`);
+      const line = [a.people.join(", ") || "Grupo", ...aisleDetails(a), a.note && `Nota: ${a.note}`].filter(Boolean);
+      L.push(`${colorEmoji(a.color)} ${a.name}: ${line.join(" · ")}`);
     }
   }
 

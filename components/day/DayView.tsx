@@ -35,7 +35,8 @@ import {
 } from "@/lib/schedule";
 import { type EntryPatch, type ShiftTimes, applyEntryPatch } from "@/lib/segments";
 import { setAbsenceNotice } from "@/app/actions/absences";
-import { setAisleStarts } from "@/app/actions/aisles";
+import { setAisleHidden, setAisleStarts } from "@/app/actions/aisles";
+import { useRouter } from "next/navigation";
 import { setGroupCover } from "@/app/actions/group";
 import { AbsentSheet } from "./AbsentSheet";
 import { AislesSheet, type AisleCandidate, type AisleGroup } from "./AislesSheet";
@@ -102,6 +103,7 @@ export function DayView({
   guestChanges = [],
 }: DayViewProps) {
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
   useLiveNight(date, pending);
   const [error, setError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ id: string; open: boolean } | null>(null);
@@ -177,7 +179,8 @@ export function DayView({
       return { id: m.employee.id, name: m.employee.name, removable: mine.length > 1 || !habitual.includes(d.department.id) };
     }),
     byGroup: d.byGroup,
-  }));
+    hidden: d.department.aisleHidden === true,
+  })).filter((g) => !guest || !g.hidden); // el compañero no ve los ocultos
   // Quién trabaja esta noche (para añadirlo a un departamento) y dónde está ahora.
   const nameOfDept = new Map(roster.departments.map((d) => [d.department.id, d.department.name]));
   const aisleCandidates: AisleCandidate[] = [
@@ -627,6 +630,14 @@ export function DayView({
             // Sin ninguno más, vuelve a su departamento habitual.
             opsFor(id).setDepartment(rest[0] ?? null, rest.slice(1));
           }}
+          canHide={!guest}
+          onToggleHidden={(departmentId, hidden) =>
+            startTransition(async () => {
+              const r = await setAisleHidden({ departmentId, hidden });
+              if (r.ok) router.refresh();
+              else setError(r.error);
+            })
+          }
           onSave={async (items) => {
             const r = await setAisleStarts({ date, items });
             if (!r.ok) setError(r.error);

@@ -2,7 +2,7 @@ import { NoteList } from "@/components/notes/NoteList";
 import type { NoteOptions } from "@/components/notes/NoteSheet";
 import { Card } from "@/components/ui";
 import { formatOvertime } from "@/lib/overtime";
-import { tint } from "@/components/ui/icons";
+import { AisleTable } from "./AisleTable";
 import { formatDuration, type DayReport } from "@/lib/report";
 import { buildShareModel } from "@/lib/report-share";
 
@@ -122,22 +122,14 @@ export function DayReportView({ report, options }: { report: DayReport; options:
         <Card
           title="Pasillos"
           action={
-            share.palletsDone !== null && (
+            share.pallets && (
               <span className="text-[15px] font-semibold tabular-nums" data-testid="report-pallets-total">
-                {share.palletsDone} palés hechos
+                {share.pallets.done} palés hechos
               </span>
             )
           }
         >
-          <ul className="space-y-2 text-[15px]">
-            {share.aisles.map((a) => (
-              <li key={a.name} className="rounded-control px-3 py-2" style={{ backgroundColor: tint(a.color, 14) }}>
-                <p className="font-semibold">{a.name}</p>
-                <p className="text-muted">{a.people.join(", ") || "Lo ha hecho el grupo"}</p>
-                {a.details.length > 0 && <p className="tabular-nums">{a.details.join(" · ")}</p>}
-              </li>
-            ))}
-          </ul>
+          <AisleTable aisles={share.aisles} pallets={share.pallets} />
         </Card>
       )}
     </div>

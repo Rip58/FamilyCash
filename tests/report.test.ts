@@ -251,9 +251,9 @@ describe("exportación visual", () => {
     const entries = employees.map((e) => entry(e.id, MON, WORK));
     const roster = getDayRoster({ date: MON, employees, entries, departments: deps, statusTypes });
     const aisleLogs = {
-      drog: { startTime: "22:10", palletsUp: 14, palletsDown: 2, palletsSurplus: null },
-      cer: { startTime: null, palletsUp: 6, palletsDown: null, palletsSurplus: 3 },
-      vac: { startTime: null, palletsUp: null, palletsDown: null, palletsSurplus: null },
+      drog: { startTime: "22:10", palletsUp: 14, palletsDown: 2, palletsSurplus: null, note: "Se encontró mal y paró" },
+      cer: { startTime: null, palletsUp: 6, palletsDown: null, palletsSurplus: 3, note: null },
+      vac: { startTime: null, palletsUp: null, palletsDown: null, palletsSurplus: null, note: null },
     };
     const report = buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments: deps, aisleLogs });
     expect(report.aisles.map((a) => [a.name, a.people, a.done])).toEqual([
@@ -262,12 +262,26 @@ describe("exportación visual", () => {
     ]);
     // Bajados sin tocar restan; los sobrantes no.
     const m = buildShareModel(report);
-    expect(m.palletsDone).toBe(18);
+    expect(m.pallets).toEqual({ up: 20, down: 2, surplus: 3, done: 18 });
+    expect(m.aisles[0]).toMatchObject({ name: "Droguería", up: 14, down: 2, surplus: null, done: 12, startTime: "22:10", note: "Se encontró mal y paró" });
     const t = shareModelToText(m);
     expect(t).toContain("📦 PASILLOS (18 palés hechos)");
-    expect(t).toContain("Droguería: Ana · empezó 22:10 · 14 subidos · 2 bajados sin tocar · 12 hechos");
+    expect(t).toContain("Droguería: Ana · empezó 22:10 · 14 subidos · 2 bajados sin tocar · 12 hechos · Nota: Se encontró mal y paró");
     expect(t).toContain("Cervezas: Luis · 6 subidos · 3 sobrantes · 6 hechos");
     expect(buildShareModel(buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments: deps })).aisles).toEqual([]);
+  });
+  it("un pasillo oculto con el ojo no sale en el resumen", () => {
+    const deps = departments.map((d) => (d.id === "bot" ? { ...d, aisleHidden: true } : d));
+    const employees = [emp("Ana"), emp("Pau", { defaultDepartmentId: "bot" })];
+    const entries = employees.map((e) => entry(e.id, MON, WORK));
+    const roster = getDayRoster({ date: MON, employees, entries, departments: deps, statusTypes });
+    const aisleLogs = {
+      drog: { startTime: "22:00", palletsUp: 5, palletsDown: null, palletsSurplus: null, note: null },
+      bot: { startTime: "22:00", palletsUp: 8, palletsDown: null, palletsSurplus: null, note: null },
+    };
+    const m = buildShareModel(buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments: deps, aisleLogs }));
+    expect(m.aisles.map((a) => a.name)).toEqual(["Droguería"]);
+    expect(m.pallets?.up).toBe(5);
   });
   it("quien cubre otros departamentos sale también en ellos (Edwin: Droguería + Cervezas y Aceitunas)", () => {
     const deps = [...departments, dep("cer", "Cervezas", 2, 1), dep("ace", "Aceitunas", 3, 1)];

@@ -9,7 +9,11 @@ export interface AisleInfo {
   palletsDown: number | null;
   /** Palés bajados por sobrante (no hay sitio donde guardarlos): se dan por hechos. */
   palletsSurplus: number | null;
+  /** Nota del pasillo esa noche. */
+  note: string | null;
 }
+
+export const MAX_AISLE_NOTE = 200;
 
 export const MAX_PALLETS = 999;
 

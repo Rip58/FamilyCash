@@ -287,8 +287,82 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
   }
 
   if (m.aisles.length > 0) {
-    card(`Pasillos${m.palletsDone !== null ? ` · ${m.palletsDone} palés hechos` : ""}`, C.blue, C.blueBg, () => {
-      for (const a of m.aisles) inline(a.name, [a.people.join(", ") || "Grupo", ...a.details].join(" · "), a.color);
+    card(`Pasillos${m.pallets ? ` · ${m.pallets.done} palés hechos` : ""}`, C.blue, C.blueBg, () => {
+      // Tabla: Pasillo | Personas | Subidos | Bajados (sin tocar y sobrante) | Hechos | Hora; la nota, debajo de su fila.
+      const x0 = PAD + 28;
+      const cols = [250, 270, 92, 120, 92, 104];
+      const xs = cols.map((_, i) => x0 + cols.slice(0, i).reduce((a, b) => a + b, 0));
+      const tableW = cols.reduce((a, b) => a + b, 0);
+      const num = (n: number | null) => (n === null ? "–" : String(n));
+      /** Texto envuelto en la columna [x, x+w): devuelve su alto sin mover `y`. `dy` = desplazamiento vertical. */
+      const cell = (x: number, w: number, s: string, size: number, weight: number, color: string, center = false, dy = 0): number => {
+        font(ctx, size, weight);
+        const lh = Math.round(size * 1.3);
+        const lines = wrap(ctx, s, w - 12);
+        lines.forEach((l, i) => {
+          if (draw) {
+            ctx.fillStyle = color;
+            ctx.fillText(l, center ? x + (w - ctx.measureText(l).width) / 2 : x + 6, y + dy + size + i * lh);
+          }
+        });
+        return lines.length * lh;
+      };
+      const rule = () => {
+        if (draw) {
+          ctx.fillStyle = C.line;
+          ctx.fillRect(x0, y, tableW, 2);
+        }
+        y += 2;
+      };
+      // Cabecera
+      const heads = ["Pasillo", "Personas", "Subidos", "Bajados", "Hechos", "Hora"];
+      const hh = Math.max(...heads.map((h, i) => cell(xs[i]!, cols[i]!, h, 22, 700, C.muted, i >= 2)));
+      y += hh + 8;
+      rule();
+      for (const a of m.aisles) {
+        y += 10;
+        const top = y;
+        if (draw) {
+          ctx.fillStyle = a.color;
+          roundRect(ctx, xs[0]! + 6, y + 6, 22, 22, 6);
+          ctx.fill();
+        }
+        const heights = [
+          cell(xs[0]! + 28, cols[0]! - 28, a.name, 26, 700, C.fg),
+          cell(xs[1]!, cols[1]!, a.people.join(", ") || "Grupo", 24, 400, C.fg),
+          cell(xs[2]!, cols[2]!, num(a.up), 26, 600, C.fg, true),
+          0,
+          cell(xs[4]!, cols[4]!, num(a.done), 26, 700, C.green, true),
+          cell(xs[5]!, cols[5]!, a.startTime ?? "–", 24, 400, C.fg, true),
+        ];
+        // Bajados: sin tocar arriba y, si hay, el sobrante debajo en pequeño.
+        let hb = cell(xs[3]!, cols[3]!, num(a.down), 26, 600, C.fg, true);
+        if (a.surplus !== null) hb += cell(xs[3]!, cols[3]!, `+${a.surplus} sobr.`, 20, 500, C.muted, true, hb);
+        heights[3] = hb;
+        y = top + Math.max(...heights) + 8;
+        if (a.note) {
+          y += 2;
+          y += cell(x0 + 28, tableW - 28, `Nota: ${a.note}`, 22, 400, C.muted) + 4;
+        }
+        y += 6;
+        rule();
+      }
+      // Totales
+      if (m.pallets) {
+        y += 10;
+        const top = y;
+        const t = m.pallets;
+        const hs = [
+          cell(xs[0]!, cols[0]!, "Total", 26, 800, C.fg),
+          cell(xs[2]!, cols[2]!, String(t.up), 26, 800, C.fg, true),
+          cell(xs[3]!, cols[3]!, String(t.down) + (t.surplus > 0 ? `  +${t.surplus}` : ""), 26, 800, C.fg, true),
+          cell(xs[4]!, cols[4]!, String(t.done), 26, 800, C.green, true),
+        ];
+        y = top + Math.max(...hs) + 6;
+      }
+      y += 6;
+      text("Bajados = sin tocar (+ sobrante, que cuenta como hecho). Hechos = subidos − sin tocar.", x0, 20, 400, C.muted, tableW);
+      y += 4;
     });
   }
 

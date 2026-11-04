@@ -31,6 +31,7 @@ model Department {          // Droguería, Botellería, ...
   sortOrder   Int     @default(0)
   targetStaff Int     @default(0)          // plazas previstas (Droguería 4, Botellería 1)
   secondary   Boolean @default(false)      // tareas de todos (comodín, palets…): vacío no es "sin personal" y no se muestra en Hoy
+  aisleHidden Boolean @default(false)      // oculto en el control de pasillos y en su resumen del informe (el ojo)
   active      Boolean @default(true)
   employees   Employee[]
   sections    Section[]
@@ -319,6 +320,7 @@ model AisleLog {            // control de pasillos: lo que se apunta de un depar
   palletsUp    Int?                             // palés subidos al departamento
   palletsDown  Int?                             // palés bajados SIN TOCAR (tal como subieron): no cuentan como hechos
   palletsSurplus Int?                           // palés bajados por sobrante (no hay sitio): cuentan como hechos
+  note         String?                          // nota de ese pasillo esa noche («se ha encontrado mal y no ha podido hacer más»)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   @@unique([date, departmentId])

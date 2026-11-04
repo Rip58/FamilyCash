@@ -1,0 +1,2 @@
+ALTER TABLE "Department" ADD COLUMN "aisleHidden" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "AisleLog" ADD COLUMN "note" TEXT;

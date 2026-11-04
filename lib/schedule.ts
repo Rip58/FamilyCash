@@ -31,6 +31,8 @@ export interface DepartmentLite {
   active?: boolean;
   /** Secundario (comodín, palets…): si nadie lo cubre no es "sin personal". */
   secondary?: boolean;
+  /** Oculto en el control de pasillos y en su resumen del informe. */
+  aisleHidden?: boolean;
 }
 
 export interface EmployeeLite {
