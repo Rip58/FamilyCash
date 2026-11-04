@@ -67,6 +67,8 @@ interface AislesSheetProps {
   onSave: (items: AisleSave[]) => Promise<ActionResult>;
   /** El ojo: oculta el pasillo SOLO esta noche. */
   onToggleHidden: (departmentId: string, sectionId: string | null, hidden: boolean) => void;
+  /** Abre la hoja de notas (la misma de Hoy) para apuntar una nota general de la noche. */
+  onAddNote: () => void;
 }
 
 interface Draft {
@@ -120,7 +122,7 @@ function Label({ children, actions }: { children: string; actions?: React.ReactN
  * nombre, los palés hechos y el ojo; debajo la gente, las dos horas, los tres palés y una nota). Un departamento se
  * puede separar en pasillos (Leche, Café…) en Ajustes → Secciones.
  */
-export function AislesSheet({ open, onClose, groups, candidates, names, logs, onAssign, onRemove, onSave, onToggleHidden }: AislesSheetProps) {
+export function AislesSheet({ open, onClose, groups, candidates, names, logs, onAssign, onRemove, onSave, onToggleHidden, onAddNote }: AislesSheetProps) {
   const [draft, setDraft] = useState<Record<string, Draft>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -347,6 +349,15 @@ export function AislesSheet({ open, onClose, groups, candidates, names, logs, on
             </ul>
           </section>
         )}
+
+        <button
+          type="button"
+          onClick={onAddNote}
+          className="press flex min-h-11 items-center justify-center gap-1.5 rounded-card bg-surface-2 text-[15px] font-semibold text-accent"
+        >
+          <Icon name="note" className="h-5 w-5" />
+          Añadir nota general
+        </button>
 
         {error && (
           <p role="alert" className="px-1 text-[14px] text-danger">

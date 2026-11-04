@@ -652,6 +652,7 @@ export function DayView({
             // Sin ninguno más, vuelve a su departamento habitual.
             opsFor(id).setDepartment(rest[0] ?? null, rest.slice(1));
           }}
+          onAddNote={() => openNote(null)}
           onToggleHidden={(departmentId, sectionId, hidden) =>
             startTransition(async () => {
               const r = await setAisleHidden({ date, departmentId, sectionId, hidden });
