@@ -2,7 +2,7 @@
 // hojas que hagan falta, cortadas entre bloques) y después una hoja por FOTO: quién, la foto y la nota justo DEBAJO (si
 // una nota tiene varias fotos, cada una lleva su texto debajo).
 import { buildImagePdf, type PdfImagePage } from "./pdf";
-import { C, type Ctx, PAD, PAGE_H, W, canvasBlob, font, paintPageFooter, renderReportA4, reportPageCount, roundRect, wrap } from "./report-image";
+import { C, type Ctx, PAD, PAGE_H, W, canvasBlob, font, paintPageFooter, preloadSignatures, renderReportA4, reportPageCount, roundRect, wrap } from "./report-image";
 import type { ShareModel } from "./report-share";
 
 /** Una nota con sus fotos ya descargadas. */
@@ -118,6 +118,7 @@ async function toPage(canvas: HTMLCanvasElement): Promise<ReportPage> {
  * orden de las notas). Todas numeradas «Página n de N».
  */
 export async function renderReportPages(m: ShareModel, notes: PdfPhotoNote[]): Promise<ReportPage[]> {
+  await preloadSignatures(m);
   const photoCount = notes.reduce((n, x) => n + x.photos.length, 0);
   const total = reportPageCount(m) + photoCount;
   const pages: ReportPage[] = [];

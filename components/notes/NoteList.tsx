@@ -7,6 +7,7 @@ import { PhotoViewer } from "@/components/reports/PhotoViewer";
 import { cn } from "@/components/ui/cn";
 import { Icon, tint } from "@/components/ui/icons";
 import { NOTE_TYPE_META, type NoteView, groupNotesByWho, noteLabel } from "@/lib/notes";
+import { NoteSignature } from "./NoteSignature";
 import { type NoteDefaults, type NoteOptions, NoteSheet } from "./NoteSheet";
 
 /**
@@ -97,7 +98,7 @@ function NoteRow({ note, place, compact, onEdit }: { note: NoteView; place: stri
             <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] leading-tight text-muted">
               {note.type !== "NOTE" && (
                 <span className="rounded px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide" style={{ backgroundColor: tint(meta.color, 16), color: meta.color }}>
-                  {noteLabel(note)}
+                  {note.type === "NOTIFICATION" ? meta.label : noteLabel(note)}
                 </span>
               )}
               {note.byGuest && (
@@ -117,6 +118,7 @@ function NoteRow({ note, place, compact, onEdit }: { note: NoteView; place: stri
           >
             {note.text}
           </span>
+          <NoteSignature note={note} size={compact ? "sm" : "lg"} />
         </button>
         {note.photos.length > 0 && (
           <>

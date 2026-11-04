@@ -56,7 +56,7 @@ export async function saveNote(input: SaveNoteInput): Promise<NoteActionResult<{
     await discardPhotos(input);
     return fail(p.error.issues[0]?.message ?? "Datos no válidos.");
   }
-  const { id, date, type, photos, employeeIds: ids, employeeId: oneId, ...rest0 } = p.data;
+  const { id, date, type, photos, sign, employeeIds: ids, employeeId: oneId, ...rest0 } = p.data;
   const employeeIds = [...new Set(ids ?? (oneId ? [oneId] : []))];
   // El compañero (enlace sin contraseña) solo apunta en la noche en curso.
   const who = await authorizeNight(date);
@@ -67,15 +67,24 @@ export async function saveNote(input: SaveNoteInput): Promise<NoteActionResult<{
     return fail(refErr);
   }
   const { kind, category } = noteTypeToDb(type);
+  // Firma: solo en notificaciones y de uno de los empleados de la nota.
+  if (sign && (type !== "NOTIFICATION" || !employeeIds.includes(sign.signedById))) {
+    await discardPhotos(p.data);
+    return fail("La firma tiene que ser de un empleado de la notificación.");
+  }
+  const signFields = sign
+    ? { signature: sign.signature, agreement: sign.agreement, signedAt: new Date(), signedById: sign.signedById }
+    : null;
+  const NO_SIGN = { signature: null, agreement: null, signedAt: null, signedById: null };
   const fields = { date: toDbDate(date), kind, category, ...rest };
   try {
     if (!id) {
       const n = await db.nightNote.create({
-        data: { ...fields, byGuest: who === "guest", photos: { create: photos.map((ph, i) => ({ ...ph, sortOrder: i })) } },
+        data: { ...fields, ...(signFields ?? {}), byGuest: who === "guest", photos: { create: photos.map((ph, i) => ({ ...ph, sortOrder: i })) } },
         select: { id: true },
       });
       revalidate();
-      if (who === "guest") await logGuest(date, `Nota: ${rest.text.slice(0, 120)}${photos.length ? ` (📷 ${photos.length})` : ""}`);
+      if (who === "guest") await logGuest(date, `${type === "NOTIFICATION" ? "Notificación" : "Nota"}: ${rest.text.slice(0, 120)}${sign ? " (firmada)" : ""}${photos.length ? ` (📷 ${photos.length})` : ""}`);
       return { ok: true, id: n.id };
     }
     const prev = await db.nightNote.findUnique({ where: { id }, include: { photos: { select: { sortOrder: true } } } });
@@ -89,6 +98,9 @@ export async function saveNote(input: SaveNoteInput): Promise<NoteActionResult<{
       await discardPhotos(p.data);
       return fail(`Máximo ${MAX_PHOTOS_PER_NOTE} fotos por nota.`);
     }
+    // La firma vale para lo que se firmó: si cambia el texto, las personas o deja de ser notificación, se borra.
+    const sameWho = prev.employeeId === (employeeIds[0] ?? null) && prev.extraEmployeeIds.join(",") === employeeIds.slice(1).join(",");
+    const keepSignature = type === "NOTIFICATION" && prev.text === rest.text && sameWho;
     const start = prev.photos.reduce((m, x) => Math.max(m, x.sortOrder + 1), 0);
     await db.nightNote.update({
       where: { id },
@@ -96,6 +108,7 @@ export async function saveNote(input: SaveNoteInput): Promise<NoteActionResult<{
         ...fields,
         // Si deja de ser tarea, ya no tiene «hecha».
         ...(kind === "INFO" ? { doneAt: null } : {}),
+        ...(signFields ?? (keepSignature ? {} : NO_SIGN)),
         photos: { create: photos.map((ph, i) => ({ ...ph, sortOrder: start + i })) },
       },
     });

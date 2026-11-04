@@ -6,7 +6,10 @@ import { DepartmentGrid } from "@/components/day/DepartmentGrid";
 import { useGuestMode } from "@/components/day/guest-mode";
 import { PhotoPicker, usePhotoUploads } from "@/components/reports/PhotoPicker";
 import { BottomSheet } from "@/components/ui/BottomSheet";
+import { Icon } from "@/components/ui/icons";
+import { NoteSignature } from "./NoteSignature";
 import { PeoplePicker } from "./PeoplePicker";
+import { type SignResult, SignSheet } from "./SignSheet";
 import { Segmented } from "@/components/ui/Segmented";
 import { TimeInput } from "@/components/ui/TimeInput";
 import { notify } from "@/components/ui/toast";
@@ -58,7 +61,7 @@ export function NoteSheet({
     setWasOpen(open);
     if (open) setN((x) => x + 1);
   }
-  const title = note ? `Editar ${NOTE_TYPE_META[note.type].label.toLowerCase()}` : "Nueva nota";
+  const title = note ? `Editar ${NOTE_TYPE_META[note.type].label.toLowerCase()}` : defaults.type === "NOTIFICATION" ? "Nueva notificación" : "Nueva nota";
   return (
     <BottomSheet open={open} onClose={onClose} title={title}>
       {open && <NoteForm key={`${note?.id ?? "new"}-${n}`} note={note ?? null} defaults={defaults} options={options} onDone={onClose} />}
@@ -84,6 +87,7 @@ function NoteForm({ note, defaults, options, onDone }: { note: NoteView | null; 
   const [time, setTime] = useState(note?.time ?? "");
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [signing, setSigning] = useState(false);
   const guest = useGuestMode();
   const [pending, start] = useTransition();
   // Lo menos usado, plegado (se abre solo si la nota ya lo tiene).
@@ -113,32 +117,48 @@ function NoteForm({ note, defaults, options, onDone }: { note: NoteView | null; 
   const canSave = !pending && !uploads.uploading && !uploads.failed && text.trim().length > 0 && isDateStr(date);
   const hint = uploads.uploading ? "Subiendo fotos…" : uploads.failed ? "Reintenta o quita las fotos que han fallado." : null;
 
+  /** Guarda la nota (con la firma del empleado si viene). Devuelve el error, o null si se guardó. */
+  async function submit(sign?: SignResult): Promise<string | null> {
+    try {
+      const r = await saveNote({
+        id: note?.id,
+        date,
+        time: time || null,
+        type,
+        text,
+        employeeIds,
+        departmentId: departmentId || null,
+        sectionId: sectionId || null,
+        photos: uploads.results,
+        sign,
+      });
+      if (!r.ok) return r.error;
+      sent.current = true;
+      uploads.clearSent();
+      notify(
+        sign ? "Notificación firmada y guardada" : note ? "Nota guardada" : type === "TASK" ? "Tarea añadida" : type === "NOTIFICATION" ? "Notificación guardada" : "Nota añadida",
+      );
+      onDone();
+      return null;
+    } catch {
+      return "No se pudo guardar. Comprueba la conexión e inténtalo de nuevo.";
+    }
+  }
+
   function save() {
     setError(null);
     start(async () => {
-      try {
-        const r = await saveNote({
-          id: note?.id,
-          date,
-          time: time || null,
-          type,
-          text,
-          employeeIds,
-          departmentId: departmentId || null,
-          sectionId: sectionId || null,
-          photos: uploads.results,
-        });
-        if (r.ok) {
-          sent.current = true;
-          uploads.clearSent();
-          notify(note ? "Nota guardada" : type === "TASK" ? "Tarea añadida" : "Nota añadida");
-          onDone();
-        } else setError(r.error);
-      } catch {
-        setError("No se pudo guardar. Comprueba la conexión e inténtalo de nuevo.");
-      }
+      const err = await submit();
+      if (err) setError(err);
     });
   }
+
+  // Notificación: el empleado firma (conforme / no conforme) y se guarda. Una firma ya hecha vale mientras no cambie el texto.
+  const notification = type === "NOTIFICATION";
+  const signedBefore = !!(note?.signedAt && note.type === "NOTIFICATION");
+  const signatureKept = signedBefore && note!.text === text && note!.employeeIds.join(",") === employeeIds.join(",");
+  const canSign = canSave && employeeIds.length > 0;
+  const signers = employeeIds.map((id) => ({ id, name: employees.find((e) => e.id === id)?.name ?? "(persona)" }));
 
   return (
     <div className="flex flex-col gap-3 pb-2">
@@ -164,6 +184,8 @@ function NoteForm({ note, defaults, options, onDone }: { note: NoteView | null; 
         placeholder={
           type === "TASK"
             ? "Ej.: apuntar sus horas extra en el Excel…"
+            : type === "NOTIFICATION"
+              ? "Ej.: se le notifica que ha llegado tarde 3 veces este mes…"
             : type === "REQUEST"
               ? "Ej.: pide librar el sábado 18 en vez del lunes…"
               : employeeId
@@ -174,7 +196,7 @@ function NoteForm({ note, defaults, options, onDone }: { note: NoteView | null; 
       />
 
       <div className="flex flex-col gap-1.5">
-        <span className={label}>Persona</span>
+        <span className={label}>{notification ? "Empleado" : "Persona"}</span>
         <PeoplePicker employees={employees} value={employeeIds} onChange={setEmployeeIds} />
       </div>
 
@@ -248,14 +270,58 @@ function NoteForm({ note, defaults, options, onDone }: { note: NoteView | null; 
         </button>
       )}
 
-      <button
-        type="button"
-        disabled={!canSave}
-        onClick={save}
-        className="press min-h-12 rounded-control bg-accent text-[16px] font-semibold text-accent-fg disabled:opacity-40"
-      >
-        {pending ? "Guardando…" : note ? "Guardar cambios" : type === "TASK" ? "Añadir tarea" : "Añadir nota"}
-      </button>
+      {notification && signedBefore && (
+        <div className="rounded-card bg-surface-2 px-3 py-2">
+          <NoteSignature note={note!} size="lg" />
+          {!signatureKept && <p className="mt-1.5 text-[12px] text-warning">Has cambiado el texto o el empleado: al guardar se borra la firma.</p>}
+        </div>
+      )}
+
+      {notification ? (
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            disabled={!canSave}
+            onClick={save}
+            className="press min-h-12 rounded-control bg-surface-2 text-[16px] font-semibold disabled:opacity-40"
+          >
+            {pending ? "Guardando…" : "Guardar"}
+          </button>
+          <button
+            type="button"
+            disabled={!canSign}
+            onClick={() => setSigning(true)}
+            className="press flex min-h-12 items-center justify-center gap-1.5 rounded-control bg-accent text-[16px] font-semibold text-accent-fg disabled:opacity-40"
+          >
+            <Icon name="signature" className="h-5 w-5" strokeWidth={2.2} />
+            {signatureKept ? "Firmar de nuevo" : "Firmar"}
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={!canSave}
+          onClick={save}
+          className="press min-h-12 rounded-control bg-accent text-[16px] font-semibold text-accent-fg disabled:opacity-40"
+        >
+          {pending ? "Guardando…" : note ? "Guardar cambios" : type === "TASK" ? "Añadir tarea" : "Añadir nota"}
+        </button>
+      )}
+      {notification && employeeIds.length === 0 && text.trim().length > 0 && (
+        <p className="text-center text-[13px] text-muted">Elige al empleado para poder firmar.</p>
+      )}
+      <SignSheet
+        open={signing}
+        onClose={() => setSigning(false)}
+        text={text}
+        signers={signers}
+        onSign={async (r) => {
+          const err = await submit(r);
+          if (err) return err;
+          setSigning(false);
+          return null;
+        }}
+      />
       {hint && (
         <p className="text-center text-[13px] text-muted" aria-live="polite">
           {hint}

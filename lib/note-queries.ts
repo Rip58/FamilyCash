@@ -1,7 +1,7 @@
 /** Lectura de notas (solo servidor). */
 import { db } from "./db";
 import { type DateStr, fromDbDate, toDbDate } from "./dates";
-import { type NoteView, joinNames, noteTypeOf } from "./notes";
+import { type NoteView, isAgreement, joinNames, noteTypeOf } from "./notes";
 import type { Prisma } from "./generated/prisma/client";
 
 const INCLUDE = {
@@ -38,6 +38,11 @@ export function toNoteView(r: Row, names: Map<string, string> = new Map()): Note
     sectionName: r.section?.name ?? null,
     photos: r.photos.map((p) => ({ id: p.id, url: p.url, width: p.width, height: p.height, size: p.size })),
     byGuest: r.byGuest,
+    agreement: isAgreement(r.agreement) ? r.agreement : null,
+    signature: r.signature,
+    signedAt: r.signedAt ? r.signedAt.toISOString() : null,
+    signedById: r.signedById,
+    signedByName: r.signedById ? (r.signedById === r.employeeId ? (r.employee?.name ?? null) : (names.get(r.signedById) ?? null)) : null,
   };
 }
 

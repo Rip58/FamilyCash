@@ -1,4 +1,5 @@
 // Imagen PNG del informe (canvas, solo cliente). Mismo contenido y orden que el texto: trabajan (solo nombres) → fiesta → vacaciones/bajas → faltan (en rojo) → … → tabla de pasillos.
+import { AGREEMENT_LABEL } from "./notes";
 import { type PageBreaks, choosePageRanges } from "./pdf-pages";
 import type { ShareModel } from "./report-share";
 
@@ -21,7 +22,33 @@ export const C = {
   purpleBg: "#f4e8fa",
   amber: "#b25000",
   amberBg: "#fff1dc",
+  violet: "#9333ea",
+  violetBg: "#f3e8ff",
 };
+
+// Firmas de las notificaciones ya decodificadas (el pintado es síncrono): se cargan con `preloadSignatures`.
+const signatureImages = new Map<string, HTMLImageElement>();
+
+/** Decodifica las firmas del informe antes de pintarlo. */
+export async function preloadSignatures(m: ShareModel): Promise<void> {
+  await Promise.all(
+    m.notifications.flatMap((n) =>
+      n.signature && !signatureImages.has(n.signature)
+        ? [
+            new Promise<void>((resolve) => {
+              const img = new Image();
+              img.onload = () => {
+                signatureImages.set(n.signature!, img);
+                resolve();
+              };
+              img.onerror = () => resolve();
+              img.src = n.signature!;
+            }),
+          ]
+        : [],
+    ),
+  );
+}
 
 export type Ctx = CanvasRenderingContext2D;
 
@@ -244,6 +271,53 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean, breaks?: PageBreaks): num
     const o = m.overtime;
     card(`Horas extra · ${o.total}`, C.amber, C.amberBg, () => o.items.forEach((t) => bullet(t, C.fg, C.amber)));
   }
+  if (m.notifications.length > 0) {
+    card(`Notificaciones (${m.notifications.length})`, C.violet, C.violetBg, () => {
+      const x0 = PAD + 28;
+      m.notifications.forEach((n, i) => {
+        breaks?.minor.push(y);
+        if (i > 0) {
+          if (draw) {
+            ctx.fillStyle = C.line;
+            ctx.fillRect(x0, y, inner - 56, 2);
+          }
+          y += 14;
+        }
+        text(n.who, x0, 28, 700, C.fg, inner - 56);
+        text(n.text, x0, 28, 400, C.fg, inner - 56);
+        y += 8;
+        if (n.agreement && n.signedAt) {
+          // Debajo del texto: la firma del empleado y su conformidad.
+          const img = n.signature ? signatureImages.get(n.signature) : undefined;
+          const h = 92;
+          const w = img ? Math.min(360, Math.round((img.naturalWidth / img.naturalHeight) * h)) : 0;
+          if (draw && img) {
+            ctx.fillStyle = "#ffffff";
+            roundRect(ctx, x0, y, w, h, 14);
+            ctx.fill();
+            ctx.strokeStyle = C.line;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.drawImage(img, x0, y, w, h);
+          }
+          const tx = x0 + (w ? w + 26 : 0);
+          const good = n.agreement === "AGREE";
+          if (draw) {
+            font(ctx, 32, 800);
+            ctx.fillStyle = good ? C.green : C.red;
+            ctx.fillText(`${good ? "✓" : "✗"} ${AGREEMENT_LABEL[n.agreement]}`, tx, y + 38);
+            font(ctx, 22, 400);
+            ctx.fillStyle = C.muted;
+            ctx.fillText(`${n.signedBy ? `${n.signedBy} · ` : ""}${n.signedAt}`, tx, y + 74);
+          }
+          y += h + 10;
+        } else {
+          text("⏳ Pendiente de firma", x0, 26, 600, C.amber);
+        }
+        y += 8;
+      });
+    });
+  }
   if (m.notes.length > 0) {
     card("Notas de la noche", C.fg, C.line, () =>
       m.notes.forEach((g) => {
@@ -436,5 +510,6 @@ export function canvasBlob(canvas: HTMLCanvasElement, type: "image/png" | "image
 
 /** PNG del informe. */
 export async function renderReportImage(m: ShareModel): Promise<Blob> {
+  await preloadSignatures(m);
   return canvasBlob(renderReportCanvas(m), "image/png");
 }

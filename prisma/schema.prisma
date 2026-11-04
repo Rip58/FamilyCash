@@ -242,9 +242,13 @@ model NightNote {           // LA nota: de la noche, general o de un empleado / 
   sectionId  String?                        // dónde ocurrió (opcional)
   section    Section?  @relation(fields: [sectionId], references: [id], onDelete: SetNull)
   kind       String    @default("INFO")     // INFO | TASK (tarea pendiente de hacer)
-  category   String    @default("NOTE")     // INFO: NOTE | INCIDENT | PRAISE | TALK | REQUEST
+  category   String    @default("NOTE")     // INFO: NOTE | INCIDENT | PRAISE | TALK | REQUEST | NOTIFICATION
   doneAt     DateTime?                      // tarea hecha
   byGuest    Boolean   @default(false)      // la escribió el compañero desde su enlace
+  agreement  String?                        // NOTIFICATION firmada: AGREE (conforme) | DISAGREE (no conforme)
+  signature  String?                        // PNG (data URL) de la firma del empleado
+  signedAt   DateTime?
+  signedById String?                        // quién firmó (uno de los empleados de la nota)
   text       String
   photos     NightNotePhoto[]
   createdAt  DateTime  @default(now())

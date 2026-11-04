@@ -11,6 +11,7 @@ export type HistoryKind =
   | "praise" // felicitación
   | "talk" // conversación
   | "request" // petición (fiesta, vacaciones…): una nota más, sin seguimiento
+  | "notification" // notificación al empleado (con su firma: conforme / no conforme)
   | "meeting" // tema de reunión (Protocolos → Reuniones)
   | "absence" // faltó (tocaba trabajar y no vino, o «Falta»)
   | "leave" // vacaciones, baja, permiso (ausencias previstas)
@@ -47,6 +48,7 @@ export const KIND_META: Record<HistoryKind, { label: string; color: string }> = 
   praise: { label: "Felicitaciones", color: NOTE_TYPE_META.PRAISE.color },
   talk: { label: "Conversaciones", color: NOTE_TYPE_META.TALK.color },
   request: { label: "Peticiones", color: NOTE_TYPE_META.REQUEST.color },
+  notification: { label: "Notificaciones", color: NOTE_TYPE_META.NOTIFICATION.color },
   meeting: { label: "Reuniones", color: "#7c3aed" },
   absence: { label: "Faltas", color: "#dc2626" },
   leave: { label: "Vacaciones y bajas", color: "#3b82f6" },
@@ -55,7 +57,7 @@ export const KIND_META: Record<HistoryKind, { label: string; color: string }> = 
 };
 
 /** Orden dentro de una noche: primero lo hablado (notas), luego lo que pasó. */
-const ORDER: HistoryKind[] = ["meeting", "talk", "incident", "praise", "request", "note", "task", "absence", "leave", "time", "overtime"];
+const ORDER: HistoryKind[] = ["meeting", "notification", "talk", "incident", "praise", "request", "note", "task", "absence", "leave", "time", "overtime"];
 
 const NOTE_KIND: Record<NoteType, HistoryKind> = {
   NOTE: "note",
@@ -64,6 +66,7 @@ const NOTE_KIND: Record<NoteType, HistoryKind> = {
   PRAISE: "praise",
   TALK: "talk",
   REQUEST: "request",
+  NOTIFICATION: "notification",
 };
 
 /**

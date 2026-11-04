@@ -21,7 +21,7 @@ import {
 } from "@/app/actions/day";
 import { type DateStr, madridParts } from "@/lib/dates";
 import { type PendingDelay, formatOvertime, totalOvertime } from "@/lib/overtime";
-import type { NoteView } from "@/lib/notes";
+import type { NoteType, NoteView } from "@/lib/notes";
 import { statusAbbr } from "@/lib/week";
 import {
   type DayEntryLite,
@@ -112,7 +112,7 @@ export function DayView({
   const [closeSheet, setCloseSheet] = useState<{ open: boolean; n: number }>({ open: false, n: 0 });
   const [aisleSheet, setAisleSheet] = useState<{ open: boolean; n: number }>({ open: false, n: 0 });
   const madridHour = useSyncExternalStore(subscribeNever, currentMadridHour, () => null);
-  const [noteSheet, setNoteSheet] = useState<{ open: boolean; employeeId: string | null }>({ open: false, employeeId: null });
+  const [noteSheet, setNoteSheet] = useState<{ open: boolean; employeeId: string | null; type?: NoteType }>({ open: false, employeeId: null });
   const [flat, setFlat] = useState(false);
   useEffect(() => {
     try {
@@ -234,7 +234,7 @@ export function DayView({
     for (const n of notes) for (const id of n.employeeIds) m.set(id, [...(m.get(id) ?? []), n]);
     return m;
   }, [notes]);
-  const openNote = (employeeId: string | null) => setNoteSheet({ open: true, employeeId });
+  const openNote = (employeeId: string | null, type?: NoteType) => setNoteSheet({ open: true, employeeId, type });
 
   const allMembers = useMemo(() => {
     const m = new Map<string, RosterMember>();
@@ -430,6 +430,7 @@ export function DayView({
           badge={closeHighlight || nightExtra !== 0}
           items={[
             { icon: "note", label: "Añadir nota o foto", onSelect: () => openNote(null) },
+            { icon: "signature", label: "Notificación a un empleado", onSelect: () => openNote(null, "NOTIFICATION") },
             {
               icon: flat ? "group" : "list",
               label: flat ? "Agrupar por departamentos" : "Ver sin departamentos",
@@ -738,7 +739,7 @@ export function DayView({
       <NoteSheet
         open={noteSheet.open}
         onClose={() => setNoteSheet((n) => ({ ...n, open: false }))}
-        defaults={{ date, employeeId: noteSheet.employeeId }}
+        defaults={{ date, employeeId: noteSheet.employeeId, type: noteSheet.type }}
         options={noteOptions}
       />
     </div>

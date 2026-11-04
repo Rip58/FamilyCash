@@ -310,6 +310,33 @@ describe("exportación visual", () => {
     expect(m.aisles.map((a) => a.name)).toEqual(["Droguería"]);
     expect(m.pallets?.up).toBe(5);
   });
+  it("notificaciones: salen aparte de las notas, con su conformidad y su firma, y siempre en el informe del PDF", () => {
+    const employees = [emp("Ana")];
+    const roster = getDayRoster({ date: MON, employees, entries: [entry("Ana", MON, WORK)], departments, statusTypes });
+    const sig = "data:image/png;base64,iVBORw0KGgo=";
+    const photo = { id: "p", url: "/api/files/x.webp", width: 10, height: 10 } as NoteView["photos"][number];
+    const notes = [
+      note({ id: "n1", text: "Palé roto" }),
+      note({
+        id: "n2", type: "NOTIFICATION", text: "Ha llegado tarde 3 veces", employeeId: "Ana", employeeName: "Ana",
+        agreement: "DISAGREE", signature: sig, signedAt: "2026-09-28T22:40:00.000Z", signedById: "Ana", signedByName: "Ana", photos: [photo],
+      }),
+      note({ id: "n3", type: "NOTIFICATION", text: "Aviso de uniforme", employeeId: "Ana", employeeName: "Ana" }),
+    ];
+    const report = buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments, notes });
+    const m = buildShareModel(report);
+    expect(m.notes.flatMap((g) => g.items)).toEqual(["Palé roto"]);
+    expect(m.notifications.map((n) => [n.who, n.agreement, n.signature ? "firma" : null])).toEqual([
+      ["Ana", "DISAGREE", "firma"],
+      ["Ana", null, null],
+    ]);
+    const t = shareModelToText(m);
+    expect(t).toContain("✍️ NOTIFICACIONES (2)");
+    expect(t).toMatch(/• Ana: Ha llegado tarde 3 veces — ❌ No conforme · firmada por Ana \(/);
+    expect(t).toContain("• Ana: Aviso de uniforme — ⏳ Pendiente de firma");
+    // La que tiene foto sigue en el informe (lleva la firma); su foto va además en su hoja.
+    expect(pdfShareModel(report).notifications).toHaveLength(2);
+  });
   it("«Trabajan» son solo nombres por orden alfabético: quien cubre varios departamentos sale una vez", () => {
     const deps = [...departments, dep("cer", "Cervezas", 2, 1), dep("ace", "Aceitunas", 3, 1)];
     const employees = [emp("Marta"), emp("Ana"), emp("Luis"), emp("Edwin", { defaultExtraDepartmentIds: ["cer", "ace"] }), emp("Pau", { defaultDepartmentId: "bot" })];

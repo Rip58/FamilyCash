@@ -10,6 +10,9 @@ import { buildShareModel } from "@/lib/report-share";
 export function DayReportView({ report, options }: { report: DayReport; options: NoteOptions }) {
   // Misma agrupación que la imagen que se comparte: fiesta, vacaciones/bajas y faltas (en rojo), con comas.
   const share = buildShareModel(report);
+  // Las notificaciones (con la firma del empleado) van aparte de las notas.
+  const notifications = report.notes.filter((n) => n.type === "NOTIFICATION");
+  const plainNotes = report.notes.filter((n) => n.type !== "NOTIFICATION");
   const hasPeopleIncidents =
     report.lateArrivals.length > 0 || report.leaveDeviations.length > 0 || report.absences.some((g) => g.members.length > 0);
   if (report.isEmpty) {
@@ -21,9 +24,15 @@ export function DayReportView({ report, options }: { report: DayReport; options:
   }
   return (
     <div className="space-y-3">
-      {report.notes.length > 0 && (
-        <Card title={`Notas de la noche · ${report.notes.length}`}>
-          <NoteList notes={report.notes} options={options} defaults={{ date: report.date }} />
+      {notifications.length > 0 && (
+        <Card title={`Notificaciones · ${notifications.length}`}>
+          <NoteList notes={notifications} options={options} defaults={{ date: report.date }} />
+        </Card>
+      )}
+
+      {plainNotes.length > 0 && (
+        <Card title={`Notas de la noche · ${plainNotes.length}`}>
+          <NoteList notes={plainNotes} options={options} defaults={{ date: report.date }} />
         </Card>
       )}
 

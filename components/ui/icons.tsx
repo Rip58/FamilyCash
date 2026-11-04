@@ -107,6 +107,13 @@ const PATHS = {
   list: <path d="M9 6h11M9 12h11M9 18h11M4.5 6h.5M4.5 12h.5M4.5 18h.5" />,
   /** Reordenar. */
   sort: <path d="M7 4v16M3.5 7.5 7 4l3.5 3.5M17 20V4M13.5 16.5 17 20l3.5-3.5" />,
+  /** Firmar: pluma sobre una línea. */
+  signature: (
+    <>
+      <path d="m14.5 4.5 5 5L9 20H4v-5z" />
+      <path d="m12.5 6.5 5 5" />
+    </>
+  ),
   /** Ver / ocultar. */
   eye: (
     <>

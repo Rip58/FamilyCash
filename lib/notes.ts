@@ -7,7 +7,7 @@ import type { DateStr } from "./dates";
 import type { ReportPhotoView } from "./report-format";
 
 /** Tipo de nota tal como lo elige el usuario. TASK = tarea pendiente (se marca hecha). */
-export const NOTE_TYPES = ["NOTE", "TASK", "INCIDENT", "PRAISE", "TALK", "REQUEST"] as const;
+export const NOTE_TYPES = ["NOTE", "TASK", "INCIDENT", "PRAISE", "TALK", "REQUEST", "NOTIFICATION"] as const;
 export type NoteType = (typeof NOTE_TYPES)[number];
 
 export const NOTE_TYPE_META: Record<NoteType, { label: string; color: string }> = {
@@ -17,7 +17,16 @@ export const NOTE_TYPE_META: Record<NoteType, { label: string; color: string }> 
   PRAISE: { label: "Felicitación", color: "#16a34a" },
   TALK: { label: "Conversación", color: "#4f46e5" },
   REQUEST: { label: "Petición", color: "#0891b2" },
+  NOTIFICATION: { label: "Notificación", color: "#9333ea" },
 };
+
+/** Conformidad del empleado en una notificación firmada. */
+export type Agreement = "AGREE" | "DISAGREE";
+export const AGREEMENT_LABEL: Record<Agreement, string> = { AGREE: "Conforme", DISAGREE: "No conforme" };
+
+export function isAgreement(v: string | null | undefined): v is Agreement {
+  return v === "AGREE" || v === "DISAGREE";
+}
 
 export const MAX_NOTE_TEXT = 2000;
 
@@ -58,6 +67,12 @@ export interface NoteView {
   photos: ReportPhotoView[];
   /** La escribió el compañero desde su enlace. */
   byGuest?: boolean;
+  /** Notificación firmada: conforme / no conforme, la firma (PNG data URL), cuándo (ISO) y quién firmó. */
+  agreement?: Agreement | null;
+  signature?: string | null;
+  signedAt?: string | null;
+  signedById?: string | null;
+  signedByName?: string | null;
 }
 
 /** «Ana», «Ana y Luis», «Ana, Luis y Pedro». */
@@ -72,8 +87,11 @@ export function noteWho(n: { employeeName: string | null; departmentName: string
 }
 
 /** Etiqueta del tipo (las tareas dicen si están hechas). */
-export function noteLabel(n: Pick<NoteView, "type" | "done">): string {
+export function noteLabel(n: Pick<NoteView, "type" | "done" | "agreement" | "signedAt">): string {
   if (n.type === "TASK") return n.done ? "Tarea hecha" : "Tarea pendiente";
+  if (n.type === "NOTIFICATION") {
+    return n.signedAt && n.agreement ? `Notificación · ${AGREEMENT_LABEL[n.agreement].toLowerCase()}` : "Notificación · sin firmar";
+  }
   return NOTE_TYPE_META[n.type].label;
 }
 

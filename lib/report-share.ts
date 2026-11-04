@@ -1,6 +1,7 @@
 // Exportación del informe de la noche (texto con emojis e imagen). Sin zod: se usa también en el cliente.
 import { formatOvertime } from "./overtime";
-import { groupNotesByWho, noteLine } from "./notes";
+import { AGREEMENT_LABEL, type Agreement, groupNotesByWho, noteLine, noteWho } from "./notes";
+import { formatStamp } from "./dates";
 import type { DayReport } from "./report";
 
 export interface ShareMissing {
@@ -54,6 +55,19 @@ export function aisleDetails(a: ShareAisle): string[] {
   ].filter((x): x is string => Boolean(x));
 }
 
+/** Una notificación a un empleado, con su firma y conformidad (si la ha firmado). */
+export interface ShareNotification {
+  who: string;
+  text: string;
+  agreement: Agreement | null;
+  /** PNG (data URL) de la firma. */
+  signature: string | null;
+  /** «Mar 3 nov · 23:40». */
+  signedAt: string | null;
+  signedBy: string | null;
+  photos: number;
+}
+
 export interface ShareModel {
   title: string;
   shift: string;
@@ -66,6 +80,8 @@ export interface ShareModel {
   emptyDepartments: string[];
   times: string[];
   overtime: { total: string; items: string[] } | null;
+  /** Notificaciones a empleados con su firma y conformidad. */
+  notifications: ShareNotification[];
   /** Resumen de pasillos (control de pasillos); vacío si no se apuntó nada. */
   aisles: ShareAisle[];
   /** Palés de la noche en total (null si no hay palés apuntados). */
@@ -100,8 +116,10 @@ export function colorEmoji(hex: string): string {
  * su nota debajo); en su lugar, una línea que lo dice.
  */
 export function pdfShareModel(report: DayReport): ShareModel {
-  const withPhotos = report.notes.filter((n) => n.photos.length > 0).length;
-  const m = buildShareModel({ ...report, notes: report.notes.filter((n) => n.photos.length === 0) });
+  // Las notificaciones se quedan siempre en el informe (llevan la firma); sus fotos van además en su hoja.
+  const keep = (n: DayReport["notes"][number]) => n.type === "NOTIFICATION" || n.photos.length === 0;
+  const withPhotos = report.notes.filter((n) => !keep(n)).length;
+  const m = buildShareModel({ ...report, notes: report.notes.filter(keep) });
   if (withPhotos === 0) return m;
   const line = `📷 ${withPhotos === 1 ? "1 nota con foto" : `${withPhotos} notas con foto`}: en las páginas siguientes`;
   return { ...m, notes: [...m.notes, { who: null, items: [line], incident: [false] }] };
@@ -136,7 +154,19 @@ export function buildShareModel(report: DayReport): ShareModel {
     }),
   ];
 
-  const notes = groupNotesByWho(report.notes).map((g) => ({
+  // Las notificaciones van aparte (con su firma); el resto de notas, juntas por persona.
+  const notifications: ShareNotification[] = report.notes
+    .filter((n) => n.type === "NOTIFICATION")
+    .map((n) => ({
+      who: noteWho(n),
+      text: n.text,
+      agreement: n.agreement ?? null,
+      signature: n.signature ?? null,
+      signedAt: n.signedAt ? formatStamp(new Date(n.signedAt)) : null,
+      signedBy: n.signedByName ?? null,
+      photos: n.photos.length,
+    }));
+  const notes = groupNotesByWho(report.notes.filter((n) => n.type !== "NOTIFICATION")).map((g) => ({
     who: g.key === "general" ? null : g.who,
     // En una persona, el departamento de la nota va delante («Palets: …»).
     items: g.notes.map((n) => `${n.employeeId && n.departmentName ? `${n.departmentName}: ` : ""}${noteLine(n, false)}`),
@@ -194,6 +224,7 @@ export function buildShareModel(report: DayReport): ShareModel {
             ),
           }
         : null,
+    notifications,
     aisles,
     pallets:
       withPallets.length > 0 ? { up: sum((a) => a.up), down: sum((a) => a.down), surplus: sum((a) => a.surplus), done: sum((a) => a.done) } : null,
@@ -247,6 +278,17 @@ export function shareModelToText(m: ShareModel): string {
   if (m.overtime) {
     L.push("", `⏱️ HORAS EXTRA (total ${m.overtime.total})`);
     for (const t of m.overtime.items) L.push(`• ${t}`);
+  }
+
+  if (m.notifications.length > 0) {
+    L.push("", `✍️ NOTIFICACIONES (${m.notifications.length})`);
+    for (const n of m.notifications) {
+      const status =
+        n.agreement && n.signedAt
+          ? `${n.agreement === "AGREE" ? "✅" : "❌"} ${AGREEMENT_LABEL[n.agreement]} · firmada${n.signedBy ? ` por ${n.signedBy}` : ""} (${n.signedAt})`
+          : "⏳ Pendiente de firma";
+      L.push(`• ${n.who}: ${n.text.replace(/\s*\n\s*/g, " ")} — ${status}`);
+    }
   }
 
   if (m.notes.length > 0) {
