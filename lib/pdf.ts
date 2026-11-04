@@ -1,6 +1,6 @@
 /**
  * PDF mínimo sin librerías: cada página es una imagen JPEG a toda página (informe, fotos con su nota…).
- * Ancho A4 (595 pt) y alto proporcional a la imagen. Puro (bytes): se usa en el cliente y en los tests.
+ * Ancho A4 (595 pt) y alto proporcional a la imagen (si la imagen tiene proporción A4, la página mide exactamente un A4). Puro (bytes): se usa en el cliente y en los tests.
  */
 export interface PdfImagePage {
   /** Bytes de un JPEG (canvas.toBlob(…, "image/jpeg")). */
@@ -11,6 +11,11 @@ export interface PdfImagePage {
 }
 
 export const PDF_PAGE_WIDTH = 595.28;
+/** Alto de una hoja A4 en puntos. */
+export const PDF_A4_HEIGHT = 841.89;
+
+/** ¿La imagen tiene la proporción de una hoja A4 vertical (1 : √2)? Entonces la página mide exactamente un A4. */
+const isA4 = (width: number, height: number) => Math.abs(height / width - Math.SQRT2) < 0.004;
 
 const enc = new TextEncoder();
 const num = (n: number) => (Math.round(n * 100) / 100).toString();
@@ -39,7 +44,7 @@ export function buildImagePdf(pages: PdfImagePage[], title?: string): Uint8Array
   obj(3, `<< /Title ${pdfString(title ?? "")} /Producer (FamilyCash) >>`);
   pages.forEach((p, i) => {
     const w = PDF_PAGE_WIDTH;
-    const h = (PDF_PAGE_WIDTH * p.height) / p.width;
+    const h = isA4(p.width, p.height) ? PDF_A4_HEIGHT : (PDF_PAGE_WIDTH * p.height) / p.width;
     const id = pageId(i);
     obj(id, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${num(w)} ${num(h)}] /Resources << /XObject << /Im0 ${id + 2} 0 R >> >> /Contents ${id + 1} 0 R >>`);
     const content = `q ${num(w)} 0 0 ${num(h)} 0 0 cm /Im0 Do Q`;

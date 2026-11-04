@@ -1,4 +1,5 @@
 // Imagen PNG del informe (canvas, solo cliente). Mismo contenido y orden que el texto: trabajan (solo nombres) → fiesta → vacaciones/bajas → faltan (en rojo) → … → tabla de pasillos.
+import { type PageBreaks, choosePageRanges } from "./pdf-pages";
 import type { ShareModel } from "./report-share";
 
 export const W = 1080;
@@ -58,7 +59,7 @@ export function roundRect(ctx: Ctx, x: number, y: number, w: number, h: number, 
  * Dibuja el informe. Con `draw` = false solo mide (devuelve la altura total).
  * Se llama dos veces: una para medir y otra sobre el canvas del tamaño justo.
  */
-function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
+function paint(ctx: Ctx, m: ShareModel, draw: boolean, breaks?: PageBreaks): number {
   let y = PAD;
   const inner = W - PAD * 2;
 
@@ -117,6 +118,7 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
   /** Tarjeta con cabecera de color; `body` dibuja dentro y avanza `y`. */
   const card = (title: string, color: string, bg: string, body: () => void) => {
     const top = y;
+    breaks?.major.push(top);
     // Primero se mide el contenido, luego se pinta el fondo y se vuelve a pintar encima.
     const run = (d: boolean) => {
       const saved = draw;
@@ -173,6 +175,7 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
     return h;
   };
   const bullet = (s: string, color = C.fg, dot = C.muted) => {
+    breaks?.minor.push(y);
     y += bulletAt(PAD + 32, inner - 64, s, color, dot);
   };
 
@@ -292,6 +295,7 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
       y += hh + 8;
       rule();
       for (const a of m.aisles) {
+        breaks?.minor.push(y);
         y += 10;
         const top = y;
         if (draw) {
@@ -329,6 +333,7 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean): number {
       }
       // Totales
       if (m.pallets) {
+        breaks?.minor.push(y);
         y += 10;
         const top = y;
         const t = m.pallets;
@@ -363,6 +368,64 @@ export function renderReportCanvas(m: ShareModel): HTMLCanvasElement {
   ctx.fillRect(0, 0, W, height);
   paint(ctx, m, true);
   return canvas;
+}
+
+// ---- Hojas A4 (para el PDF) --------------------------------------------------------------------------------
+
+/** Alto de una hoja A4 vertical con el mismo ancho que la imagen (210 × 297 mm). */
+export const PAGE_H = Math.round(W * Math.SQRT2);
+/** Margen superior de las hojas que no son la primera y zona del número de página, abajo (px lógicos). */
+const PAGE_TOP = 40;
+const PAGE_FOOT = 64;
+
+/** Pie de página: «Martes 3 nov · Página 1 de 3». */
+export function paintPageFooter(ctx: Ctx, text: string) {
+  font(ctx, 22, 500);
+  ctx.fillStyle = C.muted;
+  ctx.fillText(text, (W - ctx.measureText(text).width) / 2, PAGE_H - 26);
+}
+
+/** Tramos del informe (en px de la columna alta) que van en cada hoja A4. */
+function reportRanges(m: ShareModel): [number, number][] {
+  const probe = document.createElement("canvas").getContext("2d");
+  if (!probe) throw new Error("Canvas no disponible");
+  const breaks: PageBreaks = { major: [], minor: [] };
+  const total = paint(probe, m, false, breaks);
+  return choosePageRanges(total, breaks, PAGE_H - PAGE_FOOT, PAGE_H - PAGE_TOP - PAGE_FOOT);
+}
+
+/** Nº de hojas A4 que ocupa el informe (para numerar las páginas del PDF antes de pintarlas). */
+export function reportPageCount(m: ShareModel): number {
+  return reportRanges(m).length;
+}
+
+/**
+ * El informe en hojas A4 verticales: cada hoja es un canvas de 1080 × 1527 px lógicos (× `scale` para más nitidez),
+ * cortadas entre bloques. `total` = nº de páginas de todo el PDF (para «Página 1 de N»); por defecto, las del informe.
+ */
+export function renderReportA4(m: ShareModel, scale = 2, total?: number): HTMLCanvasElement[] {
+  const ranges = reportRanges(m);
+  const of = total ?? ranges.length;
+  return ranges.map(([start, end], i) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = W * scale;
+    canvas.height = PAGE_H * scale;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas no disponible");
+    ctx.scale(scale, scale);
+    ctx.fillStyle = C.bg;
+    ctx.fillRect(0, 0, W, PAGE_H);
+    const top = i === 0 ? 0 : PAGE_TOP;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, top, W, end - start);
+    ctx.clip();
+    ctx.translate(0, top - start);
+    paint(ctx, m, true);
+    ctx.restore();
+    paintPageFooter(ctx, `${m.title} · Página ${i + 1} de ${of}`);
+    return canvas;
+  });
 }
 
 export function canvasBlob(canvas: HTMLCanvasElement, type: "image/png" | "image/jpeg", quality?: number): Promise<Blob> {

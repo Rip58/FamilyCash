@@ -1,7 +1,8 @@
-// PDF del informe (solo cliente): 1.ª página = el informe (la misma imagen que se comparte) y después una página por
-// FOTO: quién, la foto y la nota justo DEBAJO (si una nota tiene varias fotos, cada una lleva su texto debajo).
+// PDF del informe (solo cliente), en hojas DIN A4 verticales dibujadas al doble de resolución: primero el informe (las
+// hojas que hagan falta, cortadas entre bloques) y después una hoja por FOTO: quién, la foto y la nota justo DEBAJO (si
+// una nota tiene varias fotos, cada una lleva su texto debajo).
 import { buildImagePdf, type PdfImagePage } from "./pdf";
-import { C, type Ctx, PAD, W, canvasBlob, font, renderReportCanvas, roundRect, wrap } from "./report-image";
+import { C, type Ctx, PAD, PAGE_H, W, canvasBlob, font, paintPageFooter, renderReportA4, reportPageCount, roundRect, wrap } from "./report-image";
 import type { ShareModel } from "./report-share";
 
 /** Una nota con sus fotos ya descargadas. */
@@ -18,9 +19,14 @@ export interface PdfPhotoNote {
   photos: Blob[];
 }
 
-/** Alto máximo de la foto (px). */
-const MAX_PHOTO_H = 1500;
-const JPEG_QUALITY = 0.85;
+/** Resolución de las hojas: 2 × (2160 × 3054 px por hoja) para que se pueda ampliar sin perder nitidez. */
+const PDF_SCALE = 2;
+/** Calidad JPEG de las hojas del PDF. */
+const JPEG_QUALITY = 0.9;
+/** Alto mínimo que se deja a la foto en su hoja (px lógicos); si la nota es muy larga, se recorta el texto. */
+const MIN_PHOTO_H = 380;
+/** Zona del pie de página (número de hoja). */
+const FOOT = 64;
 
 function loadImage(blob: Blob): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -38,61 +44,61 @@ function loadImage(blob: Blob): Promise<HTMLImageElement> {
   });
 }
 
-/** Página de una foto: cabecera (quién · tipo · noche y «Foto 1 de 2»), la foto y el texto de su nota en una tarjeta. */
-function paintPhotoPage(ctx: Ctx, n: PdfPhotoNote, img: HTMLImageElement | null, index: number, draw: boolean): number {
+/**
+ * Hoja A4 de una foto: cabecera (quién · tipo · noche y «Foto 1 de 2»), la foto lo más grande que quepa y justo debajo
+ * el texto de su nota en una tarjeta.
+ */
+function paintPhotoPage(ctx: Ctx, n: PdfPhotoNote, img: HTMLImageElement | null, index: number): void {
   const inner = W - PAD * 2;
   let y = PAD;
   font(ctx, 40, 700);
-  if (draw) {
-    ctx.fillStyle = C.fg;
-    ctx.fillText(n.who, PAD, y + 40);
-  }
+  ctx.fillStyle = C.fg;
+  ctx.fillText(n.who, PAD, y + 40);
   y += 52;
   font(ctx, 28, 400);
-  if (draw) {
-    ctx.fillStyle = n.incident ? C.red : C.muted;
-    ctx.fillText(`${n.label} · ${n.when}${n.photos.length > 1 ? ` · Foto ${index + 1} de ${n.photos.length}` : ""}`, PAD, y + 30);
-  }
+  ctx.fillStyle = n.incident ? C.red : C.muted;
+  ctx.fillText(`${n.label} · ${n.when}${n.photos.length > 1 ? ` · Foto ${index + 1} de ${n.photos.length}` : ""}`, PAD, y + 30);
   y += 56;
+
+  // El texto manda: se calcula antes y la foto ocupa lo que quede de la hoja.
+  font(ctx, 34, 400);
+  let lines = n.text.split(/\n/).flatMap((p) => (p.trim() ? wrap(ctx, p, inner - 64) : [""]));
+  const maxLines = Math.floor((PAGE_H - y - PAD - FOOT - MIN_PHOTO_H - 20 - 48) / 46);
+  if (lines.length > maxLines) lines = [...lines.slice(0, Math.max(1, maxLines - 1)), "…"];
+  const boxH = 48 + lines.length * 46;
+
   if (img) {
-    const scale = Math.min(inner / img.naturalWidth, MAX_PHOTO_H / img.naturalHeight);
+    const availH = PAGE_H - y - PAD - FOOT - boxH - 20;
+    const scale = Math.min(inner / img.naturalWidth, availH / img.naturalHeight);
     const w = Math.round(img.naturalWidth * scale);
     const h = Math.round(img.naturalHeight * scale);
-    if (draw) {
-      ctx.save();
-      roundRect(ctx, PAD + (inner - w) / 2, y, w, h, 20);
-      ctx.clip();
-      ctx.drawImage(img, PAD + (inner - w) / 2, y, w, h);
-      ctx.restore();
-    }
+    ctx.save();
+    roundRect(ctx, PAD + (inner - w) / 2, y, w, h, 20);
+    ctx.clip();
+    ctx.drawImage(img, PAD + (inner - w) / 2, y, w, h);
+    ctx.restore();
     y += h + 20;
   }
+  ctx.fillStyle = C.card;
+  roundRect(ctx, PAD, y, inner, boxH, 24);
+  ctx.fill();
   font(ctx, 34, 400);
-  const lines = n.text.split(/\n/).flatMap((p) => (p.trim() ? wrap(ctx, p, inner - 64) : [""]));
-  const boxH = 48 + lines.length * 46;
-  if (draw) {
-    ctx.fillStyle = C.card;
-    roundRect(ctx, PAD, y, inner, boxH, 24);
-    ctx.fill();
-    ctx.fillStyle = n.incident ? C.red : C.fg;
-    lines.forEach((l, i) => ctx.fillText(l, PAD + 32, y + 24 + 34 + i * 46));
-  }
-  return y + boxH + PAD;
+  ctx.fillStyle = n.incident ? C.red : C.fg;
+  lines.forEach((l, i) => ctx.fillText(l, PAD + 32, y + 24 + 34 + i * 46));
 }
 
-async function photoPage(n: PdfPhotoNote, index: number): Promise<HTMLCanvasElement> {
+async function photoPage(n: PdfPhotoNote, index: number, label: string): Promise<HTMLCanvasElement> {
   const img = await loadImage(n.photos[index]!).catch(() => null);
-  const probe = document.createElement("canvas").getContext("2d");
-  if (!probe) throw new Error("Canvas no disponible");
-  const height = Math.ceil(paintPhotoPage(probe, n, img, index, false));
   const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = height;
+  canvas.width = W * PDF_SCALE;
+  canvas.height = PAGE_H * PDF_SCALE;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas no disponible");
+  ctx.scale(PDF_SCALE, PDF_SCALE);
   ctx.fillStyle = C.bg;
-  ctx.fillRect(0, 0, W, height);
-  paintPhotoPage(ctx, n, img, index, true);
+  ctx.fillRect(0, 0, W, PAGE_H);
+  paintPhotoPage(ctx, n, img, index);
+  paintPageFooter(ctx, label);
   return canvas;
 }
 
@@ -107,10 +113,22 @@ async function toPage(canvas: HTMLCanvasElement): Promise<ReportPage> {
   return { jpeg: await canvasBlob(canvas, "image/jpeg", JPEG_QUALITY), width: canvas.width, height: canvas.height };
 }
 
-/** Páginas del PDF: informe + una por foto, cada una con el texto de su nota debajo (en el orden de las notas). */
+/**
+ * Hojas A4 del PDF: el informe (las que hagan falta) + una por foto, cada una con el texto de su nota debajo (en el
+ * orden de las notas). Todas numeradas «Página n de N».
+ */
 export async function renderReportPages(m: ShareModel, notes: PdfPhotoNote[]): Promise<ReportPage[]> {
-  const pages = [await toPage(renderReportCanvas(m))];
-  for (const n of notes) for (let i = 0; i < n.photos.length; i++) pages.push(await toPage(await photoPage(n, i)));
+  const photoCount = notes.reduce((n, x) => n + x.photos.length, 0);
+  const total = reportPageCount(m) + photoCount;
+  const pages: ReportPage[] = [];
+  for (const c of renderReportA4(m, PDF_SCALE, total)) pages.push(await toPage(c));
+  let n = pages.length;
+  for (const note of notes) {
+    for (let i = 0; i < note.photos.length; i++) {
+      n++;
+      pages.push(await toPage(await photoPage(note, i, `${m.title} · Página ${n} de ${total}`)));
+    }
+  }
   return pages;
 }
 
@@ -121,7 +139,7 @@ export async function pagesToPdf(pages: ReportPage[], title: string): Promise<Bl
   return new Blob([buildImagePdf(list, title) as BlobPart], { type: "application/pdf" });
 }
 
-/** PDF: informe + una página por foto, cada una con el texto de su nota debajo (en el orden de las notas). */
+/** PDF en hojas A4: informe + una hoja por foto, cada una con el texto de su nota debajo (en el orden de las notas). */
 export async function renderReportPdf(m: ShareModel, notes: PdfPhotoNote[], title: string): Promise<Blob> {
   return pagesToPdf(await renderReportPages(m, notes), title);
 }

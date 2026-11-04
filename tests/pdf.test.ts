@@ -14,6 +14,10 @@ describe("PDF de imágenes", () => {
     expect(pdf).toContain("/Filter /DCTDecode /Length 10");
     expect(pdf.trimEnd().endsWith("%%EOF")).toBe(true);
   });
+  it("una imagen con proporción A4 da una página A4 exacta (595,28 × 841,89 pt)", () => {
+    const a4 = latin1(buildImagePdf([{ jpeg: fakeJpeg(4), width: 2160, height: 3054 }]));
+    expect(a4).toContain("/MediaBox [0 0 595.28 841.89]");
+  });
   it("la tabla xref apunta al inicio de cada objeto", () => {
     const xrefAt = Number(/startxref\n(\d+)/.exec(pdf)![1]);
     expect(pdf.slice(xrefAt, xrefAt + 4)).toBe("xref");

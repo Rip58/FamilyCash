@@ -46,8 +46,8 @@ export interface SharePhotoNote {
 }
 
 /**
- * Compartir el informe: con fotos en las notas, PDF (informe + cada nota con sus fotos y el texto debajo) o la imagen
- * con las fotos sueltas; sin fotos, imagen (PNG, faltas en rojo). También como texto con emojis.
+ * Compartir el informe: PDF en hojas DIN A4 (el informe y, si las notas tienen fotos, una hoja por foto con su nota
+ * debajo), o la imagen (PNG, con las fotos sueltas si las hay). También como texto con emojis.
  * Todo se prepara al abrir la hoja: iOS solo deja compartir justo tras el toque, sin esperas.
  */
 export function ShareButton({
@@ -60,7 +60,7 @@ export function ShareButton({
 }: {
   text: string;
   model: ShareModel;
-  /** 1.ª página del PDF (sin las notas con foto, que van después con su foto). */
+  /** Hojas del informe en el PDF (sin las notas con foto, que van después con su foto). */
   pdfModel?: ShareModel;
   fileName: string;
   photoNotes?: SharePhotoNote[];
@@ -115,16 +115,17 @@ export function ShareButton({
     };
   }, [open, photoFiles, photos]);
 
-  // PDF (solo si hay fotos): cuando ya están descargadas.
+  // PDF en hojas A4 (siempre): cuando ya están descargadas las fotos, si las hay.
   const pdfName = fileName.replace(/\.png$/, ".pdf");
   useEffect(() => {
-    if (!open || pdf || pdfFailed || !photoFiles || photoFiles.length === 0) return;
+    if (!open || pdf || pdfFailed || !photoFiles) return;
     let alive = true;
     const byName = new Map(photoFiles.map((f) => [f.name, f]));
     const notes = photoNotes
       .map((n) => ({ ...n, photos: n.photos.flatMap((p) => byName.get(p.name) ?? []) }))
       .filter((n) => n.photos.length > 0);
-    renderReportPages(pdfModel, notes)
+    // Si había fotos pero no se han podido descargar, el informe lleva las notas enteras (no «van en las páginas siguientes»).
+    renderReportPages(notes.length > 0 || photos.length === 0 ? pdfModel : model, notes)
       .then(async (pages) => {
         const blob = await pagesToPdf(pages, pdfName.replace(/\.pdf$/, ""));
         if (!alive) return;
@@ -135,7 +136,7 @@ export function ShareButton({
     return () => {
       alive = false;
     };
-  }, [open, pdf, pdfFailed, photoFiles, photoNotes, pdfModel, pdfName]);
+  }, [open, pdf, pdfFailed, photoFiles, photoNotes, photos.length, model, pdfModel, pdfName]);
 
   useEffect(() => () => pageUrls.forEach((p) => URL.revokeObjectURL(p.url)), [pageUrls]);
 
@@ -149,7 +150,8 @@ export function ShareButton({
           : [],
     [pageUrls, url],
   );
-  const previewPending = photos.length > 0 ? !pdf && !pdfFailed : !url && !failed;
+  // Si el PDF falla, se enseña la imagen.
+  const previewPending = pdf || pdfFailed ? (pdfFailed && !url && !failed) : true;
 
   async function sharePdf() {
     if (!pdf) return;
@@ -255,28 +257,25 @@ export function ShareButton({
             </div>
           )}
           <div className="sticky bottom-[calc(-16px-env(safe-area-inset-bottom))] -mx-4 space-y-2 border-t border-line bg-surface px-4 pb-[calc(16px+env(safe-area-inset-bottom))] pt-3">
-            {photos.length > 0 && (
-              <button
-                type="button"
-                onClick={sharePdf}
-                disabled={!pdf}
-                className="press flex min-h-12 w-full flex-col items-center justify-center rounded-control bg-accent py-1.5 text-accent-fg disabled:opacity-50"
-              >
-                <span className="text-[16px] font-semibold">
-                  {pdf ? "Compartir PDF" : pdfFailed ? "No se pudo crear el PDF" : "Preparando PDF…"}
-                </span>
-                <span className="text-[12px] opacity-90">Informe y cada foto con su nota debajo</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={sharePdf}
+              disabled={!pdf}
+              className="press flex min-h-12 w-full flex-col items-center justify-center rounded-control bg-accent py-1.5 text-accent-fg disabled:opacity-50"
+            >
+              <span className="text-[16px] font-semibold">
+                {pdf ? "Compartir PDF" : pdfFailed ? "No se pudo crear el PDF" : "Preparando PDF…"}
+              </span>
+              <span className="text-[12px] opacity-90">
+                {pageUrls.length > 0 ? `${pageUrls.length === 1 ? "1 hoja" : `${pageUrls.length} hojas`} DIN A4` : "Hojas DIN A4"}
+                {photos.length > 0 ? " · cada foto con su nota debajo" : ""}
+              </span>
+            </button>
             <button
               type="button"
               onClick={shareImage}
               disabled={!file || photoFiles === null}
-              className={
-                photos.length > 0
-                  ? "press min-h-11 w-full rounded-control bg-surface-2 text-[15px] font-medium disabled:opacity-50"
-                  : "press flex min-h-12 w-full items-center justify-center rounded-control bg-accent text-[16px] font-semibold text-accent-fg disabled:opacity-50"
-              }
+              className="press min-h-11 w-full rounded-control bg-surface-2 text-[15px] font-medium disabled:opacity-50"
             >
               {photos.length === 0
                 ? "Compartir imagen"
