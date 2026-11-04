@@ -248,14 +248,14 @@ export function AislesSheet({ open, onClose, groups, candidates, names, logs, on
                   </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-1.5">
                   {(
                     [
                       ["start", "Empezó"],
                       ["end", "Acabó"],
                     ] as const
                   ).map(([key, label]) => (
-                    <label key={key} className="block">
+                    <label key={key} className="block min-w-0">
                       <Label
                         actions={
                           <>
@@ -278,13 +278,13 @@ export function AislesSheet({ open, onClose, groups, candidates, names, logs, on
                         value={d[key]}
                         onChange={(e) => set(g, { [key]: e.target.value })}
                         aria-label={`${label} a las (${g.name})`}
-                        className={field}
+                        className={`${field} block max-w-full appearance-none text-left`}
                       />
                     </label>
                   ))}
                 </div>
 
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-1.5">
                   {(
                     [
                       ["up", "Subidos"],
@@ -292,7 +292,7 @@ export function AislesSheet({ open, onClose, groups, candidates, names, logs, on
                       ["surplus", "Sobrante"],
                     ] as const
                   ).map(([key, label]) => (
-                    <label key={key} className="block">
+                    <label key={key} className="block min-w-0">
                       <Label>{label}</Label>
                       <input
                         inputMode="numeric"
@@ -357,7 +357,7 @@ export function AislesSheet({ open, onClose, groups, candidates, names, logs, on
           Los cambios de personal en un departamento y el ojo (solo esta noche) se guardan al momento; lo demás, al pulsar Guardar.
         </p>
       </div>
-      <div className="sticky bottom-0 -mx-4 bg-bg/95 px-4 pb-3 pt-2 backdrop-blur">
+      <div className="sticky bottom-[calc(-16px-env(safe-area-inset-bottom))] -mx-4 border-t border-line bg-surface px-4 pb-[calc(16px+env(safe-area-inset-bottom))] pt-3">
         <button
           type="button"
           disabled={saving || changed.length === 0}
