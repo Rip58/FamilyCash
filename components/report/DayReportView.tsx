@@ -1,3 +1,5 @@
+"use client";
+
 import { NoteList } from "@/components/notes/NoteList";
 import type { NoteOptions } from "@/components/notes/NoteSheet";
 import { Card } from "@/components/ui";
@@ -5,10 +7,12 @@ import { formatOvertime } from "@/lib/overtime";
 import { AisleTable } from "./AisleTable";
 import { formatDuration, type DayReport } from "@/lib/report";
 import type { ReportModule } from "@/lib/report-modules";
+import { useReportModules } from "./ReportModulesContext";
 import { buildShareModel } from "@/lib/report-share";
 
-/** `options`: para editar las notas de la noche (tocar una nota). `hidden`: módulos que esta vez no salen. */
-export function DayReportView({ report, options, hidden = [] }: { report: DayReport; options: NoteOptions; hidden?: ReportModule[] }) {
+/** `options`: para editar las notas de la noche (tocar una nota). Los módulos que esta vez no salen vienen del contexto. */
+export function DayReportView({ report, options }: { report: DayReport; options: NoteOptions }) {
+  const hidden = useReportModules()?.hidden ?? [];
   const on = (k: ReportModule) => !hidden.includes(k);
   // Misma agrupación que la imagen que se comparte: fiesta, vacaciones/bajas y faltas (en rojo), con comas.
   const share = buildShareModel(report, hidden);

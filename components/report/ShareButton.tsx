@@ -9,6 +9,7 @@ import { notify } from "@/components/ui/toast";
 import { renderReportImage } from "@/lib/report-image";
 import { pagesToPdf, renderReportPages } from "@/lib/report-pdf";
 import type { ShareModel } from "@/lib/report-share";
+import { ModuleChecklist, useModulesCount } from "./ModulesButton";
 
 async function copyText(text: string): Promise<boolean> {
   try {
@@ -57,6 +58,7 @@ export function ShareButton({
   fileName,
   photoNotes = [],
   editHref,
+  withModules,
 }: {
   text: string;
   model: ShareModel;
@@ -66,6 +68,8 @@ export function ShareButton({
   photoNotes?: SharePhotoNote[];
   /** Dónde corregir lo que falte (Hoy de esa noche). */
   editHref?: string;
+  /** Enseña dentro de la hoja «Qué sale en el informe» (solo en el Informe, con `ReportModulesProvider`). */
+  withModules?: boolean;
 }) {
   const photos = photoNotes.flatMap((n) => n.photos);
   const [open, setOpen] = useState(false);
@@ -78,6 +82,21 @@ export function ShareButton({
   const [zoom, setZoom] = useState<number | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [modulesOpen, setModulesOpen] = useState(false);
+  const { shown, total } = useModulesCount();
+
+  // Si cambia lo que sale en el informe (módulos), se vuelve a preparar todo (imagen, fotos y PDF).
+  const [forModel, setForModel] = useState(model);
+  if (model !== forModel) {
+    setForModel(model);
+    setFile(null);
+    setUrl(null);
+    setFailed(false);
+    setPdf(null);
+    setPdfFailed(false);
+    setPageUrls([]);
+    setPhotoFiles(photos.length === 0 ? [] : null);
+  }
 
   useEffect(() => {
     if (!open || file) return;
@@ -229,10 +248,32 @@ export function ShareButton({
             </h3>
             {editHref && (
               <Link href={editHref} className="press min-h-11 content-center text-[15px] font-medium text-accent">
-                Editar en Hoy
+                Corregir en Hoy
               </Link>
             )}
           </div>
+          {withModules && (
+            <div>
+              <button
+                type="button"
+                aria-expanded={modulesOpen}
+                onClick={() => setModulesOpen((o) => !o)}
+                className="press flex min-h-11 w-full items-center gap-2 rounded-control bg-surface-2 px-3 text-left [touch-action:manipulation]"
+              >
+                <Icon name="sliders" className="h-5 w-5 shrink-0 text-accent" strokeWidth={2} />
+                <span className="flex-1 text-[15px] font-medium">Elegir módulos</span>
+                <span className={`text-[14px] tabular-nums ${shown < total ? "font-semibold text-accent" : "text-muted"}`}>
+                  {shown} de {total}
+                </span>
+                <Icon name="chevron" className={`h-4 w-4 shrink-0 text-muted transition-transform duration-150 ${modulesOpen ? "-rotate-90" : "rotate-90"}`} strokeWidth={2.4} />
+              </button>
+              {modulesOpen && (
+                <div className="mt-2">
+                  <ModuleChecklist />
+                </div>
+              )}
+            </div>
+          )}
           {preview.length === 0 || previewPending ? (
             <p className="rounded-card bg-surface-2 py-16 text-center text-[14px] text-muted">
               {failed ? "No se pudo generar la imagen" : "Preparando la vista previa…"}
