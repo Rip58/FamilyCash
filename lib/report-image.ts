@@ -213,14 +213,18 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean, breaks?: PageBreaks): num
   y += 20;
 
   // Contadores
-  const chips: [string, string, string][] = [
-    [`${m.counts.working} trabajan`, C.green, C.greenBg],
-    [`${m.counts.off} fiesta`, C.blue, C.blueBg],
-    [`${m.counts.away} vac./baja`, C.purple, C.purpleBg],
-    [`${m.counts.missing} faltan`, C.red, C.redBg],
-  ];
+  const chips = (
+    [
+      ["working", `${m.counts.working} trabajan`, C.green, C.greenBg],
+      ["off", `${m.counts.off} fiesta`, C.blue, C.blueBg],
+      ["away", `${m.counts.away} vac./baja`, C.purple, C.purpleBg],
+      ["missing", `${m.counts.missing} faltan`, C.red, C.redBg],
+    ] as const
+  )
+    .filter(([k]) => !m.hidden.includes(k))
+    .map(([, label, color, bg]): [string, string, string] => [label, color, bg]);
   const gap = 16;
-  const cw = (inner - gap * (chips.length - 1)) / chips.length;
+  const cw = (inner - gap * Math.max(0, chips.length - 1)) / Math.max(1, chips.length);
   chips.forEach(([label, color, bg], i) => {
     const x = PAD + i * (cw + gap);
     if (draw) {
@@ -233,7 +237,7 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean, breaks?: PageBreaks): num
       ctx.fillText(label, x + (cw - tw) / 2, y + 56);
     }
   });
-  y += 88 + 28;
+  if (chips.length > 0) y += 88 + 28;
 
   if (m.working.length > 0) {
     card(`Trabajan (${m.counts.working})`, C.green, C.greenBg, () => {

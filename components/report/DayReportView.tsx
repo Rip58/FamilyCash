@@ -4,17 +4,23 @@ import { Card } from "@/components/ui";
 import { formatOvertime } from "@/lib/overtime";
 import { AisleTable } from "./AisleTable";
 import { formatDuration, type DayReport } from "@/lib/report";
+import type { ReportModule } from "@/lib/report-modules";
 import { buildShareModel } from "@/lib/report-share";
 
-/** `options`: para editar las notas de la noche (tocar una nota). */
-export function DayReportView({ report, options }: { report: DayReport; options: NoteOptions }) {
+/** `options`: para editar las notas de la noche (tocar una nota). `hidden`: módulos que esta vez no salen. */
+export function DayReportView({ report, options, hidden = [] }: { report: DayReport; options: NoteOptions; hidden?: ReportModule[] }) {
+  const on = (k: ReportModule) => !hidden.includes(k);
   // Misma agrupación que la imagen que se comparte: fiesta, vacaciones/bajas y faltas (en rojo), con comas.
-  const share = buildShareModel(report);
+  const share = buildShareModel(report, hidden);
   // Las notificaciones (con la firma del empleado) van aparte de las notas.
   const notifications = report.notes.filter((n) => n.type === "NOTIFICATION");
   const plainNotes = report.notes.filter((n) => n.type !== "NOTIFICATION");
+  const showTimes = on("times");
   const hasPeopleIncidents =
-    report.lateArrivals.length > 0 || report.leaveDeviations.length > 0 || report.absences.some((g) => g.members.length > 0);
+    (showTimes && (report.lateArrivals.length > 0 || report.leaveDeviations.length > 0)) ||
+    share.off.length > 0 ||
+    share.away.length > 0 ||
+    share.missing.length > 0;
   if (report.isEmpty) {
     return (
       <Card>
@@ -24,25 +30,26 @@ export function DayReportView({ report, options }: { report: DayReport; options:
   }
   return (
     <div className="space-y-3">
-      {notifications.length > 0 && (
+      {on("notifications") && notifications.length > 0 && (
         <Card title={`Notificaciones · ${notifications.length}`}>
           <NoteList notes={notifications} options={options} defaults={{ date: report.date }} />
         </Card>
       )}
 
-      {plainNotes.length > 0 && (
+      {on("notes") && plainNotes.length > 0 && (
         <Card title={`Notas de la noche · ${plainNotes.length}`}>
           <NoteList notes={plainNotes} options={options} defaults={{ date: report.date }} />
         </Card>
       )}
 
       {/* Solo personas (como la imagen compartida): los departamentos sin nadie no salen. */}
+      {(showTimes || on("off") || on("away") || on("missing")) && (
       <Card title="Incidencias" tone={share.missing.length > 0 ? "danger" : "default"}>
         {!hasPeopleIncidents ? (
           <p className="text-[15px] text-muted">Sin incidencias esta noche.</p>
         ) : (
           <div className="space-y-4 text-[15px]">
-            {report.lateArrivals.length > 0 && (
+            {showTimes && report.lateArrivals.length > 0 && (
               <div>
                 <h3 className="text-[13px] font-semibold text-muted">Llegadas tarde</h3>
                 <ul className="mt-1 space-y-1">
@@ -55,7 +62,7 @@ export function DayReportView({ report, options }: { report: DayReport; options:
                 </ul>
               </div>
             )}
-            {report.leaveDeviations.length > 0 && (
+            {showTimes && report.leaveDeviations.length > 0 && (
               <div>
                 <h3 className="text-[13px] font-semibold text-muted">Salidas</h3>
                 <ul className="mt-1 space-y-1">
@@ -99,8 +106,9 @@ export function DayReportView({ report, options }: { report: DayReport; options:
           </div>
         )}
       </Card>
+      )}
 
-      {report.overtime.items.length > 0 && (
+      {on("overtime") && report.overtime.items.length > 0 && (
         <Card
           title="Horas extra"
           action={
@@ -127,7 +135,7 @@ export function DayReportView({ report, options }: { report: DayReport; options:
         </Card>
       )}
 
-      {report.aisles.length > 0 && (
+      {on("aisles") && report.aisles.length > 0 && (
         <Card
           title="Pasillos"
           action={

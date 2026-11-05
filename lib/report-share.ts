@@ -2,6 +2,7 @@
 import { formatOvertime } from "./overtime";
 import { AGREEMENT_LABEL, type Agreement, groupNotesByWho, noteLine, noteWho } from "./notes";
 import { formatStamp } from "./dates";
+import type { ReportModule } from "./report-modules";
 import type { DayReport } from "./report";
 
 export interface ShareMissing {
@@ -69,6 +70,8 @@ export interface ShareNotification {
 }
 
 export interface ShareModel {
+  /** Módulos que esta vez no salen (se eligen en la página de Informe). */
+  hidden: ReportModule[];
   title: string;
   shift: string;
   counts: { working: number; off: number; away: number; missing: number };
@@ -115,17 +118,19 @@ export function colorEmoji(hex: string): string {
  * 1.ª página del PDF: igual que la imagen pero sin las notas con foto (ya van en las páginas siguientes, cada foto con
  * su nota debajo); en su lugar, una línea que lo dice.
  */
-export function pdfShareModel(report: DayReport): ShareModel {
+export function pdfShareModel(report: DayReport, hidden: ReportModule[] = []): ShareModel {
   // Las notificaciones se quedan siempre en el informe (llevan la firma); sus fotos van además en su hoja.
   const keep = (n: DayReport["notes"][number]) => n.type === "NOTIFICATION" || n.photos.length === 0;
   const withPhotos = report.notes.filter((n) => !keep(n)).length;
-  const m = buildShareModel({ ...report, notes: report.notes.filter(keep) });
+  const m = buildShareModel({ ...report, notes: report.notes.filter(keep) }, hidden);
   if (withPhotos === 0) return m;
+  if (hidden.includes("notes")) return m;
   const line = `📷 ${withPhotos === 1 ? "1 nota con foto" : `${withPhotos} notas con foto`}: en las páginas siguientes`;
   return { ...m, notes: [...m.notes, { who: null, items: [line], incident: [false] }] };
 }
 
-export function buildShareModel(report: DayReport): ShareModel {
+export function buildShareModel(report: DayReport, hidden: ReportModule[] = []): ShareModel {
+  const show = (k: ReportModule) => !hidden.includes(k);
   // Trabajan: solo los nombres (el reparto por departamentos va en la tabla de pasillos, más abajo).
   const working = [...report.departments.flatMap((d) => d.members), ...report.unassigned]
     .map((m) => m.name)
@@ -173,7 +178,7 @@ export function buildShareModel(report: DayReport): ShareModel {
     incident: g.notes.map((n) => n.type === "INCIDENT"),
   }));
   // El motivo de una falta sale como incidencia de esa persona (en «Faltan» solo va el nombre).
-  for (const p of missing) {
+  for (const p of show("missing") && show("notes") ? missing : []) {
     if (!p.reason) continue;
     const item = `Incidencia: no ha venido — ${p.reason.replace(/\s*\n\s*/g, " ")}`;
     const own = notes.find((g) => g.who === p.name);
@@ -202,20 +207,21 @@ export function buildShareModel(report: DayReport): ShareModel {
   return {
     title: report.title,
     shift: `${report.shift.start}–${report.shift.end}`,
+    hidden,
     counts: {
       working: report.presentCount,
       off: off.length,
       away: away.reduce((n, g) => n + g.members.length, 0),
       missing: missing.length,
     },
-    working,
-    off,
-    away,
-    missing,
+    working: show("working") ? working : [],
+    off: show("off") ? off : [],
+    away: show("away") ? away : [],
+    missing: show("missing") ? missing : [],
     emptyDepartments: report.emptyDepartments,
-    times,
+    times: show("times") ? times : [],
     overtime:
-      report.overtime.items.length > 0
+      show("overtime") && report.overtime.items.length > 0
         ? {
             total: formatOvertime(report.overtime.totalMinutes),
             items: report.overtime.items.map(
@@ -224,11 +230,11 @@ export function buildShareModel(report: DayReport): ShareModel {
             ),
           }
         : null,
-    notifications,
-    aisles,
+    notifications: show("notifications") ? notifications : [],
+    aisles: show("aisles") ? aisles : [],
     pallets:
-      withPallets.length > 0 ? { up: sum((a) => a.up), down: sum((a) => a.down), surplus: sum((a) => a.surplus), done: sum((a) => a.done) } : null,
-    notes,
+      show("aisles") && withPallets.length > 0 ? { up: sum((a) => a.up), down: sum((a) => a.down), surplus: sum((a) => a.surplus), done: sum((a) => a.done) } : null,
+    notes: show("notes") ? notes : [],
   };
 }
 
@@ -237,16 +243,14 @@ export function shareModelToText(m: ShareModel): string {
   const L: string[] = [];
   L.push("🌙 INFORME DE NOCHE");
   L.push(`📅 ${m.title} · 🕘 ${m.shift}`);
-  L.push(
-    [
-      `✅ ${m.counts.working} trabajan`,
-      m.counts.off > 0 && `🏖️ ${m.counts.off} fiesta`,
-      m.counts.away > 0 && `🌴 ${m.counts.away} vacaciones/baja`,
-      m.counts.missing > 0 && `🔴 ${m.counts.missing} faltan`,
-    ]
-      .filter(Boolean)
-      .join(" · "),
-  );
+  const on = (k: ReportModule) => !m.hidden.includes(k);
+  const summary = [
+    on("working") && `✅ ${m.counts.working} trabajan`,
+    on("off") && m.counts.off > 0 && `🏖️ ${m.counts.off} fiesta`,
+    on("away") && m.counts.away > 0 && `🌴 ${m.counts.away} vacaciones/baja`,
+    on("missing") && m.counts.missing > 0 && `🔴 ${m.counts.missing} faltan`,
+  ].filter(Boolean);
+  if (summary.length > 0) L.push(summary.join(" · "));
 
   if (m.working.length > 0) {
     L.push("", `✅ TRABAJAN (${m.counts.working})`);
@@ -308,7 +312,7 @@ export function shareModelToText(m: ShareModel): string {
     }
   }
 
-  if (m.missing.length === 0 && m.times.length === 0) {
+  if (on("missing") && on("times") && m.missing.length === 0 && m.times.length === 0) {
     L.push("", "👍 Sin incidencias");
   }
 

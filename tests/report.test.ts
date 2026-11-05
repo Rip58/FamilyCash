@@ -337,6 +337,29 @@ describe("exportación visual", () => {
     // La que tiene foto sigue en el informe (lleva la firma); su foto va además en su hoja.
     expect(pdfShareModel(report).notifications).toHaveLength(2);
   });
+  it("módulos quitados: no salen en el modelo, el texto ni el recuento, y no se cuela «sin incidencias»", () => {
+    const employees = [emp("Ana"), emp("Luis"), emp("Dani")];
+    const entries = [entry("Ana", MON, WORK, { arrivedAt: "22:15" }), entry("Luis", MON, ABSENT, { reason: "No avisa" }), entry("Dani", MON, OFF)];
+    const roster = getDayRoster({ date: MON, employees, entries, departments, statusTypes });
+    const aisleLogs = { drog: { startTime: "22:00", endTime: null, palletsUp: 5, palletsDown: null, palletsSurplus: null, note: null, hidden: false, employeeIds: [] } };
+    const report = buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments, aisleLogs, notes: [note({ text: "Todo bien" })] });
+    const all = shareModelToText(buildShareModel(report));
+    expect(all).toContain("📦 PASILLOS");
+    expect(all).toContain("🏖️ FIESTA");
+    expect(all).toContain("🔴 FALTAN");
+    expect(all).toContain("Incidencia: no ha venido — No avisa");
+
+    const m = buildShareModel(report, ["aisles", "off", "missing", "times", "notes"]);
+    expect(m.hidden).toEqual(["aisles", "off", "missing", "times", "notes"]);
+    expect([m.aisles, m.pallets, m.off, m.missing, m.times, m.notes]).toEqual([[], null, [], [], [], []]);
+    const t = shareModelToText(m);
+    expect(t).toContain("✅ 1 trabajan");
+    for (const x of ["PASILLOS", "FIESTA", "FALTAN", "HORARIOS", "NOTAS", "Incidencia", "faltan", "Sin incidencias"]) expect(t).not.toContain(x);
+    // Sin «Trabajan» ni los demás recuentos, no queda la línea de resumen.
+    const none = shareModelToText(buildShareModel(report, ["working", "off", "away", "missing"]));
+    expect(none).not.toContain("trabajan");
+    expect(none).toContain("📅");
+  });
   it("«Trabajan» son solo nombres por orden alfabético: quien cubre varios departamentos sale una vez", () => {
     const deps = [...departments, dep("cer", "Cervezas", 2, 1), dep("ace", "Aceitunas", 3, 1)];
     const employees = [emp("Marta"), emp("Ana"), emp("Luis"), emp("Edwin", { defaultExtraDepartmentIds: ["cer", "ace"] }), emp("Pau", { defaultDepartmentId: "bot" })];

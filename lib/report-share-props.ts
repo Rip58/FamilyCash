@@ -2,14 +2,23 @@
 // (/turno), para que los dos compartan exactamente lo mismo.
 import { type DateStr, formatDayLong } from "./dates";
 import { noteLabel, noteWho } from "./notes";
-import { type DayReport, reportToText } from "./report";
-import { buildShareModel, pdfShareModel } from "./report-share";
+import type { DayReport } from "./report";
+import type { ReportModule } from "./report-modules";
+import { buildShareModel, pdfShareModel, shareModelToText } from "./report-share";
 
-export function dayShareProps(report: DayReport, date: DateStr) {
+/** Lo de las notas que no sale esta vez (módulos quitados): ni en el informe ni sus fotos. */
+function withoutHiddenNotes(report: DayReport, hidden: ReportModule[]): DayReport {
+  const out = report.notes.filter((n) => !hidden.includes(n.type === "NOTIFICATION" ? "notifications" : "notes"));
+  return out.length === report.notes.length ? report : { ...report, notes: out };
+}
+
+/** `hidden` = módulos que esta vez no salen (se eligen en la página de Informe); por defecto salen todos. */
+export function dayShareProps(full: DayReport, date: DateStr, hidden: ReportModule[] = []) {
+  const report = withoutHiddenNotes(full, hidden);
   return {
-    text: reportToText(report),
-    model: buildShareModel(report),
-    pdfModel: pdfShareModel(report),
+    text: shareModelToText(buildShareModel(report, hidden)),
+    model: buildShareModel(report, hidden),
+    pdfModel: pdfShareModel(report, hidden),
     fileName: `informe-noche-${date}.png`,
     photoNotes: report.notes
       .filter((n) => n.photos.length > 0)

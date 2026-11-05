@@ -6,6 +6,8 @@ import { ReportTabs } from "@/components/report/ReportTabs";
 import { ShareButton } from "@/components/report/ShareButton";
 import { Icon } from "@/components/ui/icons";
 import { reportIconBtn } from "@/components/report/header-button";
+import { ModulesButton } from "@/components/report/ModulesButton";
+import { parseHiddenModules, hiddenModulesParam } from "@/lib/report-modules";
 import { dayShareProps } from "@/lib/report-share-props";
 import { WeekSummaryView } from "@/components/report/WeekSummaryView";
 import { WeekTasks } from "@/components/report/WeekTasks";
@@ -49,15 +51,17 @@ export default async function Page({
   searchParams,
 }: {
   params: Promise<{ date?: string[] }>;
-  searchParams: Promise<{ v?: string }>;
+  searchParams: Promise<{ v?: string; sin?: string }>;
 }) {
-  const [{ date: segs }, { v }] = await Promise.all([params, searchParams]);
+  const [{ date: segs }, { v, sin }] = await Promise.all([params, searchParams]);
   if (segs && (segs.length !== 1 || !isDateStr(segs[0]!))) notFound();
 
   const settings = await getSettings();
   const date: DateStr = segs?.[0] ?? operationalToday(new Date(), settings.dayRolloverHour);
   const view = v === "semana" ? "semana" : "dia";
-  const q = view === "semana" ? "?v=semana" : "";
+  // Módulos del informe que esta noche no salen (`?sin=`): solo en la vista de día; se mantienen al cambiar de día.
+  const hidden = view === "dia" ? parseHiddenModules(sin) : [];
+  const q = view === "semana" ? "?v=semana" : hidden.length > 0 ? `?sin=${hiddenModulesParam(hidden)}` : "";
   const step = view === "semana" ? 7 : 1;
 
   const [employees, departments, statusTypes, sections] = await Promise.all([
@@ -99,8 +103,13 @@ export default async function Page({
         <Icon name="note" className="h-[22px] w-[22px]" strokeWidth={2.2} />
       </AddNoteButton>
     );
-    body = <DayReportView report={report} options={options} />;
-    if (!report.isEmpty) share = <ShareButton {...dayShareProps(report, date)} editHref={`/hoy/${date}`} />;
+    body = (
+      <>
+        {!report.isEmpty && <ModulesButton hidden={hidden} />}
+        <DayReportView report={report} options={options} hidden={hidden} />
+      </>
+    );
+    if (!report.isEmpty) share = <ShareButton key={hiddenModulesParam(hidden)} {...dayShareProps(report, date, hidden)} editHref={`/hoy/${date}`} />;
   } else {
     const days = weekDays(date);
     const [entries, weekNotes, olderTasks] = await Promise.all([
