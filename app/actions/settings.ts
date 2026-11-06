@@ -393,3 +393,11 @@ export async function setGuestPin(input: { pin: string | null }): Promise<Action
   revalidatePath("/ajustes", "layout");
   return done();
 }
+
+export async function saveAislesEnabled(enabled: boolean): Promise<ActionResult> {
+  await requireOwner();
+  const p = z.boolean().safeParse(enabled);
+  if (!p.success) return fail("Datos no válidos.");
+  await db.settings.upsert({ where: { id: 1 }, create: { id: 1, aislesEnabled: p.data }, update: { aislesEnabled: p.data } });
+  return done();
+}

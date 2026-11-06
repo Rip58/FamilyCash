@@ -1,0 +1,1 @@
+ALTER TABLE "Settings" ADD COLUMN "aislesEnabled" BOOLEAN NOT NULL DEFAULT true;

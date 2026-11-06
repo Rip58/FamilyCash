@@ -380,7 +380,7 @@ export function buildDayReport(input: BuildDayReportInput): DayReport {
     overtime: { items: overtimeItems, totalMinutes: totalOvertime(overtimeItems.map((i) => ({ extraMinutes: i.minutes }))) },
     aisles,
     hasIncidents,
-    isEmpty: roster.presentCount === 0 && absentCount === 0 && notes.length === 0,
+    isEmpty: roster.presentCount === 0 && absentCount === 0 && notes.length === 0 && aisles.length === 0,
   };
 }
 

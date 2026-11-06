@@ -67,6 +67,7 @@ interface DayViewProps {
   groupDepartmentIds?: string[];
   /** Control de pasillos: lo apuntado de cada departamento esta noche (hora, palés subidos y bajados). */
   aisleLogs?: Record<string, AisleInfo>;
+  aislesEnabled?: boolean;
   /** Faltas del registro de esta noche (una falta resuelta en Semana sigue saliendo como falta). */
   loggedAbsences?: LoggedAbsence[];
   /** Abierto con el enlace del compañero (sin ficha ni otras noches). */
@@ -98,6 +99,7 @@ export function DayView({
   pendingDelays = {},
   groupDepartmentIds = [],
   aisleLogs = {},
+  aislesEnabled = true,
   loggedAbsences = [],
   guest = false,
   guestChanges = [],
@@ -436,11 +438,11 @@ export function DayView({
               label: flat ? "Agrupar por departamentos" : "Ver sin departamentos",
               onSelect: toggleFlat,
             },
-            {
-              icon: "route",
+            ...(aislesEnabled ? [{
+              icon: "route" as const,
               label: "Control de pasillos",
               onSelect: () => setAisleSheet((s) => ({ open: true, n: s.n + 1 })),
-            },
+            }] : []),
             {
               icon: "clockMoon",
               label: "Cierre de turno",
@@ -633,7 +635,7 @@ export function DayView({
         />
       )}
 
-      {aisleSheet.n > 0 && (
+      {aislesEnabled && aisleSheet.n > 0 && (
         <AislesSheet
           key={aisleSheet.n}
           open={aisleSheet.open}

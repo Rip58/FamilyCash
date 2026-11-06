@@ -9,6 +9,7 @@ datasource db {
 
 model Settings {            // fila única id=1
   id              Int     @id @default(1)
+  aislesEnabled   Boolean @default(true)
   shiftStart      String  @default("21:30")
   shiftEnd        String  @default("06:30")
   guestToken      String?                     // acceso del compañero (/turno + PIN): secreto que guarda su cookie; null = apagado (cambia con el PIN)

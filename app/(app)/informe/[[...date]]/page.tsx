@@ -1,3 +1,5 @@
+import { availableModules } from "@/lib/report-share";
+import type { ReportModule } from "@/lib/report-modules";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DayReportView } from "@/components/report/DayReportView";
@@ -72,6 +74,7 @@ export default async function Page({
     getSections(),
   ]);
 
+  let available: ReportModule[] | undefined;
   let body: React.ReactNode;
   let title: string;
   let subtitle: string;
@@ -93,10 +96,11 @@ export default async function Page({
     const [groupCovers, loggedAbsences, aisleLogs] = await Promise.all([
       getGroupCovers(date, date),
       getLoggedAbsences(db, date, date),
-      getAisleLogs(date),
+      settings.aislesEnabled ? getAisleLogs(date) : Promise.resolve({}),
     ]);
     const roster = getDayRoster({ date, employees, entries, departments, statusTypes, groupCovers, loggedAbsences });
     const report = buildDayReport({ roster, shift: settings, sections, departments, notes, aisleLogs });
+    available = availableModules(report);
     title = formatDayLong(date);
     subtitle = `Turno ${settings.shiftStart}–${settings.shiftEnd} · ${report.presentCount} trabajan`;
     addNote = (
@@ -144,7 +148,7 @@ export default async function Page({
   }
 
   return (
-    <ReportModulesProvider initial={hidden}>
+    <ReportModulesProvider initial={hidden} available={available}>
     <div className="space-y-3 pb-4 pt-4">
       <h1 className="sr-only">Informe</h1>
       <div className="flex items-center gap-2">

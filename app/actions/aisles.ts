@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { isDateStr, toDbDate } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { getSettings } from "@/lib/queries";
 import { authorizeNight, logGuest } from "@/lib/guest-server";
 
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
@@ -37,6 +38,7 @@ export async function setAisleStarts(input: z.input<typeof schema>): Promise<{ o
   if (!p.success) return { ok: false, error: "Datos no válidos." };
   const { date, items } = p.data;
   const who = await authorizeNight(date);
+  if (!(await getSettings()).aislesEnabled) return { ok: false, error: "El control de pasillos está apagado (Ajustes)." };
   const d = toDbDate(date);
   // Un pasillo con sección tiene que ser de ese departamento.
   const secIds = [...new Set(items.flatMap((i) => (i.sectionId ? [i.sectionId] : [])))];
@@ -108,6 +110,7 @@ export async function setAisleHidden(input: z.input<typeof hiddenSchema>): Promi
   const { date, departmentId, sectionId, hidden } = p.data;
   const sectionKey = sectionId ?? "";
   const who = await authorizeNight(date);
+  if (!(await getSettings()).aislesEnabled) return { ok: false, error: "El control de pasillos está apagado (Ajustes)." };
   const d = toDbDate(date);
   try {
     if (hidden) {

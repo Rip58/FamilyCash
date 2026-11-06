@@ -1,6 +1,6 @@
 // Imagen PNG del informe (canvas, solo cliente). Mismo contenido y orden que el texto: trabajan (solo nombres) → fiesta → vacaciones/bajas → faltan (en rojo) → … → tabla de pasillos.
 import { AGREEMENT_LABEL } from "./notes";
-import { type PageBreaks, choosePageRanges } from "./pdf-pages";
+import { type PageBreaks, planPages } from "./pdf-pages";
 import type { ShareModel } from "./report-share";
 
 export const W = 1080;
@@ -221,7 +221,7 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean, breaks?: PageBreaks): num
       ["missing", `${m.counts.missing} faltan`, C.red, C.redBg],
     ] as const
   )
-    .filter(([k]) => !m.hidden.includes(k))
+    .filter(([k]) => !m.hidden.includes(k) && (k === "working" || m.counts[k] > 0))
     .map(([, label, color, bg]): [string, string, string] => [label, color, bg]);
   const gap = 16;
   const cw = (inner - gap * Math.max(0, chips.length - 1)) / Math.max(1, chips.length);
@@ -333,7 +333,7 @@ function paint(ctx: Ctx, m: ShareModel, draw: boolean, breaks?: PageBreaks): num
         else {
           // Persona con varias notas: su nombre una vez y las notas debajo, sangradas.
           bullet(g.who);
-          g.items.forEach((t, i) => (y += bulletAt(PAD + 64, inner - 96, t, color(i), dot(i))));
+          g.items.forEach((t, i) => { breaks?.minor.push(y); y += bulletAt(PAD + 64, inner - 96, t, color(i), dot(i)); });
         }
       }),
     );
@@ -464,17 +464,17 @@ export function paintPageFooter(ctx: Ctx, text: string) {
 }
 
 /** Tramos del informe (en px de la columna alta) que van en cada hoja A4. */
-function reportRanges(m: ShareModel): [number, number][] {
+function reportRanges(m: ShareModel) {
   const probe = document.createElement("canvas").getContext("2d");
   if (!probe) throw new Error("Canvas no disponible");
   const breaks: PageBreaks = { major: [], minor: [] };
   const total = paint(probe, m, false, breaks);
-  return choosePageRanges(total, breaks, PAGE_H - PAGE_FOOT, PAGE_H - PAGE_TOP - PAGE_FOOT);
+  return planPages(total, breaks, PAGE_H - PAGE_FOOT, PAGE_H - PAGE_TOP - PAGE_FOOT);
 }
 
 /** Nº de hojas A4 que ocupa el informe (para numerar las páginas del PDF antes de pintarlas). */
 export function reportPageCount(m: ShareModel): number {
-  return reportRanges(m).length;
+  return reportRanges(m).ranges.length;
 }
 
 /**
@@ -482,7 +482,7 @@ export function reportPageCount(m: ShareModel): number {
  * cortadas entre bloques. `total` = nº de páginas de todo el PDF (para «Página 1 de N»); por defecto, las del informe.
  */
 export function renderReportA4(m: ShareModel, scale = 2, total?: number): HTMLCanvasElement[] {
-  const ranges = reportRanges(m);
+  const { ranges, scale: fit } = reportRanges(m);
   const of = total ?? ranges.length;
   return ranges.map(([start, end], i) => {
     const canvas = document.createElement("canvas");
@@ -496,9 +496,11 @@ export function renderReportA4(m: ShareModel, scale = 2, total?: number): HTMLCa
     const top = i === 0 ? 0 : PAGE_TOP;
     ctx.save();
     ctx.beginPath();
-    ctx.rect(0, top, W, end - start);
+    ctx.rect(0, top, W, Math.min((end - start) * fit, PAGE_H - PAGE_FOOT - top));
     ctx.clip();
-    ctx.translate(0, top - start);
+    ctx.translate((W - W * fit) / 2, top);
+    ctx.scale(fit, fit);
+    ctx.translate(0, -start);
     paint(ctx, m, true);
     ctx.restore();
     paintPageFooter(ctx, `${m.title} · Página ${i + 1} de ${of}`);

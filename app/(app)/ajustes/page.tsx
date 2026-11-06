@@ -38,6 +38,7 @@ export default async function Page() {
     {
       title: "Turno y planning",
       items: [
+        { href: "/ajustes/pasillos", label: "Control de pasillos", detail: settings.aislesEnabled ? "Activo" : "Apagado", icon: "route", color: "#14b8a6" },
         { href: "/ajustes/turno", label: "Turno", detail: shift, icon: "moon", color: "#6366f1" },
         { href: "/ajustes/ia", label: "Importar con IA", detail: aiProviderLabel(settings.aiProvider), icon: "sparkles", color: "#d97757" },
         { href: "/ajustes/vacaciones", label: "Vacaciones", detail: String(VACATION_YEAR), icon: "calendar", color: "#3b82f6" },

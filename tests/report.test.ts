@@ -1,4 +1,4 @@
-import { buildShareModel, colorEmoji, pdfShareModel, shareModelToText } from "@/lib/report-share";
+import { availableModules, buildShareModel, colorEmoji, pdfShareModel, shareModelToText } from "@/lib/report-share";
 import { describe, expect, it } from "vitest";
 import type { NoteView } from "@/lib/notes";
 import {
@@ -246,6 +246,21 @@ describe("exportación visual", () => {
     const order = ["TRABAJAN", "FIESTA", "VACACIONES Y BAJAS", "FALTAN (3)"].map((k) => t.indexOf(k));
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(order[0]).toBeGreaterThan(0);
+  });
+  it("los pasillos con datos hacen que el informe no esté vacío", () => {
+    const roster = getDayRoster({ date: MON, employees: [], entries: [], departments, statusTypes });
+    const aisleLogs = { drog: { startTime: "22:00", endTime: null, palletsUp: null, palletsDown: null, palletsSurplus: null, note: null, hidden: false, employeeIds: [] } };
+    const r = buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments, aisleLogs });
+    expect(r.isEmpty).toBe(false);
+    expect(availableModules(r)).toEqual(["aisles"]);
+  });
+  it("ofrece notas cuando el motivo de una falta genera una incidencia", () => {
+    const employees = [emp("Ana")];
+    const entries = [entry("Ana", MON, ABSENT, { reason: "Enferma" })];
+    const roster = getDayRoster({ date: MON, employees, entries, departments, statusTypes });
+    const r = buildDayReport({ roster, shift: DEFAULT_SHIFT, sections: [], departments });
+    expect(availableModules(r)).toEqual(["missing", "notes"]);
+    expect(buildShareModel(r, ["missing"]).notes).toEqual([]);
   });
   it("resumen de pasillos: quién, hora y palés (los sobrantes no restan, los bajados sin tocar sí); una persona en varios", () => {
     const deps = [...departments, dep("cer", "Cervezas", 2, 1), dep("vac", "Vacío", 3, 1)];

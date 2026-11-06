@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { choosePageRanges } from "@/lib/pdf-pages";
+import { choosePageRanges, planPages } from "@/lib/pdf-pages";
 
 describe("reparto del informe en hojas", () => {
   it("cabe en una hoja", () => {
@@ -25,7 +25,19 @@ describe("reparto del informe en hojas", () => {
       [2000, 2500],
     ]);
   });
-  it("no deja una hoja casi vacía al final", () => {
-    expect(choosePageRanges(1050, { major: [0], minor: [] }, 1000, 1000)).toEqual([[0, 1050]]);
+  it("ajusta una tarjeta final pequeña sin invadir el pie", () => {
+    const breaks = { major: [0, 980], minor: [] };
+    expect(choosePageRanges(1050, breaks, 1000, 1000)).toEqual([[0, 980], [980, 1050]]);
+    const plan = planPages(1050, breaks, 1000, 1000);
+    expect(plan.scale).toBeLessThan(1);
+    expect(plan.ranges).toEqual([[0, 1050]]);
+  });
+  it("mide el fragmento actual en una tarjeta de tres hojas", () => {
+    const ranges = choosePageRanges(2800, { major: [0], minor: [900, 1000, 1100, 1800, 1950, 2650] }, 1000, 1000);
+    expect(ranges.slice(0, 2)).toEqual([[0, 1000], [1000, 1950]]);
+    expect(ranges.every(([a, b]) => b - a <= 1000)).toBe(true);
+  });
+  it("evita dejar una fila pequeña al final de la tarjeta", () => {
+    expect(choosePageRanges(1100, { major: [0], minor: [700, 950] }, 1000, 1000)[0]).toEqual([0, 700]);
   });
 });

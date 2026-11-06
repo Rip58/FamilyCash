@@ -1,3 +1,4 @@
+import { REPORT_MODULES } from "./report-modules";
 // Exportación del informe de la noche (texto con emojis e imagen). Sin zod: se usa también en el cliente.
 import { formatOvertime } from "./overtime";
 import { AGREEMENT_LABEL, type Agreement, groupNotesByWho, noteLine, noteWho } from "./notes";
@@ -317,4 +318,10 @@ export function shareModelToText(m: ShareModel): string {
   }
 
   return L.join("\n");
+}
+
+/** Módulos con contenido, siempre calculados con todos activados. */
+export function availableModules(report: DayReport): ReportModule[] {
+  const m = buildShareModel(report, []);
+  return REPORT_MODULES.filter(({ key }) => key === "overtime" ? !!m.overtime : m[key].length > 0).map(({ key }) => key);
 }

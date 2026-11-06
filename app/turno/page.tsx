@@ -27,9 +27,9 @@ export default async function Page() {
   const night = (await guestNightNow()) ?? ((await isOwner()) ? guestNight(new Date()) : null);
   if (!night) return <GuestPinForm />;
 
-  const [settings, employees, departments, statusTypes, sections, entries, notes, pendingDelays, groupCovers, loggedAbsences, aisleLogs] =
+  const settings = await getSettings();
+  const [employees, departments, statusTypes, sections, entries, notes, pendingDelays, groupCovers, loggedAbsences, aisleLogs] =
     await Promise.all([
-      getSettings(),
       getEmployees(),
       getDepartments(),
       getStatusTypes(),
@@ -39,7 +39,7 @@ export default async function Page() {
       getPendingDelays(night),
       getGroupCovers(night, night),
       getLoggedAbsences(db, night, night),
-      getAisleLogs(night),
+      settings.aislesEnabled ? getAisleLogs(night) : Promise.resolve({}),
     ]);
 
   // El mismo informe que comparte el dueño desde Informe (solo de esta noche).
@@ -62,6 +62,7 @@ export default async function Page() {
         )}
       </header>
       <DayView
+        aislesEnabled={settings.aislesEnabled}
         key={night}
         guest
         isToday

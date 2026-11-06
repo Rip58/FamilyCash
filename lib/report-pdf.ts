@@ -67,8 +67,8 @@ function paintPhotoPage(ctx: Ctx, n: PdfPhotoNote, img: HTMLImageElement | null,
   if (lines.length > maxLines) lines = [...lines.slice(0, Math.max(1, maxLines - 1)), "…"];
   const boxH = 48 + lines.length * 46;
 
+  const availH = PAGE_H - y - PAD - FOOT - boxH - 20;
   if (img) {
-    const availH = PAGE_H - y - PAD - FOOT - boxH - 20;
     const scale = Math.min(inner / img.naturalWidth, availH / img.naturalHeight);
     const w = Math.round(img.naturalWidth * scale);
     const h = Math.round(img.naturalHeight * scale);
@@ -78,6 +78,15 @@ function paintPhotoPage(ctx: Ctx, n: PdfPhotoNote, img: HTMLImageElement | null,
     ctx.drawImage(img, PAD + (inner - w) / 2, y, w, h);
     ctx.restore();
     y += h + 20;
+  } else {
+    ctx.fillStyle = C.line;
+    roundRect(ctx, PAD, y, inner, availH, 20);
+    ctx.fill();
+    font(ctx, 34, 600);
+    ctx.fillStyle = C.muted;
+    const label = "Foto no disponible";
+    ctx.fillText(label, (W - ctx.measureText(label).width) / 2, y + availH / 2);
+    y += availH + 20;
   }
   ctx.fillStyle = C.card;
   roundRect(ctx, PAD, y, inner, boxH, 24);

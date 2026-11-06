@@ -11,12 +11,12 @@ import { useReportModules } from "./ReportModulesContext";
 export function ModuleChecklist({ onDone }: { onDone?: () => void }) {
   const ctx = useReportModules();
   if (!ctx) return null;
-  const { hidden, setHidden } = ctx;
+  const { hidden, setHidden, available } = ctx;
   const toggle = (k: ReportModule) => setHidden(hidden.includes(k) ? hidden.filter((x) => x !== k) : [...hidden, k]);
   return (
     <div className="flex flex-col gap-2">
       <ul className="overflow-hidden rounded-card bg-surface-2">
-        {REPORT_MODULES.map((m) => {
+        {REPORT_MODULES.filter((m) => available.includes(m.key)).map((m) => {
           const on = !hidden.includes(m.key);
           return (
             <li key={m.key} className="border-b border-line last:border-b-0">
@@ -49,7 +49,7 @@ export function ModuleChecklist({ onDone }: { onDone?: () => void }) {
         <button
           type="button"
           onClick={() => setHidden([])}
-          disabled={hidden.length === 0}
+          disabled={!available.some((k) => hidden.includes(k))}
           className="press min-h-11 w-full rounded-control bg-surface-2 text-[15px] font-medium disabled:opacity-40"
         >
           Marcar todo
@@ -67,7 +67,8 @@ export function ModuleChecklist({ onDone }: { onDone?: () => void }) {
 /** Texto «7 de 9» de los módulos que salen. */
 export function useModulesCount(): { shown: number; total: number } {
   const ctx = useReportModules();
-  return { shown: REPORT_MODULES.length - (ctx?.hidden.length ?? 0), total: REPORT_MODULES.length };
+  const available = ctx?.available ?? REPORT_MODULES.map((m) => m.key);
+  return { shown: available.filter((k) => !ctx?.hidden.includes(k)).length, total: available.length };
 }
 
 /**
@@ -78,6 +79,7 @@ export function useModulesCount(): { shown: number; total: number } {
 export function ModulesButton() {
   const [open, setOpen] = useState(false);
   const { shown, total } = useModulesCount();
+  if (total === 0) return null;
   return (
     <>
       <button

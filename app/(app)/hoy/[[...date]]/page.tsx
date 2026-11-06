@@ -38,7 +38,7 @@ export default async function Page({ params }: { params: Promise<{ date?: string
     getGroupCovers(date, date),
     getLoggedAbsences(db, date, date),
     db.guestChange.findMany({ where: { date: toDbDate(date) }, orderBy: { createdAt: "asc" } }),
-    getAisleLogs(date),
+    settings.aislesEnabled ? getAisleLogs(date) : Promise.resolve({}),
   ]);
 
   const title = `${formatDayLong(date)} · ${settings.shiftStart}–${settings.shiftEnd}`;
@@ -69,6 +69,7 @@ export default async function Page({ params }: { params: Promise<{ date?: string
       </header>
 
       <DayView
+        aislesEnabled={settings.aislesEnabled}
         key={date}
         isToday={isToday}
         date={date}

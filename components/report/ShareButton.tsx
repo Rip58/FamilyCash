@@ -252,7 +252,7 @@ export function ShareButton({
               </Link>
             )}
           </div>
-          {withModules && (
+          {withModules && total > 0 && (
             <div>
               <button
                 type="button"
